@@ -1,0 +1,1108 @@
+{% extends "base.html" %}
+{% block title %}Outlier Items | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+  <style>
+    :root {
+      --bg: #ffffff;
+      --line: #dde5f1;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --blue: #2563eb;
+      --red: #e74c3c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .page { padding: 16px; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f6faff;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    select, button, input {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+      font-weight: 600;
+    }
+    .filters {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .select-hidden { display: none; }
+    .multi-select { position: relative; }
+    .ms-trigger {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      background: #ffffff;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ms-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      margin-top: 6px;
+      border: 1px solid #c9d4e7;
+      border-radius: 8px;
+      background: #ffffff;
+      z-index: 40;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    }
+    .ms-actions {
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid #e5eaf5;
+    }
+    .ms-search-wrap {
+      padding: 8px;
+      border-bottom: 1px solid #e5eaf5;
+    }
+    .ms-search {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 13px;
+      outline: none;
+    }
+    .ms-search:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.25);
+    }
+    .ms-action-btn {
+      width: auto;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      border-radius: 999px;
+      font-size: 12px;
+      padding: 4px 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ms-options {
+      max-height: 220px;
+      overflow: auto;
+      padding: 6px 8px 8px;
+    }
+    .ms-opt {
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      align-items: center;
+      column-gap: 8px;
+      padding: 5px 2px;
+      font-size: 13px;
+    }
+    .ms-opt input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      border: 1px solid #9ca3af;
+      accent-color: #2563eb;
+      justify-self: center;
+    }
+    .ms-opt span {
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .ms-empty {
+      padding: 8px 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .label-count {
+      font-weight: 600;
+      color: #1d4ed8;
+      margin-left: 4px;
+    }
+    .warn { color: var(--red); font-weight: 600; }
+    .msg { margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .hidden { display: none !important; }
+    .mass-actions-panel {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f0f4f8;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: none;
+    }
+    .mass-actions-panel.show {
+      display: block;
+    }
+    .mass-actions-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mass-actions-content select {
+      width: 200px;
+    }
+    .mass-actions-content button {
+      width: auto;
+      padding: 8px 20px;
+    }
+    .icon-btn {
+      background: #6366f1;
+      border: 1px solid #4f46e5;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .icon-btn:hover {
+      background: #4f46e5;
+    }
+    .grid-container {
+      margin-top: 20px;
+      overflow-x: auto;
+    }
+    .grid-placeholder {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+      font-size: 30px;
+      font-weight: bold;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 2px dashed #d1d5db;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--blue);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      font-size: 13px;
+    }
+    th {
+      background: #2563eb;
+      color: white;
+      padding: 10px 8px;
+      text-align: left;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover { background: #1d4ed8; }
+    th .sort-icon { margin-left: 4px; font-size: 10px; }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    tr:hover { background: #f8fafc; }
+    td a { color: var(--blue); text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+    .status-normal { color: #0f766e; font-weight: 600; }
+    .status-outlier { color: var(--red); font-weight: 600; }
+    .skip-icon {
+      cursor: pointer;
+      font-size: 28px;
+      font-weight: 900;
+      user-select: none;
+      transition: transform 0.2s;
+      text-shadow: 0 0 1px currentColor;
+    }
+    .skip-icon:hover { transform: scale(1.2); }
+    .skip-icon.active { color: #22c55e; }
+    .skip-icon.inactive { color: #d1d5db; }
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 15px;
+      background: #e8f4f8;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .pagination-left {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .pagination-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pagination button {
+      width: auto;
+      padding: 6px 12px;
+      font-size: 16px;
+      min-width: 40px;
+      font-weight: bold;
+    }
+    .pagination button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .pagination select {
+      width: auto;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .pagination-info {
+      font-size: 13px;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .overlay-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .overlay-loader .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--blue);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+    }
+    .image-tooltip {
+      position: absolute;
+      z-index: 10000;
+      background: white;
+      border: 2px solid #2563eb;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      pointer-events: none;
+      display: none;
+    }
+    .image-tooltip img {
+      max-width: 250px;
+      max-height: 250px;
+      width: auto;
+      height: auto;
+      display: block;
+      object-fit: contain;
+    }
+    .qb-code-cell {
+      position: relative;
+      cursor: pointer;
+    }
+    @media (max-width: 980px) {
+      .row { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: 1fr; }
+    }
+  </style>
+  <div class="page">
+    <h2 style="margin:0 0 10px;">Outlier Items</h2>
+
+    <div class="row">
+      <div>
+        <label>Product Group <span class="warn">*</span></label>
+        <select id="groupSelector">
+          <option value="">Select Product Group</option>
+        </select>
+      </div>
+      <div>
+        <label>Final Status (Optional)<span id="statusCount" class="label-count">(0 selected)</span></label>
+        <select id="statusFilter" class="select-hidden" multiple>
+          <option value="Normal">Normal</option>
+          <option value="Outlier">Outlier</option>
+          <option value="Pending to Analyze">Pending to Analyze</option>
+        </select>
+        <div class="multi-select" id="statusDropdown">
+          <div class="ms-trigger" id="statusTrigger">Select Final Status <span>▾</span></div>
+          <div class="ms-menu hidden" id="statusMenu"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dataInfo" class="msg">Please select a product group to load filters.</div>
+
+    <div class="filters">
+      <div>
+        <label>Brand (Optional)<span id="brandCount" class="label-count">(0 selected)</span></label>
+        <select id="brandFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="brandDropdown">
+          <div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+          <div class="ms-menu hidden" id="brandMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Category <span class="warn">*</span><span id="categoryCount" class="label-count">(0 selected)</span></label>
+        <select id="categoryFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="categoryDropdown">
+          <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+          <div class="ms-menu hidden" id="categoryMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Product Type (Optional)<span id="typeCount" class="label-count">(0 selected)</span></label>
+        <select id="typeFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="typeDropdown">
+          <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
+          <div class="ms-menu hidden" id="typeMenu"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:10px;">
+      <button id="loadBtn" style="max-width:150px;">Load</button>
+      <button id="massActionsBtn" class="icon-btn hidden" style="max-width:180px;">⚙️ Mass Actions</button>
+    </div>
+
+    <div id="massActionsPanel" class="mass-actions-panel">
+      <div class="mass-actions-content">
+        <label style="margin:0;">Mass Action:</label>
+        <select id="massActionSelect">
+          <option value="">Select Action</option>
+          <option value="export">Export</option>
+        </select>
+        <button id="massActionSubmit">Submit</button>
+      </div>
+    </div>
+
+    <div id="saveMessage" class="msg hidden"></div>
+
+    <div id="gridContainer" class="grid-container">
+      <div class="grid-placeholder">No items are loaded yet.</div>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      group: document.getElementById("groupSelector"),
+      status: document.getElementById("statusFilter"),
+      statusCount: document.getElementById("statusCount"),
+      statusTrigger: document.getElementById("statusTrigger"),
+      statusMenu: document.getElementById("statusMenu"),
+      dataInfo: document.getElementById("dataInfo"),
+      brand: document.getElementById("brandFilter"),
+      brandCount: document.getElementById("brandCount"),
+      brandTrigger: document.getElementById("brandTrigger"),
+      brandMenu: document.getElementById("brandMenu"),
+      category: document.getElementById("categoryFilter"),
+      categoryCount: document.getElementById("categoryCount"),
+      categoryTrigger: document.getElementById("categoryTrigger"),
+      categoryMenu: document.getElementById("categoryMenu"),
+      type: document.getElementById("typeFilter"),
+      typeCount: document.getElementById("typeCount"),
+      typeTrigger: document.getElementById("typeTrigger"),
+      typeMenu: document.getElementById("typeMenu"),
+      gridContainer: document.getElementById("gridContainer"),
+    };
+
+    let gridData = [];
+    let totalRecords = 0;
+    let sortColumn = null;
+    let sortDirection = 'asc';
+    let currentPage = 1;
+    let itemsPerPage = 50;
+    let currentIteration = null;
+
+    function selectedValues(selectEl) {
+      return Array.from(selectEl.selectedOptions).map(o => o.value);
+    }
+
+    function setSelectOptions(selectEl, options, selected = []) {
+      const old = new Set(selected);
+      selectEl.innerHTML = "";
+      options.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.value;
+        opt.textContent = item.label;
+        if (old.has(String(item.value))) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+
+      if (selectEl === els.brand) {
+        renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
+      }
+      if (selectEl === els.category) {
+        renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
+      }
+      if (selectEl === els.type) {
+        renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
+      }
+    }
+
+    function closeAllDropdownMenus() {
+      els.statusMenu.classList.add("hidden");
+      els.brandMenu.classList.add("hidden");
+      els.categoryMenu.classList.add("hidden");
+      els.typeMenu.classList.add("hidden");
+    }
+
+    function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
+      const selectedCount = selectedValues(selectEl).length;
+      countEl.textContent = `(${selectedCount} selected)`;
+      triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+    }
+
+    function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder) {
+      const options = Array.from(selectEl.options).filter(opt => opt.value !== "");
+      const selectedSet = new Set(selectedValues(selectEl));
+
+      if (!options.length) {
+        menuEl.innerHTML = `<div class="ms-empty">No options available</div>`;
+        updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+        return;
+      }
+
+      menuEl.innerHTML = "";
+      const actions = document.createElement("div");
+      actions.className = "ms-actions";
+
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "ms-search-wrap";
+      const searchInput = document.createElement("input");
+      searchInput.type = "text";
+      searchInput.className = "ms-search";
+      searchInput.placeholder = `Search ${placeholder.replace("Select ", "")}`;
+      searchWrap.appendChild(searchInput);
+      menuEl.appendChild(searchWrap);
+
+      const selectAllBtn = document.createElement("button");
+      selectAllBtn.type = "button";
+      selectAllBtn.className = "ms-action-btn";
+      selectAllBtn.textContent = "Select all";
+
+      const unselectAllBtn = document.createElement("button");
+      unselectAllBtn.type = "button";
+      unselectAllBtn.className = "ms-action-btn";
+      unselectAllBtn.textContent = "Unselect all";
+
+      actions.appendChild(selectAllBtn);
+      actions.appendChild(unselectAllBtn);
+
+      const optionsWrap = document.createElement("div");
+      optionsWrap.className = "ms-options";
+
+      options.forEach(opt => {
+        const row = document.createElement("label");
+        row.className = "ms-opt";
+        row.dataset.filterText = String(opt.textContent || "").toLowerCase();
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = String(opt.value);
+        cb.checked = selectedSet.has(String(opt.value));
+
+        const text = document.createElement("span");
+        text.textContent = opt.textContent;
+
+        row.appendChild(cb);
+        row.appendChild(text);
+        optionsWrap.appendChild(row);
+
+        cb.addEventListener("change", () => {
+          syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+        });
+      });
+
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.trim().toLowerCase();
+        Array.from(optionsWrap.querySelectorAll(".ms-opt")).forEach(row => {
+          const text = row.dataset.filterText || "";
+          row.style.display = !q || text.includes(q) ? "" : "none";
+        });
+      });
+
+      menuEl.appendChild(actions);
+      menuEl.appendChild(optionsWrap);
+
+      selectAllBtn.addEventListener("click", () => {
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = true; });
+        syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+      });
+
+      unselectAllBtn.addEventListener("click", () => {
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+        syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+      });
+
+      updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+    }
+
+    function syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder) {
+      const selected = new Set(
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+      );
+      Array.from(selectEl.options).forEach(opt => {
+        opt.selected = selected.has(String(opt.value));
+      });
+      updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+      selectEl.dispatchEvent(new Event("change"));
+    }
+
+    async function loadProductGroups() {
+      showLoader();
+      const res = await fetch("/grid/api/product-groups");
+      const data = await res.json();
+      hideLoader();
+      els.group.innerHTML = '<option value="">Select Product Group</option>';
+      data.groups.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g.value;
+        opt.textContent = g.label;
+        els.group.appendChild(opt);
+      });
+    }
+
+    function showLoader() {
+      if (!document.getElementById('overlayLoader')) {
+        const loader = document.createElement('div');
+        loader.id = 'overlayLoader';
+        loader.className = 'overlay-loader';
+        loader.innerHTML = '<div class="spinner"></div>';
+        document.body.appendChild(loader);
+      }
+    }
+
+    function hideLoader() {
+      const loader = document.getElementById('overlayLoader');
+      if (loader) loader.remove();
+    }
+
+    async function loadOptions() {
+      if (!els.group.value) {
+        els.dataInfo.textContent = "Please select a product group to load filters.";
+        setSelectOptions(els.brand, []);
+        setSelectOptions(els.category, []);
+        setSelectOptions(els.type, []);
+        els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+        document.getElementById("massActionsBtn").classList.add("hidden");
+        return;
+      }
+      
+      showLoader();
+      const payload = {
+        group_id: parseInt(els.group.value),
+        brands: selectedValues(els.brand),
+        categories: selectedValues(els.category),
+        final_status: selectedValues(els.status)
+      };
+      const res = await fetch("/grid/api/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      hideLoader();
+      if (!data.ok) {
+        els.dataInfo.textContent = data.message;
+        setSelectOptions(els.brand, []);
+        setSelectOptions(els.category, []);
+        setSelectOptions(els.type, []);
+        els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+        document.getElementById("massActionsBtn").classList.add("hidden");
+        return;
+      }
+      els.dataInfo.textContent = data.message;
+      setSelectOptions(els.brand, data.brand_options, selectedValues(els.brand));
+      setSelectOptions(els.category, data.category_options, selectedValues(els.category));
+      setSelectOptions(els.type, data.type_options, selectedValues(els.type));
+    }
+
+    els.group.addEventListener("change", async () => {
+      // Reset all dependent dropdowns and show placeholder
+      setSelectOptions(els.brand, []);
+      setSelectOptions(els.category, []);
+      setSelectOptions(els.type, []);
+      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+      document.getElementById("massActionsBtn").classList.add("hidden");
+      await loadOptions();
+    });
+    
+    els.status.addEventListener("change", async () => {
+      // Reset dependent dropdowns and show placeholder
+      const currentBrands = selectedValues(els.brand);
+      const currentCategories = selectedValues(els.category);
+      const currentTypes = selectedValues(els.type);
+      
+      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+      document.getElementById("massActionsBtn").classList.add("hidden");
+      
+      await loadOptions();
+      
+      // Clear selections after reload
+      setSelectOptions(els.brand, Array.from(els.brand.options).map(o => ({value: o.value, label: o.textContent})), []);
+      setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
+      setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
+    });
+    
+    els.brand.addEventListener("change", async () => {
+      // Reset category and type, show placeholder
+      const currentCategories = selectedValues(els.category);
+      const currentTypes = selectedValues(els.type);
+      
+      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+      document.getElementById("massActionsBtn").classList.add("hidden");
+      
+      await loadOptions();
+      
+      // Clear category and type selections
+      setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
+      setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
+    });
+    
+    els.category.addEventListener("change", async () => {
+      // Reset type, show placeholder
+      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+      document.getElementById("massActionsBtn").classList.add("hidden");
+      
+      await loadOptions();
+      
+      // Clear type selection
+      setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
+    });
+    
+    els.type.addEventListener("change", async () => {
+      // Show placeholder when type changes
+      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
+      document.getElementById("massActionsBtn").classList.add("hidden");
+    });
+    document.getElementById("loadBtn").addEventListener("click", async () => {
+      if (!els.group.value) {
+        els.dataInfo.textContent = "Please select a product group.";
+        return;
+      }
+      if (selectedValues(els.category).length === 0) {
+        els.dataInfo.textContent = "Please select at least one category.";
+        return;
+      }
+      currentPage = 1;
+      await loadGridData();
+    });
+
+    document.getElementById("massActionsBtn").addEventListener("click", () => {
+      const panel = document.getElementById("massActionsPanel");
+      panel.classList.toggle("show");
+    });
+
+    document.getElementById("massActionSubmit").addEventListener("click", async () => {
+      const action = document.getElementById("massActionSelect").value;
+      if (!action) {
+        alert("Please select an action");
+        return;
+      }
+      if (action === "export") {
+        await exportGridData();
+      }
+    });
+
+    async function exportGridData() {
+      if (!els.group.value) {
+        alert("Please load grid data first");
+        return;
+      }
+      if (selectedValues(els.category).length === 0) {
+        alert("Please select at least one category");
+        return;
+      }
+      
+      showLoader();
+      const payload = {
+        group_id: parseInt(els.group.value),
+        brands: selectedValues(els.brand),
+        categories: selectedValues(els.category),
+        types: selectedValues(els.type),
+        final_status: selectedValues(els.status)
+      };
+      
+      if (currentIteration !== null) {
+        payload.iteration = currentIteration;
+      }
+      
+      const res = await fetch("/grid/api/export-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `grid_export_${new Date().getTime()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Export failed");
+      }
+      hideLoader();
+    }
+
+    async function loadGridData() {
+      showLoader();
+      const payload = {
+        group_id: parseInt(els.group.value),
+        brands: selectedValues(els.brand),
+        categories: selectedValues(els.category),
+        types: selectedValues(els.type),
+        final_status: selectedValues(els.status),
+        page: currentPage,
+        per_page: itemsPerPage,
+        sort_column: sortColumn,
+        sort_direction: sortDirection
+      };
+      
+      if (currentIteration !== null) {
+        payload.iteration = currentIteration;
+      }
+      
+      const res = await fetch("/grid/api/grid-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      hideLoader();
+      if (!data.ok) {
+        els.dataInfo.textContent = data.message;
+        els.gridContainer.classList.add("hidden");
+        return;
+      }
+      gridData = data.data;
+      totalRecords = data.total;
+      renderGrid();
+    }
+
+    function sortGrid(column) {
+      if (sortColumn === column) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortColumn = column;
+        sortDirection = 'asc';
+      }
+      currentPage = 1;
+      loadGridData();
+    }
+
+    async function toggleSkipStatus(productId, currentStatus) {
+      showLoader();
+      const newStatus = currentStatus === 1 ? 0 : 1;
+      const res = await fetch('/grid/api/update-skip-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, skip_status: newStatus })
+      });
+      const data = await res.json();
+      hideLoader();
+      if (data.ok) {
+        await loadGridData();
+      }
+    }
+
+    function renderGrid() {
+      if (!gridData || gridData.length === 0) {
+        els.gridContainer.innerHTML = '<p class="msg">No products found.</p>';
+        document.getElementById("massActionsBtn").classList.add("hidden");
+        return;
+      }
+      
+      // Show mass actions button when grid has data
+      document.getElementById("massActionsBtn").classList.remove("hidden");
+
+      const totalPages = Math.ceil(totalRecords / itemsPerPage);
+      const startIdx = (currentPage - 1) * itemsPerPage + 1;
+      const endIdx = Math.min(startIdx + gridData.length - 1, totalRecords);
+
+      const columns = [
+        { key: 'product_id', label: 'Produc Id' },
+        { key: 'qb_code', label: 'QB Code' },
+        { key: 'brand', label: 'Brand' },
+        { key: 'category', label: 'Category' },
+        { key: 'product_type', label: 'Type' },
+        { key: 'name', label: 'Name' },
+        { key: 'height', label: 'Height' },
+        { key: 'width', label: 'Width' },
+        { key: 'depth', label: 'Depth' },
+        { key: 'iqr_height_status', label: 'IQR Height' },
+        { key: 'iqr_width_status', label: 'IQR Width' },
+        { key: 'iqr_depth_status', label: 'IQR Depth' },
+        { key: 'iqr_status', label: 'IQR Status' },
+        { key: 'dbs_status', label: 'DBSCAN Status' },
+        { key: 'final_status', label: 'Final Status' },
+        { key: 'iteration_closed', label: 'Iteration' },
+        { key: 'skip_status', label: 'Skip' }
+      ];
+
+      let html = '<div class="pagination">';
+      html += `<div class="pagination-left">📊 Showing ${startIdx}-${endIdx} of ${totalRecords} products</div>`;
+      html += '<div class="pagination-right">';
+      html += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+      html += `<span class="pagination-info">Page ${currentPage} of ${totalPages}</span>`;
+      html += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+      html += `<select onchange="changeItemsPerPage(this.value)">`;
+      [25, 50, 100, 200].forEach(size => {
+        html += `<option value="${size}" ${itemsPerPage === size ? 'selected' : ''}>${size} per page</option>`;
+      });
+      html += '</select></div></div>';
+      html += '<table><thead><tr>';
+      columns.forEach(col => {
+        const sortIcon = sortColumn === col.key ? (sortDirection === 'asc' ? '▲' : '▼') : '⇅';
+        html += `<th onclick="sortGrid('${col.key}')">${col.label} <span class="sort-icon">${sortIcon}</span></th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      gridData.forEach((row, idx) => {
+        html += '<tr>';
+        columns.forEach(col => {
+          let value = row[col.key] || '';
+          let cellClass = '';
+          
+          if (col.key === 'skip_status') {
+            const isActive = (row.skip_status === 1 || row.skip_status === '1');
+            const iconClass = isActive ? 'active' : 'inactive';
+            value = `<span class="skip-icon ${iconClass}" onclick="toggleSkipStatus(${row.product_id}, ${isActive ? 1 : 0})" title="${isActive ? 'Click to unignore' : 'Click to ignore'}">✓</span>`;
+          } else if (col.key === 'qb_code' && row.product_url) {
+            const imageUrl = row.base_image_url || '';
+            const escapedUrl = imageUrl.replace(/'/g, "&apos;");
+            value = `<span class="qb-code-cell" onmouseenter="showImageTooltip(event, '${escapedUrl}')" onmouseleave="hideImageTooltip()"><a href="${row.product_url}" target="_blank">${value}</a></span>`;
+          } else if (col.key === 'height' || col.key === 'width' || col.key === 'depth') {
+            value = typeof value === 'number' ? value.toFixed(2) : value;
+          } else if (col.key === 'iqr_status' || col.key === 'dbs_status' || col.key === 'final_status') {
+            cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';
+          }
+          
+          html += `<td class="${cellClass}" style="text-align:${col.key === 'skip' ? 'center' : 'left'}">${value}</td>`;
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      els.gridContainer.innerHTML = html;
+      els.gridContainer.classList.remove("hidden");
+    }
+
+    function changePage(page) {
+      const totalPages = Math.ceil(totalRecords / itemsPerPage);
+      if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        loadGridData();
+      }
+    }
+
+    function changeItemsPerPage(newSize) {
+      itemsPerPage = parseInt(newSize);
+      currentPage = 1;
+      loadGridData();
+    }
+
+    els.statusTrigger.addEventListener("click", () => {
+      const willOpen = els.statusMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.statusMenu.classList.remove("hidden");
+        const input = els.statusMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
+    els.brandTrigger.addEventListener("click", () => {
+      const willOpen = els.brandMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.brandMenu.classList.remove("hidden");
+        const input = els.brandMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
+    els.categoryTrigger.addEventListener("click", () => {
+      const willOpen = els.categoryMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.categoryMenu.classList.remove("hidden");
+        const input = els.categoryMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
+    els.typeTrigger.addEventListener("click", () => {
+      const willOpen = els.typeMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.typeMenu.classList.remove("hidden");
+        const input = els.typeMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      const inStatus = e.target.closest("#statusDropdown");
+      const inBrand = e.target.closest("#brandDropdown");
+      const inCategory = e.target.closest("#categoryDropdown");
+      const inType = e.target.closest("#typeDropdown");
+      if (!inStatus && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+    });
+
+    (async function init() {
+      renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
+      await loadProductGroups();
+      
+      // Check for URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const groupId = urlParams.get('group_id');
+      const category = urlParams.get('category');
+      const brands = urlParams.getAll('brands');
+      const types = urlParams.getAll('types');
+      const finalStatus = urlParams.get('final_status');
+      const iteration = urlParams.get('iteration');
+      
+      // Store iteration if provided
+      if (iteration !== null) {
+        currentIteration = parseInt(iteration);
+      }
+      
+      if (groupId) {
+        // Set product group
+        els.group.value = groupId;
+        await loadOptions();
+        
+        // Set final status if provided
+        if (finalStatus !== null) {
+          const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
+          const statusValue = statusMap[finalStatus];
+          if (statusValue) {
+            Array.from(els.status.options).forEach(opt => {
+              opt.selected = opt.value === statusValue;
+            });
+            renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
+          }
+        }
+        
+        // Set brands if provided
+        if (brands.length > 0) {
+          Array.from(els.brand.options).forEach(opt => {
+            opt.selected = brands.includes(opt.value);
+          });
+          renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
+          await loadOptions();
+        }
+        
+        // Set category if provided
+        if (category) {
+          Array.from(els.category.options).forEach(opt => {
+            opt.selected = opt.value === category;
+          });
+          renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
+          await loadOptions();
+        }
+        
+        // Set types if provided
+        if (types.length > 0) {
+          Array.from(els.type.options).forEach(opt => {
+            opt.selected = types.includes(opt.value);
+          });
+          renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
+        }
+        
+        // Auto-load grid if category is selected
+        if (category && selectedValues(els.category).length > 0) {
+          currentPage = 1;
+          await loadGridData();
+        }
+      }
+    })();
+
+    window.sortGrid = sortGrid;
+    window.toggleSkipStatus = toggleSkipStatus;
+    window.changePage = changePage;
+    window.changeItemsPerPage = changeItemsPerPage;
+    
+    // Image tooltip functions
+    let imageTooltip = null;
+    
+    window.showImageTooltip = function(event, imageUrl) {
+      if (!imageUrl || imageUrl === '') return;
+      
+      if (!imageTooltip) {
+        imageTooltip = document.createElement('div');
+        imageTooltip.className = 'image-tooltip';
+        document.body.appendChild(imageTooltip);
+      }
+      
+      imageTooltip.innerHTML = `<img src="${imageUrl}" alt="Product Image" onerror="this.parentElement.style.display='none'">`;
+      imageTooltip.style.display = 'block';
+      
+      const rect = event.target.getBoundingClientRect();
+      const tooltipWidth = 270;
+      const tooltipHeight = 270;
+      
+      let left = rect.right + 10;
+      let top = rect.top;
+      
+      if (left + tooltipWidth > window.innerWidth) {
+        left = rect.left - tooltipWidth - 10;
+      }
+      if (top + tooltipHeight > window.innerHeight) {
+        top = window.innerHeight - tooltipHeight - 10;
+      }
+      if (top < 0) top = 10;
+      
+      imageTooltip.style.left = (left + window.scrollX) + 'px';
+      imageTooltip.style.top = (top + window.scrollY) + 'px';
+    };
+    
+    window.hideImageTooltip = function() {
+      if (imageTooltip) {
+        imageTooltip.style.display = 'none';
+      }
+    };
+  </script>
+{% endblock %}
