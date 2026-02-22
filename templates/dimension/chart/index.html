@@ -1,0 +1,908 @@
+﻿{% extends "base.html" %}
+{% block title %}Chart | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --line: #dde5f1;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --blue: #2563eb;
+      --red: #e74c3c;
+      --ok: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .page { padding: 16px; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f6faff;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    select, button, input {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+      font-weight: 600;
+    }
+    .filters {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fafcff;
+    }
+    .panel h3 { margin: 0 0 10px; font-size: 16px; }
+    .multi { height: 110px; }
+    .select-hidden { display: none; }
+    .multi-select {
+      position: relative;
+    }
+    .ms-trigger {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      background: #ffffff;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ms-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      margin-top: 6px;
+      border: 1px solid #c9d4e7;
+      border-radius: 8px;
+      background: #ffffff;
+      z-index: 40;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    }
+    .ms-actions {
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid #e5eaf5;
+    }
+    .ms-search-wrap {
+      padding: 8px;
+      border-bottom: 1px solid #e5eaf5;
+    }
+    .ms-search {
+      width: 100%;
+      border: 1px solid #c9d4e7;
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 13px;
+      outline: none;
+    }
+    .ms-search:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.25);
+    }
+    .ms-action-btn {
+      width: auto;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      border-radius: 999px;
+      font-size: 12px;
+      padding: 4px 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ms-options {
+      max-height: 220px;
+      overflow: auto;
+      padding: 6px 8px 8px;
+    }
+    .ms-opt {
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      align-items: center;
+      column-gap: 8px;
+      padding: 5px 2px;
+      font-size: 13px;
+    }
+    .ms-opt input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      border: 1px solid #9ca3af;
+      accent-color: #2563eb;
+      justify-self: center;
+    }
+    .ms-opt span {
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .cat-opt {
+      padding: 7px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .cat-opt:hover {
+      background: #eff6ff;
+    }
+    .cat-opt.active {
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    .ms-empty {
+      padding: 8px 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .label-count {
+      font-weight: 600;
+      color: #1d4ed8;
+      margin-left: 4px;
+    }
+    #analysisPrompt {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      text-align: center;
+    }
+    #analysisPrompt h3 {
+      color: #b91c1c;
+      text-align: center;
+    }
+    #analysisPromptBody {
+      color: #7f1d1d;
+      text-align: center;
+      line-height: 1.7;
+    }
+    .iqr-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .stats {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-size: 14px;
+    }
+    .stats a { color: var(--blue); text-decoration: underline; }
+    .content {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    #chart {
+      width: 100%;
+      height: clamp(520px, 72vh, 920px);
+      min-height: 520px;
+      border: 2px solid #3498db;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    #preview {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #f8fafc;
+      min-height: 520px;
+      overflow: auto;
+    }
+    .warn { color: var(--red); font-weight: 600; }
+    .muted { color: var(--muted); }
+    .msg { margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .hidden { display: none; }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      margin-left: 6px;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    img.preview {
+      width: 100%;
+      border-radius: 8px;
+      border: 2px solid #d8e1f2;
+      margin: 8px 0 10px;
+    }
+    @media (max-width: 980px) {
+      .row { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: 1fr; }
+      .iqr-grid { grid-template-columns: 1fr; }
+      .content { grid-template-columns: 1fr; }
+      #chart { height: 560px; min-height: 560px; }
+      #preview { min-height: 320px; }
+    }
+  </style>
+  <div class="page">
+    <h2 style="margin:0 0 10px;">3D Multi-Algorithm Product Dimension Analyzer</h2>
+
+    <div class="row">
+      <div>
+        <label>Select Data File</label>
+        <select id="fileSelector"></select>
+      </div>
+      <div>
+        <label>Detection Algorithm(s) <span class="warn">*</span><span id="algoCount" class="label-count">(1 selected)</span></label>
+        <select id="algoSelector" class="multi select-hidden" multiple>
+          <option value="IQR" selected>IQR (Threshold)</option>
+          <option value="DBSCAN">DBSCAN (Density/Pattern)</option>
+        </select>
+        <div class="multi-select" id="algoDropdown">
+          <div class="ms-trigger" id="algoTrigger">1 selected <span>▾</span></div>
+          <div class="ms-menu hidden" id="algoMenu"></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button id="refreshFilesBtn">Refresh Files</button>
+      </div>
+    </div>
+
+    <div id="dataInfo" class="msg">Loading files...</div>
+
+    <div class="filters">
+      <div>
+        <label>Brand (Optional)<span id="brandCount" class="label-count">(0 selected)</span></label>
+        <select id="brandFilter" class="multi select-hidden" multiple></select>
+        <div class="multi-select" id="brandDropdown">
+          <div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+          <div class="ms-menu hidden" id="brandMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Category <span class="warn">*</span></label>
+        <select id="categoryFilter" class="select-hidden"></select>
+        <div class="multi-select" id="categoryDropdown">
+          <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+          <div class="ms-menu hidden" id="categoryMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Product Type (Optional)<span id="typeCount" class="label-count">(0 selected)</span></label>
+        <select id="typeFilter" class="multi select-hidden" multiple></select>
+        <div class="multi-select" id="typeDropdown">
+          <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
+          <div class="ms-menu hidden" id="typeMenu"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="iqrPanel" class="panel">
+      <h3>IQR Algorithm Configuration</h3>
+      <div class="iqr-grid">
+        <div>
+          <label>Height (H) Multiplier: <span id="hVal" class="pill">1.5</span></label>
+          <input id="hMult" type="range" min="0" max="10" step="0.5" value="1.5" />
+        </div>
+        <div>
+          <label>Width (W) Multiplier: <span id="wVal" class="pill">1.5</span></label>
+          <input id="wMult" type="range" min="0" max="10" step="0.5" value="1.5" />
+        </div>
+        <div>
+          <label>Depth (D) Multiplier: <span id="dVal" class="pill">1.5</span></label>
+          <input id="dMult" type="range" min="0" max="10" step="0.5" value="1.5" />
+        </div>
+      </div>
+      <div style="margin-top:10px;max-width:280px;">
+        <label>Show Top Outliers</label>
+        <select id="topOutliersFilter">
+          <option value="all">All Outliers</option>
+          <option value="5">Top 5 Outliers</option>
+          <option value="10">Top 10 Outliers</option>
+          <option value="20">Top 20 Outliers</option>
+          <option value="30">Top 30 Outliers</option>
+          <option value="50">Top 50 Outliers</option>
+          <option value="100">Top 50+ Outliers</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <button id="runAnalysisBtn" style="max-width:190px;">Run Analysis</button>
+    </div>
+
+    <div id="analysisPrompt" class="panel">
+      <h3 style="margin-top:0;">⚠️ Please Select Required Filters</h3>
+      <div id="analysisPromptBody"></div>
+    </div>
+
+    <div class="stats hidden" id="statsBar">
+      <span>Showing: 0 products</span>
+      <span>Normal: 0</span>
+      <span>Outliers: 0 (0.0%)</span>
+      <span><a id="downloadAll" href="#">Download All</a></span>
+      <span><a id="downloadNormal" href="#">Download Normal</a></span>
+      <span><a id="downloadOutliers" href="#">Download Outliers</a></span>
+    </div>
+
+    <div class="content hidden" id="analysisContent">
+      <div id="chart"></div>
+      <div id="preview">
+        <h3 style="margin-top:0;">Product Preview</h3>
+        <p class="muted">Click any point in the 3D chart to view product details.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      file: document.getElementById("fileSelector"),
+      algo: document.getElementById("algoSelector"),
+      algoCount: document.getElementById("algoCount"),
+      algoTrigger: document.getElementById("algoTrigger"),
+      algoMenu: document.getElementById("algoMenu"),
+      refresh: document.getElementById("refreshFilesBtn"),
+      dataInfo: document.getElementById("dataInfo"),
+      brand: document.getElementById("brandFilter"),
+      brandCount: document.getElementById("brandCount"),
+      brandTrigger: document.getElementById("brandTrigger"),
+      brandMenu: document.getElementById("brandMenu"),
+      category: document.getElementById("categoryFilter"),
+      categoryTrigger: document.getElementById("categoryTrigger"),
+      categoryMenu: document.getElementById("categoryMenu"),
+      type: document.getElementById("typeFilter"),
+      typeCount: document.getElementById("typeCount"),
+      typeTrigger: document.getElementById("typeTrigger"),
+      typeMenu: document.getElementById("typeMenu"),
+      iqrPanel: document.getElementById("iqrPanel"),
+      h: document.getElementById("hMult"),
+      w: document.getElementById("wMult"),
+      d: document.getElementById("dMult"),
+      hVal: document.getElementById("hVal"),
+      wVal: document.getElementById("wVal"),
+      dVal: document.getElementById("dVal"),
+      top: document.getElementById("topOutliersFilter"),
+      run: document.getElementById("runAnalysisBtn"),
+      stats: document.getElementById("statsBar"),
+      chart: document.getElementById("chart"),
+      preview: document.getElementById("preview"),
+      prompt: document.getElementById("analysisPrompt"),
+      promptBody: document.getElementById("analysisPromptBody"),
+      content: document.getElementById("analysisContent"),
+      dlAll: document.getElementById("downloadAll"),
+      dlNormal: document.getElementById("downloadNormal"),
+      dlOutliers: document.getElementById("downloadOutliers"),
+    };
+
+    let sessionToken = null;
+    let plotlyBound = false;
+
+    function selectedValues(selectEl) {
+      return Array.from(selectEl.selectedOptions).map(o => o.value);
+    }
+
+    function setSelectOptions(selectEl, options, selected = [], allowEmpty = false) {
+      const old = new Set(selected);
+      selectEl.innerHTML = "";
+      if (allowEmpty) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "Select";
+        selectEl.appendChild(opt);
+      }
+      options.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.value;
+        opt.textContent = item.label;
+        if (item.disabled) opt.disabled = true;
+        if (old.has(String(item.value))) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+
+      if (selectEl === els.brand) {
+        renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
+      }
+      if (selectEl === els.type) {
+        renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
+      }
+      if (selectEl === els.category) {
+        renderCategoryDropdown();
+      }
+    }
+
+    function renderCategoryDropdown() {
+      const options = Array.from(els.category.options);
+      const selectedValue = els.category.value || "";
+
+      els.categoryMenu.innerHTML = "";
+
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "ms-search-wrap";
+      const searchInput = document.createElement("input");
+      searchInput.type = "text";
+      searchInput.className = "ms-search";
+      searchInput.placeholder = "Search Category";
+      searchWrap.appendChild(searchInput);
+
+      const optionsWrap = document.createElement("div");
+      optionsWrap.className = "ms-options";
+
+      options.forEach(opt => {
+        const row = document.createElement("div");
+        row.className = "cat-opt";
+        row.dataset.value = String(opt.value || "");
+        row.dataset.filterText = String(opt.textContent || "").toLowerCase();
+        row.textContent = opt.textContent;
+        if (String(opt.value || "") === String(selectedValue)) row.classList.add("active");
+        row.addEventListener("click", () => {
+          els.category.value = String(opt.value || "");
+          updateCategoryTrigger();
+          closeAllDropdownMenus();
+          els.category.dispatchEvent(new Event("change"));
+        });
+        optionsWrap.appendChild(row);
+      });
+
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.trim().toLowerCase();
+        Array.from(optionsWrap.querySelectorAll(".cat-opt")).forEach(row => {
+          const txt = row.dataset.filterText || "";
+          row.style.display = !q || txt.includes(q) ? "" : "none";
+        });
+      });
+
+      els.categoryMenu.appendChild(searchWrap);
+      els.categoryMenu.appendChild(optionsWrap);
+      updateCategoryTrigger();
+    }
+
+    function updateCategoryTrigger() {
+      const selectedOpt = els.category.options[els.category.selectedIndex];
+      const label = selectedOpt && selectedOpt.value !== "" ? selectedOpt.textContent : "Select Category";
+      els.categoryTrigger.innerHTML = `${label} <span>▾</span>`;
+    }
+
+    function closeAllDropdownMenus() {
+      els.algoMenu.classList.add("hidden");
+      els.brandMenu.classList.add("hidden");
+      els.categoryMenu.classList.add("hidden");
+      els.typeMenu.classList.add("hidden");
+    }
+
+    function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
+      const selectedCount = selectedValues(selectEl).length;
+      countEl.textContent = `(${selectedCount} selected)`;
+      triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+    }
+
+    function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder, enableSearch = true) {
+      const options = Array.from(selectEl.options).filter(opt => opt.value !== "");
+      const selectedSet = new Set(selectedValues(selectEl));
+
+      if (!options.length) {
+        menuEl.innerHTML = `<div class="ms-empty">No options available</div>`;
+        updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+        return;
+      }
+
+      menuEl.innerHTML = "";
+      const actions = document.createElement("div");
+      actions.className = "ms-actions";
+
+      let searchInput = null;
+      if (enableSearch) {
+        const searchWrap = document.createElement("div");
+        searchWrap.className = "ms-search-wrap";
+        searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className = "ms-search";
+        searchInput.placeholder = `Search ${placeholder.replace("Select ", "")}`;
+        searchWrap.appendChild(searchInput);
+        menuEl.appendChild(searchWrap);
+      }
+
+      const selectAllBtn = document.createElement("button");
+      selectAllBtn.type = "button";
+      selectAllBtn.className = "ms-action-btn";
+      selectAllBtn.textContent = "Select all";
+      selectAllBtn.dataset.action = "all";
+
+      const unselectAllBtn = document.createElement("button");
+      unselectAllBtn.type = "button";
+      unselectAllBtn.className = "ms-action-btn";
+      unselectAllBtn.textContent = "Unselect all";
+      unselectAllBtn.dataset.action = "none";
+
+      actions.appendChild(selectAllBtn);
+      actions.appendChild(unselectAllBtn);
+
+      const optionsWrap = document.createElement("div");
+      optionsWrap.className = "ms-options";
+
+      options.forEach(opt => {
+        const row = document.createElement("label");
+        row.className = "ms-opt";
+        row.dataset.filterText = String(opt.textContent || "").toLowerCase();
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = String(opt.value);
+        cb.checked = selectedSet.has(String(opt.value));
+        cb.disabled = !!opt.disabled;
+
+        const text = document.createElement("span");
+        text.textContent = opt.textContent;
+
+        row.appendChild(cb);
+        row.appendChild(text);
+        optionsWrap.appendChild(row);
+
+        cb.addEventListener("change", () => {
+          syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+        });
+      });
+
+      if (searchInput) {
+        searchInput.addEventListener("input", () => {
+          const q = searchInput.value.trim().toLowerCase();
+          Array.from(optionsWrap.querySelectorAll(".ms-opt")).forEach(row => {
+            const text = row.dataset.filterText || "";
+            row.style.display = !q || text.includes(q) ? "" : "none";
+          });
+        });
+      }
+      menuEl.appendChild(actions);
+      menuEl.appendChild(optionsWrap);
+
+      selectAllBtn.addEventListener("click", () => {
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]:not(:disabled)')).forEach(cb => { cb.checked = true; });
+        syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+      });
+
+      unselectAllBtn.addEventListener("click", () => {
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+        syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+      });
+
+      updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+    }
+
+    function syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder) {
+      const selected = new Set(
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+      );
+      Array.from(selectEl.options).forEach(opt => {
+        opt.selected = selected.has(String(opt.value));
+      });
+      updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+      selectEl.dispatchEvent(new Event("change"));
+    }
+
+    function syncIqrPanel() {
+      const algos = selectedValues(els.algo);
+      els.iqrPanel.classList.toggle("hidden", !algos.includes("IQR"));
+    }
+
+    function resetMultipliers() {
+      els.h.value = "1.5";
+      els.w.value = "1.5";
+      els.d.value = "1.5";
+      els.hVal.textContent = "1.5";
+      els.wVal.textContent = "1.5";
+      els.dVal.textContent = "1.5";
+    }
+
+    function getFilterStatus() {
+      return {
+        hasFile: !!els.file.value,
+        hasAlgo: selectedValues(els.algo).length > 0,
+        hasCategory: !!els.category.value
+      };
+    }
+
+    function renderFilterPrompt() {
+      const s = getFilterStatus();
+      els.promptBody.innerHTML = `
+        <div>To view the 3D visualization, please select:</div>
+        <div style="margin-top:8px;">Product Group: ✅</div>
+        <div>Algorithm(s): ✅</div>
+        <div>Brand (Optional) ℹ️</div>
+        <div>One Category (Required) ${s.hasCategory ? "✅" : "❌"}</div>
+        <div>Product Type is optional</div>
+      `;
+    }
+
+    function showAwaitingFilters() {
+      els.content.classList.add("hidden");
+      els.stats.classList.add("hidden");
+      els.prompt.classList.remove("hidden");
+      renderFilterPrompt();
+    }
+
+    function showAnalysisResults() {
+      els.prompt.classList.add("hidden");
+      els.stats.classList.remove("hidden");
+      els.content.classList.remove("hidden");
+    }
+
+    function resizeChartAfterShow() {
+      if (typeof Plotly !== "undefined" && Plotly.Plots && typeof Plotly.Plots.resize === "function") {
+        requestAnimationFrame(() => {
+          Plotly.Plots.resize(els.chart);
+          setTimeout(() => Plotly.Plots.resize(els.chart), 120);
+        });
+      }
+    }
+
+    function markAnalysisStale() {
+      sessionToken = null;
+      bindDownloads();
+      Plotly.purge(els.chart);
+      plotlyBound = false;
+      renderPreviewEmpty();
+      showAwaitingFilters();
+    }
+
+    async function loadFiles() {
+      const res = await fetch("/chart/api/files");
+      const data = await res.json();
+      const options = data.files.map(f => ({ label: f, value: f }));
+      setSelectOptions(els.file, options, data.default_file ? [data.default_file] : []);
+      await loadOptions();
+    }
+
+    async function loadOptions() {
+      const payload = {
+        filename: els.file.value,
+        brands: selectedValues(els.brand),
+        category: els.category.value || null
+      };
+      const res = await fetch("/chart/api/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        els.dataInfo.textContent = data.message;
+        setSelectOptions(els.brand, []);
+        setSelectOptions(els.category, [], [], true);
+        setSelectOptions(els.type, []);
+        renderFilterPrompt();
+        return;
+      }
+      els.dataInfo.textContent = data.message;
+      setSelectOptions(els.brand, data.brand_options, selectedValues(els.brand));
+      setSelectOptions(els.category, data.category_options, els.category.value ? [els.category.value] : [], true);
+      setSelectOptions(els.type, data.type_options, selectedValues(els.type));
+      renderFilterPrompt();
+    }
+
+    function bindDownloads() {
+      if (!sessionToken) {
+        els.dlAll.href = "#";
+        els.dlNormal.href = "#";
+        els.dlOutliers.href = "#";
+        return;
+      }
+      els.dlAll.href = `/chart/download/all?token=${sessionToken}`;
+      els.dlNormal.href = `/chart/download/normal?token=${sessionToken}`;
+      els.dlOutliers.href = `/chart/download/outliers?token=${sessionToken}`;
+    }
+
+    function renderStats(stats) {
+      els.stats.innerHTML = `
+        <span>Showing: <strong>${stats.total}</strong> products</span>
+        <span>Normal: <strong style="color:#2563eb">${stats.normal_count}</strong></span>
+        <span>Outliers: <strong style="color:#e74c3c">${stats.outlier_count} (${stats.outlier_pct}%)</strong></span>
+        <span><a id="downloadAll" href="${els.dlAll.href}">Download All</a></span>
+        <span><a id="downloadNormal" href="${els.dlNormal.href}">Download Normal</a></span>
+        <span><a id="downloadOutliers" href="${els.dlOutliers.href}">Download Outliers</a></span>
+      `;
+      els.dlAll = document.getElementById("downloadAll");
+      els.dlNormal = document.getElementById("downloadNormal");
+      els.dlOutliers = document.getElementById("downloadOutliers");
+    }
+
+    function renderPreviewEmpty() {
+      els.preview.innerHTML = `
+        <h3 style="margin-top:0;">Product Preview</h3>
+        <p class="muted">Click any point in the 3D chart to view product details.</p>
+      `;
+    }
+
+    async function renderPreview(sku) {
+      if (!sessionToken || !sku) return;
+      const res = await fetch(`/chart/api/preview?token=${sessionToken}&sku=${encodeURIComponent(sku)}`);
+      const data = await res.json();
+      if (!data.ok) {
+        els.preview.innerHTML = `<p class="warn">${data.message}</p>`;
+        return;
+      }
+      const p = data.product;
+      const iqrHtml = (p.H_IQR != null) ? `
+        <div class="panel">
+          <h3 style="margin-top:0;">IQR Statistics</h3>
+          <div>H_IQR: ${p.H_IQR.toFixed(2)}</div>
+          <div>W_IQR: ${p.W_IQR.toFixed(2)}</div>
+          <div>D_IQR: ${p.D_IQR.toFixed(2)}</div>
+        </div>` : "";
+      const dbscanHtml = (p.dbscan_cluster != null) ? `
+        <div class="panel">
+          <h3 style="margin-top:0;">DBSCAN</h3>
+          <div>Cluster: ${p.dbscan_cluster === -1 ? "Noise/Outlier" : "Cluster " + p.dbscan_cluster}</div>
+        </div>` : "";
+      const outlierRange = (p.is_outlier && p.H_lower_bound != null) ? `
+        <div class="panel" style="border-color:#ef4444;background:#fff5f5;">
+          <h3 class="warn" style="margin-top:0;">Outlier Analysis</h3>
+          <div>Height Range: ${Math.max(0, p.H_lower_bound).toFixed(1)} - ${p.H_upper_bound.toFixed(1)} Inch</div>
+          <div>Width Range: ${Math.max(0, p.W_lower_bound).toFixed(1)} - ${p.W_upper_bound.toFixed(1)} Inch</div>
+          <div>Depth Range: ${Math.max(0, p.D_lower_bound).toFixed(1)} - ${p.D_upper_bound.toFixed(1)} Inch</div>
+        </div>` : "";
+      els.preview.innerHTML = `
+        <h3 style="margin-top:0;${p.is_outlier ? "color:#e74c3c;" : ""}">${p.is_outlier ? "OUTLIER: " : ""}${p.sku}</h3>
+        <div class="muted">${p.brand} - ${p.type}</div>
+        <div class="muted" style="margin:4px 0 8px;">Algorithms: ${(p.algorithms || []).join(", ")}</div>
+        ${p.imageUrl ? `<img class="preview" src="${p.imageUrl}" alt="${p.sku}">` : ""}
+        <div class="panel">
+          <h3 style="margin-top:0;">Dimensions</h3>
+          <div>Height: ${p.H} Inch</div>
+          <div>Width: ${p.W} Inch</div>
+          <div>Depth: ${p.D} Inch</div>
+        </div>
+        ${iqrHtml}
+        ${dbscanHtml}
+        ${outlierRange}
+      `;
+    }
+
+    async function analyze() {
+      const status = getFilterStatus();
+      if (!status.hasFile || !status.hasAlgo || !status.hasCategory) {
+        els.dataInfo.textContent = "Please select required filters before running analysis.";
+        showAwaitingFilters();
+        return;
+      }
+
+      const payload = {
+        filename: els.file.value,
+        brands: selectedValues(els.brand),
+        category: els.category.value || null,
+        types: selectedValues(els.type),
+        algorithms: selectedValues(els.algo),
+        h_mult: Number(els.h.value),
+        w_mult: Number(els.w.value),
+        d_mult: Number(els.d.value),
+        top_outliers_filter: els.top.value === "all" ? "all" : Number(els.top.value)
+      };
+      els.dataInfo.textContent = "Running analysis...";
+      const res = await fetch("/chart/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        els.dataInfo.textContent = data.message;
+        Plotly.purge(els.chart);
+        plotlyBound = false;
+        renderPreviewEmpty();
+        sessionToken = null;
+        bindDownloads();
+        showAwaitingFilters();
+        return;
+      }
+      els.dataInfo.textContent = data.message;
+      sessionToken = data.token;
+      bindDownloads();
+      renderStats(data.stats);
+      setSelectOptions(els.top, data.top_options, [String(payload.top_outliers_filter)]);
+      showAnalysisResults();
+      Plotly.react(els.chart, data.figure.data, data.figure.layout, {
+        displayModeBar: true,
+        displaylogo: false,
+        scrollZoom: true
+      });
+      if (!plotlyBound && typeof els.chart.on === "function") {
+        els.chart.on("plotly_click", async (ev) => {
+          if (!ev || !ev.points || !ev.points.length) return;
+          const sku = ev.points[0].text;
+          await renderPreview(sku);
+        });
+        plotlyBound = true;
+      }
+      renderPreviewEmpty();
+      resizeChartAfterShow();
+    }
+
+    els.refresh.addEventListener("click", async () => { await loadFiles(); markAnalysisStale(); });
+    els.file.addEventListener("change", async () => { await loadOptions(); markAnalysisStale(); });
+    els.brand.addEventListener("change", async () => { resetMultipliers(); await loadOptions(); markAnalysisStale(); });
+    els.category.addEventListener("change", async () => { resetMultipliers(); await loadOptions(); markAnalysisStale(); });
+    els.type.addEventListener("change", () => { resetMultipliers(); markAnalysisStale(); });
+    els.algo.addEventListener("change", () => { syncIqrPanel(); markAnalysisStale(); });
+    els.h.addEventListener("input", () => { els.hVal.textContent = els.h.value; });
+    els.w.addEventListener("input", () => { els.wVal.textContent = els.w.value; });
+    els.d.addEventListener("input", () => { els.dVal.textContent = els.d.value; });
+    els.run.addEventListener("click", analyze);
+    els.algoTrigger.addEventListener("click", () => {
+      const willOpen = els.algoMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) els.algoMenu.classList.remove("hidden");
+    });
+    els.brandTrigger.addEventListener("click", () => {
+      const willOpen = els.brandMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.brandMenu.classList.remove("hidden");
+        const input = els.brandMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+    els.categoryTrigger.addEventListener("click", () => {
+      const willOpen = els.categoryMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.categoryMenu.classList.remove("hidden");
+        const input = els.categoryMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+    els.typeTrigger.addEventListener("click", () => {
+      const willOpen = els.typeMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.typeMenu.classList.remove("hidden");
+        const input = els.typeMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      const inAlgo = e.target.closest("#algoDropdown");
+      const inBrand = e.target.closest("#brandDropdown");
+      const inCategory = e.target.closest("#categoryDropdown");
+      const inType = e.target.closest("#typeDropdown");
+      if (!inAlgo && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+    });
+
+    (async function init() {
+      renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, "Select Algorithm(s)", false);
+      syncIqrPanel();
+      resetMultipliers();
+      await loadFiles();
+      showAwaitingFilters();
+    })();
+  </script>
+{% endblock %}
+
+
+
+

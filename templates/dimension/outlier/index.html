@@ -1,0 +1,699 @@
+{% extends "base.html" %}
+{% block title %}Outlier | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+<style>
+  :root {
+    --line: #d7dfec;
+    --muted: #6b7280;
+    --blue: #1d4ed8;
+    --red: #e74c3c;
+    --ok: #27ae60;
+  }
+  .page-wrap { padding: 16px; }
+  .title { margin: 0 0 12px; }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f6faff;
+  }
+  .filters {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+  }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  select, input, button {
+    width: 100%;
+    border: 1px solid #c9d4e7;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+  }
+  button {
+    cursor: pointer;
+    background: var(--blue);
+    color: #fff;
+    border-color: var(--blue);
+    font-weight: 600;
+  }
+  .analyze-btn { background: var(--ok); border-color: var(--ok); }
+  .msg {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .warn-panel {
+    margin-top: 12px;
+    text-align: center;
+    border: 1px solid #fecdd3;
+    background: #fff1f2;
+    border-radius: 10px;
+    padding: 26px;
+    color: #7f1d1d;
+  }
+  .hidden { display: none; }
+  .result {
+    margin-top: 12px;
+    border: 2px solid #86efac;
+    background: #f0fff4;
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .result h3 { 
+    margin: 0 0 15px; 
+    color: #15803d;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .result h3::before {
+    content: '✅';
+    font-size: 24px;
+  }
+  .section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #ffffff;
+    border: 1px solid #d1fae5;
+    border-radius: 8px;
+  }
+  .section h4 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    color: #047857;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section h4::before {
+    font-size: 16px;
+  }
+  .section.summary h4::before { content: '📋'; }
+  .section.results h4::before { content: '📊'; }
+  .section.table h4::before { content: '📊'; }
+  .meta p { 
+    margin: 8px 0; 
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .meta strong {
+    color: #065f46;
+    min-width: 180px;
+    display: inline-block;
+  }
+  .stat-value {
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .stat-valid { color: #16a34a; }
+  .stat-invalid { color: #dc2626; }
+  .stat-total { color: #2563eb; }
+  .downloads {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #d1fae5;
+  }
+  .downloads a {
+    color: #ffffff;
+    background: #2563eb;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+  .downloads a:hover {
+    background: #1d4ed8;
+  }
+  .downloads a::before {
+    content: '📥';
+    font-size: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+  }
+  th { background: #f8fafc; }
+  .nowrap { white-space: nowrap; }
+  .select-hidden { display: none; }
+  .multi-select { position: relative; }
+  .ms-trigger {
+    width: 100%;
+    border: 1px solid #c9d4e7;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ms-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin-top: 6px;
+    border: 1px solid #c9d4e7;
+    border-radius: 8px;
+    background: #ffffff;
+    z-index: 40;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  }
+  .ms-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid #e5eaf5;
+  }
+  .ms-search-wrap {
+    padding: 8px;
+    border-bottom: 1px solid #e5eaf5;
+  }
+  .ms-search {
+    width: 100%;
+    border: 1px solid #c9d4e7;
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 13px;
+    outline: none;
+  }
+  .ms-search:focus {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.25);
+  }
+  .ms-action-btn {
+    width: auto;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1d4ed8;
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 4px 10px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ms-options {
+    max-height: 220px;
+    overflow: auto;
+    padding: 6px 8px 8px;
+  }
+  .ms-opt {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    align-items: center;
+    column-gap: 8px;
+    padding: 5px 2px;
+    font-size: 13px;
+  }
+  .ms-opt input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1px solid #9ca3af;
+    accent-color: #2563eb;
+    justify-self: center;
+  }
+  .ms-opt span {
+    line-height: 1.3;
+    word-break: break-word;
+  }
+  .label-count {
+    font-weight: 600;
+    color: #1d4ed8;
+    margin-left: 4px;
+  }
+  @media (max-width: 980px) {
+    .row, .filters { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="page-wrap">
+  <h2 class="title">Product Outlier Detection System</h2>
+
+  <div class="row">
+    <div>
+      <label>Select Data File</label>
+      <select id="fileSelector"></select>
+    </div>
+    <div>
+      <label>Detection Algorithm(s) <span style="color:#e74c3c">*</span><span id="algoCount" class="label-count">(1 selected)</span></label>
+      <select id="algoSelector" class="select-hidden" multiple>
+        <option value="IQR" selected>IQR (Threshold)</option>
+        <option value="DBSCAN">DBSCAN (Density/Pattern)</option>
+      </select>
+      <div class="multi-select" id="algoDropdown">
+        <div class="ms-trigger" id="algoTrigger">1 selected <span>▾</span></div>
+        <div class="ms-menu hidden" id="algoMenu"></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button id="refreshBtn">Refresh Files</button>
+    </div>
+  </div>
+
+  <div id="dataInfo" class="msg">Loading files...</div>
+
+  <div class="filters">
+    <div>
+      <label>Brand (Optional)<span id="brandCount" class="label-count">(0 selected)</span></label>
+      <select id="brandFilter" class="select-hidden" multiple></select>
+      <div class="multi-select" id="brandDropdown">
+        <div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+        <div class="ms-menu hidden" id="brandMenu"></div>
+      </div>
+    </div>
+    <div>
+      <label>Category <span style="color:#e74c3c">*</span><span id="categoryCount" class="label-count">(0 selected)</span></label>
+      <select id="categoryFilter" class="select-hidden" multiple></select>
+      <div class="multi-select" id="categoryDropdown">
+        <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+        <div class="ms-menu hidden" id="categoryMenu"></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button id="analyzeBtn" class="analyze-btn">Analyze Outliers</button>
+    </div>
+  </div>
+
+  <div id="warningPanel" class="warn-panel">
+    <h3 style="margin:0 0 8px; color:#b91c1c;">Please Select Required Fields</h3>
+    <p style="margin:0;">CSV file, at least one algorithm, and at least one category are required.</p>
+  </div>
+
+  <div id="resultPanel" class="result hidden">
+    <h3>Analysis Completed Successfully!</h3>
+    <div class="meta" id="summaryMeta"></div>
+    <div class="section table" id="tableWrap">
+      <h4>Detailed Summary by Brand & Category</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Brand</th>
+            <th>Category</th>
+            <th>Total</th>
+            <th>Normal</th>
+            <th>Outlier</th>
+          </tr>
+        </thead>
+        <tbody id="summaryTableBody"></tbody>
+      </table>
+    </div>
+    <div id="tableHint" class="msg hidden"></div>
+    <div class="downloads" id="topDownloads"></div>
+  </div>
+</div>
+
+<script>
+  const els = {
+    file: document.getElementById("fileSelector"),
+    algo: document.getElementById("algoSelector"),
+    algoCount: document.getElementById("algoCount"),
+    algoTrigger: document.getElementById("algoTrigger"),
+    algoMenu: document.getElementById("algoMenu"),
+    refresh: document.getElementById("refreshBtn"),
+    dataInfo: document.getElementById("dataInfo"),
+    brand: document.getElementById("brandFilter"),
+    brandCount: document.getElementById("brandCount"),
+    brandTrigger: document.getElementById("brandTrigger"),
+    brandMenu: document.getElementById("brandMenu"),
+    category: document.getElementById("categoryFilter"),
+    categoryCount: document.getElementById("categoryCount"),
+    categoryTrigger: document.getElementById("categoryTrigger"),
+    categoryMenu: document.getElementById("categoryMenu"),
+    analyze: document.getElementById("analyzeBtn"),
+    warning: document.getElementById("warningPanel"),
+    result: document.getElementById("resultPanel"),
+    summaryMeta: document.getElementById("summaryMeta"),
+    topDownloads: document.getElementById("topDownloads"),
+    tableWrap: document.getElementById("tableWrap"),
+    tableBody: document.getElementById("summaryTableBody"),
+    tableHint: document.getElementById("tableHint")
+  };
+
+  let sessionToken = null;
+
+  function selectedValues(selectEl) {
+    return Array.from(selectEl.selectedOptions).map(o => o.value);
+  }
+
+  function setSelectOptions(selectEl, options, selected = []) {
+    const old = new Set(selected);
+    selectEl.innerHTML = "";
+    options.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.value;
+      opt.textContent = item.label;
+      if (old.has(String(item.value))) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+
+    if (selectEl === els.algo) {
+      renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, "Select Algorithm(s)", false);
+    }
+    if (selectEl === els.brand) {
+      renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
+    }
+    if (selectEl === els.category) {
+      renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
+    }
+  }
+
+  function closeAllDropdownMenus() {
+    els.algoMenu.classList.add("hidden");
+    els.brandMenu.classList.add("hidden");
+    els.categoryMenu.classList.add("hidden");
+  }
+
+  function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
+    const selectedCount = selectedValues(selectEl).length;
+    countEl.textContent = `(${selectedCount} selected)`;
+    triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+  }
+
+  function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder, enableSearch = true) {
+    const options = Array.from(selectEl.options).filter(opt => opt.value !== "");
+    const selectedSet = new Set(selectedValues(selectEl));
+
+    if (!options.length) {
+      menuEl.innerHTML = `<div style="padding:8px 4px;color:var(--muted);font-size:13px;">No options available</div>`;
+      updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+      return;
+    }
+
+    menuEl.innerHTML = "";
+    
+    let searchInput = null;
+    if (enableSearch) {
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "ms-search-wrap";
+      searchInput = document.createElement("input");
+      searchInput.type = "text";
+      searchInput.className = "ms-search";
+      searchInput.placeholder = `Search ${placeholder.replace("Select ", "")}`;
+      searchWrap.appendChild(searchInput);
+      menuEl.appendChild(searchWrap);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "ms-actions";
+
+    const selectAllBtn = document.createElement("button");
+    selectAllBtn.type = "button";
+    selectAllBtn.className = "ms-action-btn";
+    selectAllBtn.textContent = "Select all";
+
+    const unselectAllBtn = document.createElement("button");
+    unselectAllBtn.type = "button";
+    unselectAllBtn.className = "ms-action-btn";
+    unselectAllBtn.textContent = "Unselect all";
+
+    actions.appendChild(selectAllBtn);
+    actions.appendChild(unselectAllBtn);
+    menuEl.appendChild(actions);
+
+    const optionsWrap = document.createElement("div");
+    optionsWrap.className = "ms-options";
+
+    options.forEach(opt => {
+      const row = document.createElement("label");
+      row.className = "ms-opt";
+      row.dataset.filterText = String(opt.textContent || "").toLowerCase();
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = String(opt.value);
+      cb.checked = selectedSet.has(String(opt.value));
+      cb.disabled = !!opt.disabled;
+
+      const text = document.createElement("span");
+      text.textContent = opt.textContent;
+
+      row.appendChild(cb);
+      row.appendChild(text);
+      optionsWrap.appendChild(row);
+
+      cb.addEventListener("change", () => {
+        syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+      });
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.trim().toLowerCase();
+        Array.from(optionsWrap.querySelectorAll(".ms-opt")).forEach(row => {
+          const text = row.dataset.filterText || "";
+          row.style.display = !q || text.includes(q) ? "" : "none";
+        });
+      });
+    }
+
+    menuEl.appendChild(optionsWrap);
+
+    selectAllBtn.addEventListener("click", () => {
+      Array.from(menuEl.querySelectorAll('input[type="checkbox"]:not(:disabled)')).forEach(cb => { cb.checked = true; });
+      syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+    });
+
+    unselectAllBtn.addEventListener("click", () => {
+      Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+      syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+    });
+
+    updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+  }
+
+  function syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder) {
+    const selected = new Set(
+      Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+    );
+    Array.from(selectEl.options).forEach(opt => {
+      opt.selected = selected.has(String(opt.value));
+    });
+    updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+    selectEl.dispatchEvent(new Event("change"));
+  }
+
+  function showWarning(message) {
+    if (message) els.dataInfo.textContent = message;
+    els.result.classList.add("hidden");
+    els.warning.classList.remove("hidden");
+  }
+
+  function showResults() {
+    els.warning.classList.add("hidden");
+    els.result.classList.remove("hidden");
+  }
+
+  async function loadFiles() {
+    const res = await fetch("/outlier/api/files");
+    const data = await res.json();
+    setSelectOptions(els.file, (data.files || []).map(f => ({ label: f, value: f })), data.default_file ? [data.default_file] : []);
+    await refreshInfoAndFilters();
+  }
+
+  async function refreshInfoAndFilters() {
+    const filename = els.file.value;
+    if (!filename) {
+      els.dataInfo.textContent = "No file selected.";
+      setSelectOptions(els.brand, []);
+      setSelectOptions(els.category, []);
+      return;
+    }
+
+    const [infoRes, brandRes] = await Promise.all([
+      fetch(`/outlier/api/info?filename=${encodeURIComponent(filename)}`),
+      fetch(`/outlier/api/brands?filename=${encodeURIComponent(filename)}`)
+    ]);
+    const info = await infoRes.json();
+    const brand = await brandRes.json();
+    els.dataInfo.textContent = info.ok ? info.message : (info.message || "Failed to load file info.");
+    setSelectOptions(els.brand, brand.options || [], selectedValues(els.brand));
+    await loadCategories();
+  }
+
+  async function loadCategories() {
+    const res = await fetch("/outlier/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: els.file.value || null,
+        brands: selectedValues(els.brand)
+      })
+    });
+    const data = await res.json();
+    setSelectOptions(els.category, data.options || [], selectedValues(els.category));
+  }
+
+  function buildSummaryRows(rows, token) {
+    return rows.map(row => {
+      const brandQ = encodeURIComponent(row.brand);
+      const catQ = encodeURIComponent(row.category);
+      return `
+        <tr>
+          <td>${row.brand}</td>
+          <td>${row.category}</td>
+          <td class="nowrap">${row.total}</td>
+          <td class="nowrap">
+            <span style="color:#16a34a">${row.normal} (${row.normal_pct}%)</span>
+            <a href="/outlier/download/normal?token=${token}&brand=${brandQ}&category=${catQ}">Download</a>
+          </td>
+          <td class="nowrap">
+            <span style="color:#dc2626">${row.outlier} (${row.outlier_pct}%)</span>
+            <a href="/outlier/download/outlier?token=${token}&brand=${brandQ}&category=${catQ}">Download</a>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function renderResultPayload(payload) {
+    const s = payload.summary;
+    sessionToken = payload.token;
+
+    const brandsText = s.brands && s.brands.length ? s.brands.join(", ") : "All Brands (no filter)";
+    const combinationsCount = s.rows ? s.rows.length : 0;
+    
+    els.summaryMeta.innerHTML = `
+      <div class="section summary">
+        <h4>Analysis Summary</h4>
+        <p><strong>Source File:</strong> ${s.filename}</p>
+        <p><strong>Algorithm(s):</strong> ${s.algorithms.join(", ")}</p>
+        <p><strong>Brand(s):</strong> ${brandsText}</p>
+        <p><strong>Category(ies):</strong> ${s.categories.join(", ")}</p>
+      </div>
+      
+      <div class="section results">
+        <h4>Overall Results</h4>
+        <p><strong>Total Products Analyzed:</strong> <span class="stat-value stat-total">${s.total_analyzed}</span></p>
+        <p><strong>Valid Products:</strong> <span class="stat-value stat-valid">${s.final_valid} (${((s.final_valid/s.total_analyzed)*100).toFixed(2)}%)</span></p>
+        <p><strong>Invalid Products:</strong> <span class="stat-value stat-invalid">${s.final_invalid} (${((s.final_invalid/s.total_analyzed)*100).toFixed(2)}%)</span></p>
+      </div>
+    `;
+
+    els.topDownloads.innerHTML = `
+      <a href="/outlier/download/log?token=${sessionToken}">Log File</a>
+      <a href="/outlier/download/all?token=${sessionToken}">All Results CSV</a>
+      <a href="/outlier/download/normal-items?token=${sessionToken}">Normal Items CSV</a>
+      <a href="/outlier/download/outlier-items?token=${sessionToken}">Outlier Items CSV</a>
+    `;
+
+    if (s.show_detailed_summary) {
+      els.tableWrap.classList.remove("hidden");
+      els.tableHint.classList.add("hidden");
+      els.tableBody.innerHTML = buildSummaryRows(s.rows || [], sessionToken);
+    } else {
+      els.tableWrap.classList.add("hidden");
+      els.tableHint.classList.remove("hidden");
+      els.tableHint.textContent = "Detailed summary table hidden because analyzed items are over 20,000.";
+    }
+  }
+
+  async function analyze() {
+    if (!els.file.value) {
+      showWarning("Please select a CSV file.");
+      return;
+    }
+    if (selectedValues(els.algo).length === 0) {
+      showWarning("Please select at least one detection algorithm.");
+      return;
+    }
+    if (selectedValues(els.category).length === 0) {
+      showWarning("Category selection is required.");
+      return;
+    }
+
+    els.dataInfo.textContent = "Running analysis...";
+    const res = await fetch("/outlier/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: els.file.value,
+        algorithms: selectedValues(els.algo),
+        brands: selectedValues(els.brand),
+        categories: selectedValues(els.category)
+      })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showWarning(data.message || "Analysis failed.");
+      return;
+    }
+
+    els.dataInfo.textContent = "Analysis complete.";
+    renderResultPayload(data);
+    showResults();
+  }
+
+  els.refresh.addEventListener("click", async () => { await loadFiles(); showWarning(); });
+  els.file.addEventListener("change", async () => { await refreshInfoAndFilters(); showWarning(); });
+  els.brand.addEventListener("change", async () => { await loadCategories(); showWarning(); });
+  els.category.addEventListener("change", () => { showWarning(); });
+  els.algo.addEventListener("change", () => { showWarning(); });
+  els.analyze.addEventListener("click", analyze);
+
+  els.algoTrigger.addEventListener("click", () => {
+    const willOpen = els.algoMenu.classList.contains("hidden");
+    closeAllDropdownMenus();
+    if (willOpen) els.algoMenu.classList.remove("hidden");
+  });
+
+  els.brandTrigger.addEventListener("click", () => {
+    const willOpen = els.brandMenu.classList.contains("hidden");
+    closeAllDropdownMenus();
+    if (willOpen) {
+      els.brandMenu.classList.remove("hidden");
+      const input = els.brandMenu.querySelector(".ms-search");
+      if (input) input.focus();
+    }
+  });
+
+  els.categoryTrigger.addEventListener("click", () => {
+    const willOpen = els.categoryMenu.classList.contains("hidden");
+    closeAllDropdownMenus();
+    if (willOpen) {
+      els.categoryMenu.classList.remove("hidden");
+      const input = els.categoryMenu.querySelector(".ms-search");
+      if (input) input.focus();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    const inAlgo = e.target.closest("#algoDropdown");
+    const inBrand = e.target.closest("#brandDropdown");
+    const inCategory = e.target.closest("#categoryDropdown");
+    if (!inAlgo && !inBrand && !inCategory) closeAllDropdownMenus();
+  });
+
+  (async function init() {
+    renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, "Select Algorithm(s)", false);
+    await loadFiles();
+    showWarning();
+  })();
+</script>
+{% endblock %}

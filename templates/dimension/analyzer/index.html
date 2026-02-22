@@ -1,0 +1,1934 @@
+{% extends "base.html" %}
+{% block title %}Analyzer | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root {
+  --bg: #ffffff;
+  --line: #dde5f1;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --blue: #2563eb;
+  --red: #e74c3c;
+  --ok: #0f766e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+.page { padding: 12px; }
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f6faff;
+}
+label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+select, button, input {
+  width: 100%;
+  border: 1px solid #c9d4e7;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 13px;
+}
+select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button {
+  cursor: pointer;
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+  font-weight: 600;
+}
+.panel {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: #fafcff;
+}
+.panel h3 { margin: 0 0 6px; font-size: 14px; }
+.select-hidden { display: none; }
+.multi-select { position: relative; }
+.ms-trigger {
+  width: 100%;
+  border: 1px solid #c9d4e7;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  border: 1px solid #c9d4e7;
+  border-radius: 8px;
+  background: #ffffff;
+  z-index: 40;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.ms-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #e5eaf5;
+}
+.ms-search-wrap {
+  padding: 8px;
+  border-bottom: 1px solid #e5eaf5;
+}
+.ms-search {
+  width: 100%;
+  border: 1px solid #c9d4e7;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 13px;
+  outline: none;
+}
+.ms-search:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.25);
+}
+.ms-action-btn {
+  width: auto;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 4px 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ms-options {
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px 8px 8px;
+}
+.ms-opt {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 5px 2px;
+  font-size: 13px;
+}
+.ms-opt input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid #9ca3af;
+  accent-color: #2563eb;
+  justify-self: center;
+}
+.ms-opt span {
+  line-height: 1.3;
+  word-break: break-word;
+}
+.cat-opt {
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.cat-opt:hover { background: #eff6ff; }
+.cat-opt.active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.ms-empty {
+  padding: 8px 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.label-count {
+  font-weight: 600;
+  color: #1d4ed8;
+  margin-left: 4px;
+}
+.iqr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  margin-left: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.hidden { display: none; }
+.view-toggle {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ecf0f1;
+}
+.view-toggle label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  color: #444;
+}
+.radio-group {
+  display: inline-flex;
+  gap: 15px;
+  font-size: 14px;
+}
+.radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: normal;
+  cursor: pointer;
+}
+.stats {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.stats a { color: var(--blue); text-decoration: underline; }
+.grid-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  background: #2563eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  vertical-align: middle;
+}
+.grid-icon:hover {
+  background: #1d4ed8;
+}
+.grid-icon svg {
+  width: 12px;
+  height: 12px;
+  fill: white;
+}
+.content {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 2.5fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+#chart {
+  width: 100%;
+  height: clamp(420px, 60vh, 720px);
+  min-height: 420px;
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  background: #ffffff;
+}
+#preview {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #f8fafc;
+  min-height: 420px;
+  max-height: clamp(420px, 60vh, 720px);
+  overflow-y: auto;
+}
+img.preview {
+  max-width: 250px;
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  display: block;
+  margin: 8px auto 10px;
+  border-radius: 8px;
+  border: 2px solid #d8e1f2;
+  object-fit: contain;
+}
+.grid-container {
+  margin-top: 8px;
+  border: 2px solid #86efac;
+  background: #f0fff4;
+  border-radius: 8px;
+  padding: 10px;
+}
+.grid-container h3 {
+  margin: 0 0 8px;
+  color: #15803d;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.grid-container h3::before {
+  content: '✅';
+  font-size: 18px;
+}
+.grid-section {
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #d1fae5;
+  border-radius: 6px;
+}
+.grid-section h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #047857;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.grid-section h4::before {
+  font-size: 14px;
+}
+.grid-section.summary h4::before { content: '📋'; }
+.grid-section.results h4::before { content: '📊'; }
+.grid-section.table h4::before { content: '📊'; }
+.grid-meta p {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.grid-meta strong {
+  color: #065f46;
+  min-width: 140px;
+  display: inline-block;
+}
+.stat-value {
+  font-weight: 700;
+  font-size: 16px;
+}
+.stat-valid { color: #16a34a; }
+.stat-invalid { color: #dc2626; }
+.stat-total { color: #2563eb; }
+.grid-downloads {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #d1fae5;
+}
+.grid-downloads a {
+  color: #ffffff;
+  background: #2563eb;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.grid-downloads a:hover {
+  background: #1d4ed8;
+}
+.grid-downloads a::before {
+  content: '📥';
+  font-size: 14px;
+}
+.grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.grid-table th {
+  background: #f8fafc;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 12px;
+}
+.grid-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.grid-table tr:hover {
+  background: #f8fafc;
+}
+.grid-table a {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.grid-table a:hover {
+  text-decoration: underline;
+}
+.grid-table .download-link {
+  color: #2563eb;
+  text-decoration: underline;
+  font-size: 12px;
+  margin-left: 10px;
+}
+.stat-link {
+  cursor: pointer;
+  text-decoration: underline;
+}
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-danger {
+  background: #fee;
+  color: #c00;
+}
+.badge-success {
+  background: #efe;
+  color: #060;
+}
+.warn { color: var(--red); font-weight: 600; }
+.muted { color: var(--muted); }
+.toggle-switch {
+  display: inline-flex;
+  background: #e5e7eb;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 3px;
+}
+.toggle-switch button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: auto;
+}
+.toggle-switch button.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.overlay-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.overlay-loader.active { display: flex; }
+.loader-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@media (max-width: 980px) {
+  .row { grid-template-columns: 1fr !important; }
+  .iqr-grid { grid-template-columns: 1fr; }
+  .content { grid-template-columns: 1fr; }
+  #chart { height: 460px; min-height: 460px; }
+  #preview { min-height: 320px; }
+}
+</style>
+<div class="page">
+<div class="overlay-loader" id="overlayLoader"><div class="loader-spinner"></div></div>
+<h2 style="margin:0 0 8px;">Dimension Analyzer</h2>
+
+<div class="row">
+<div>
+<label>Product Group <span class="warn">*</span></label>
+<select id="groupSelector">
+<option value="">Select Product Group</option>
+</select>
+</div>
+<div>
+<label>Detection Algorithm(s) <span class="warn">*</span><span id="algoCount" class="label-count">(1 selected)</span></label>
+<select id="algoSelector" class="select-hidden" multiple>
+<option value="IQR">IQR (Threshold)</option>
+<option value="DBSCAN" selected>DBSCAN (Density/Pattern)</option>
+</select>
+<div class="multi-select" id="algoDropdown">
+<div class="ms-trigger" id="algoTrigger">1 selected <span>▾</span></div>
+<div class="ms-menu hidden" id="algoMenu"></div>
+</div>
+</div>
+<div>
+<label>Brand (Optional)<span id="brandCount" class="label-count">(0 selected)</span></label>
+<select id="brandSelector" class="select-hidden" multiple></select>
+<div class="multi-select" id="brandDropdown">
+<div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+<div class="ms-menu hidden" id="brandMenu"></div>
+</div>
+</div>
+<div>
+<label>Category <span class="warn">*</span></label>
+<select id="categorySelector" class="select-hidden"></select>
+<div class="multi-select" id="categoryDropdown">
+<div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+<div class="ms-menu hidden" id="categoryMenu"></div>
+</div>
+</div>
+<div>
+<label>Product Type (Optional)<span id="typeCount" class="label-count">(0 selected)</span></label>
+<select id="typeSelector" class="select-hidden" multiple></select>
+<div class="multi-select" id="typeDropdown">
+<div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
+<div class="ms-menu hidden" id="typeMenu"></div>
+</div>
+</div>
+</div>
+
+<div id="iqrPanel" class="panel hidden">
+<div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
+<h3 style="margin:0;display:inline-block;min-width:200px;">IQR Algorithm Configuration</h3>
+<div style="display:flex;align-items:center;gap:10px;flex:1;">
+<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Height (H): <span id="hVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
+<input id="hMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex:1;">
+<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Width (W): <span id="wVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
+<input id="wMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex:1;">
+<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Depth (D): <span id="dVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
+<input id="dMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
+</div>
+</div>
+</div>
+
+<div id="dbscanPanel" class="panel hidden">
+<div style="display:flex;align-items:center;gap:15px;">
+<div style="flex-shrink:0;">
+<h3 style="margin:0;">DBSCAN Algorithm Configuration</h3>
+<div style="font-size:11px;color:var(--muted);margin-top:2px;">Adjust DBSCAN parameters to control clustering. Defaults: eps=1.0, min_samples=4.</div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex:1;">
+<label style="margin:0;font-size:11px;white-space:nowrap;min-width:90px;">Epsilon (ε): <span id="epsVal" class="pill" style="padding:2px 6px;font-size:11px;">1.0</span></label>
+<input id="dbscanEps" type="range" min="0.1" max="5" step="0.1" value="1.0" style="flex:1;" />
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex:1;">
+<label style="margin:0;font-size:11px;white-space:nowrap;min-width:90px;">Min Samples: <span id="minSampVal" class="pill" style="padding:2px 6px;font-size:11px;">4</span></label>
+<input id="dbscanMinSamples" type="range" min="1" max="20" step="1" value="4" style="flex:1;" />
+</div>
+</div>
+</div>
+
+<div class="view-toggle">
+<div style="display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:start;">
+<div>
+<div style="display:flex;gap:20px;margin-bottom:10px;">
+<div>
+<label>📊 View Mode:</label>
+<div class="radio-group">
+<label><input type="radio" name="viewMode" value="grid"> Grid</label>
+<label><input type="radio" name="viewMode" value="chart" checked> Chart</label>
+</div>
+</div>
+<div>
+<label>🔄 Data Scope:</label>
+<div class="toggle-switch">
+<button id="individualBtn" class="active" data-scope="individual">Current</button>
+<button id="globalBtn" data-scope="global">Global</button>
+</div>
+</div>
+</div>
+<div style="display:flex;gap:10px;">
+<button id="currentBtn" style="width:120px;background:#27ae60;border-color:#27ae60;">Current</button>
+<button id="nextBtn" style="width:140px;background:#e67e22;border-color:#e67e22;">Next (Analyze)</button>
+<button id="resetBtn" style="width:100px;background:#e74c3c;border-color:#e74c3c;">Reset</button>
+</div>
+</div>
+<div id="iterationSummary" class="hidden">
+<h3 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#2563eb;">📊 Iteration Summary</h3>
+<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
+<thead>
+<tr style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;">
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">ITERATION</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">TOTAL</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">NORMAL</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">OUTLIER</th>
+</tr>
+</thead>
+<tbody id="iterationSummaryBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div id="promptPanel" class="panel" style="background:#fff1f2;border-color:#fecdd3;text-align:center;">
+<h3 style="color:#b91c1c;margin-top:0;">⚠️ Please Select Required Fields</h3>
+<div id="promptBody" style="color:#7f1d1d;line-height:1.7;">
+<div>Product Group (Required) <span id="statusGroup" style="font-weight:600;">❌</span></div>
+<div>Algorithm(s) (Required) <span id="statusAlgo" style="font-weight:600;">✅</span></div>
+<div>Category (Required) <span id="statusCategory" style="font-weight:600;">❌</span></div>
+</div>
+</div>
+
+<div class="stats hidden" id="statsBar" style="display:none;"></div>
+
+<div id="gridView" class="grid-container hidden" style="display:none;">
+<h3 id="gridTitle">Analysis Completed Successfully!</h3>
+<div class="grid-section summary">
+<h4>Analysis Summary</h4>
+<div class="grid-meta" id="gridSummaryMeta"></div>
+</div>
+<div class="grid-section table">
+<h4>Detailed Summary by Brand</h4>
+<table class="grid-table">
+<thead>
+<tr>
+<th>Brand</th>
+<th>Category</th>
+<th>Total</th>
+<th>Normal</th>
+<th>Outlier</th>
+</tr>
+</thead>
+<tbody id="gridBody"></tbody>
+</table>
+</div>
+</div>
+
+<div class="content hidden" id="chartView" style="display:none;">
+<div id="chart"></div>
+<div id="preview">
+<h3 style="margin-top:0;">Product Preview</h3>
+<p style="color:var(--muted);">Click any point in the 3D chart to view product details.</p>
+</div>
+</div>
+</div>
+
+<script>
+let analysisData = [];
+let sessionToken = null;
+let plotlyBound = false;
+let currentIteration = 1;
+let iterationHistory = [];
+let allIterationsData = [];
+
+const els = {
+  group: document.getElementById('groupSelector'),
+  algo: document.getElementById('algoSelector'),
+  algoCount: document.getElementById('algoCount'),
+  algoTrigger: document.getElementById('algoTrigger'),
+  algoMenu: document.getElementById('algoMenu'),
+  brand: document.getElementById('brandSelector'),
+  brandCount: document.getElementById('brandCount'),
+  brandTrigger: document.getElementById('brandTrigger'),
+  brandMenu: document.getElementById('brandMenu'),
+  category: document.getElementById('categorySelector'),
+  categoryTrigger: document.getElementById('categoryTrigger'),
+  categoryMenu: document.getElementById('categoryMenu'),
+  type: document.getElementById('typeSelector'),
+  typeCount: document.getElementById('typeCount'),
+  typeTrigger: document.getElementById('typeTrigger'),
+  typeMenu: document.getElementById('typeMenu'),
+  iqrPanel: document.getElementById('iqrPanel'),
+  dbscanPanel: document.getElementById('dbscanPanel'),
+  h: document.getElementById('hMult'),
+  w: document.getElementById('wMult'),
+  d: document.getElementById('dMult'),
+  hVal: document.getElementById('hVal'),
+  wVal: document.getElementById('wVal'),
+  dVal: document.getElementById('dVal'),
+  eps: document.getElementById('dbscanEps'),
+  minSamp: document.getElementById('dbscanMinSamples'),
+  epsVal: document.getElementById('epsVal'),
+  minSampVal: document.getElementById('minSampVal'),
+  current: document.getElementById('currentBtn'),
+  next: document.getElementById('nextBtn'),
+  reset: document.getElementById('resetBtn'),
+  stats: document.getElementById('statsBar'),
+  gridView: document.getElementById('gridView'),
+  gridBody: document.getElementById('gridBody'),
+  chartView: document.getElementById('chartView'),
+  chart: document.getElementById('chart'),
+  preview: document.getElementById('preview'),
+  brandDropdown: document.getElementById('brandDropdown'),
+  categoryDropdown: document.getElementById('categoryDropdown'),
+  typeDropdown: document.getElementById('typeDropdown'),
+  iterationSummary: document.getElementById('iterationSummary'),
+  iterationSummaryBody: document.getElementById('iterationSummaryBody')
+};
+
+function selectedValues(selectEl) {
+  return Array.from(selectEl.selectedOptions).map(o => o.value);
+}
+
+function setSelectOptions(selectEl, options, selected = []) {
+  const old = new Set(selected);
+  selectEl.innerHTML = '';
+  options.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.value;
+    opt.textContent = item.label;
+    if (old.has(String(item.value))) opt.selected = true;
+    selectEl.appendChild(opt);
+  });
+  
+  if (selectEl === els.brand) {
+    renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand');
+  }
+  if (selectEl === els.type) {
+    renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Product Type');
+  }
+  if (selectEl === els.category) {
+    renderCategoryDropdown();
+  }
+}
+
+function renderCategoryDropdown() {
+  const options = Array.from(els.category.options);
+  const selectedValue = els.category.value || '';
+  
+  els.categoryMenu.innerHTML = '';
+  
+  if (!options.length || (options.length === 1 && options[0].value === '')) {
+    els.categoryMenu.innerHTML = '<div class="ms-empty">No options available</div>';
+    updateCategoryTrigger();
+    return;
+  }
+  
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'ms-search-wrap';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'ms-search';
+  searchInput.placeholder = 'Search Category';
+  searchWrap.appendChild(searchInput);
+  
+  const optionsWrap = document.createElement('div');
+  optionsWrap.className = 'ms-options';
+  
+  options.forEach(opt => {
+    const row = document.createElement('div');
+    row.className = 'cat-opt';
+    row.dataset.value = String(opt.value || '');
+    row.dataset.filterText = String(opt.textContent || '').toLowerCase();
+    row.textContent = opt.textContent;
+    if (String(opt.value || '') === String(selectedValue)) row.classList.add('active');
+    row.addEventListener('click', () => {
+      els.category.value = String(opt.value || '');
+      updateCategoryTrigger();
+      closeAllDropdownMenus();
+      els.category.dispatchEvent(new Event('change'));
+    });
+    optionsWrap.appendChild(row);
+  });
+  
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(optionsWrap.querySelectorAll('.cat-opt')).forEach(row => {
+      const txt = row.dataset.filterText || '';
+      row.style.display = !q || txt.includes(q) ? '' : 'none';
+    });
+  });
+  
+  els.categoryMenu.appendChild(searchWrap);
+  els.categoryMenu.appendChild(optionsWrap);
+  updateCategoryTrigger();
+}
+
+function updateCategoryTrigger() {
+  const selectedOpt = els.category.options[els.category.selectedIndex];
+  const label = selectedOpt && selectedOpt.value !== '' ? selectedOpt.textContent : 'Select Category';
+  const arrow = '<span>▾</span>';
+  els.categoryTrigger.innerHTML = '';
+  const textSpan = document.createElement('span');
+  textSpan.style.overflow = 'hidden';
+  textSpan.style.textOverflow = 'ellipsis';
+  textSpan.style.whiteSpace = 'nowrap';
+  textSpan.style.flex = '1';
+  textSpan.textContent = label;
+  els.categoryTrigger.appendChild(textSpan);
+  els.categoryTrigger.insertAdjacentHTML('beforeend', arrow);
+}
+
+function closeAllDropdownMenus() {
+  els.algoMenu.classList.add('hidden');
+  els.brandMenu.classList.add('hidden');
+  els.categoryMenu.classList.add('hidden');
+  els.typeMenu.classList.add('hidden');
+}
+
+function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
+  const selectedCount = selectedValues(selectEl).length;
+  countEl.textContent = `(${selectedCount} selected)`;
+  triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+}
+
+function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const options = Array.from(selectEl.options).filter(opt => opt.value !== '');
+  const selectedSet = new Set(selectedValues(selectEl));
+  
+  if (!options.length) {
+    menuEl.innerHTML = `<div class="ms-empty">No options available</div>`;
+    updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+    return;
+  }
+  
+  menuEl.innerHTML = '';
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'ms-search-wrap';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'ms-search';
+  searchInput.placeholder = `Search ${placeholder.replace('Select ', '')}`;
+  searchWrap.appendChild(searchInput);
+  menuEl.appendChild(searchWrap);
+  
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.type = 'button';
+  selectAllBtn.className = 'ms-action-btn';
+  selectAllBtn.textContent = 'Select all';
+  
+  const unselectAllBtn = document.createElement('button');
+  unselectAllBtn.type = 'button';
+  unselectAllBtn.className = 'ms-action-btn';
+  unselectAllBtn.textContent = 'Unselect all';
+  
+  actions.appendChild(selectAllBtn);
+  actions.appendChild(unselectAllBtn);
+  
+  const optionsWrap = document.createElement('div');
+  optionsWrap.className = 'ms-options';
+  
+  options.forEach(opt => {
+    const row = document.createElement('label');
+    row.className = 'ms-opt';
+    row.dataset.filterText = String(opt.textContent || '').toLowerCase();
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = String(opt.value);
+    cb.checked = selectedSet.has(String(opt.value));
+    
+    const text = document.createElement('span');
+    text.textContent = opt.textContent;
+    
+    row.appendChild(cb);
+    row.appendChild(text);
+    optionsWrap.appendChild(row);
+    
+    cb.addEventListener('change', () => {
+      syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+    });
+  });
+  
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(optionsWrap.querySelectorAll('.ms-opt')).forEach(row => {
+      const text = row.dataset.filterText || '';
+      row.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+  
+  menuEl.appendChild(actions);
+  menuEl.appendChild(optionsWrap);
+  
+  selectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = true; });
+    syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  unselectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+    syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+}
+
+function syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const selected = new Set(
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+  );
+  Array.from(selectEl.options).forEach(opt => {
+    opt.selected = selected.has(String(opt.value));
+  });
+  updateMultiCount(selectEl, triggerEl, countEl, placeholder);
+  selectEl.dispatchEvent(new Event('change'));
+}
+
+function syncAlgoPanels() {
+  const algos = selectedValues(els.algo);
+  els.iqrPanel.classList.toggle('hidden', !algos.includes('IQR'));
+  els.dbscanPanel.classList.toggle('hidden', !algos.includes('DBSCAN'));
+  updatePrompt();
+}
+
+function updatePrompt() {
+  const groupId = els.group.value;
+  const algos = selectedValues(els.algo);
+  const category = els.category.value;
+  
+  document.getElementById('statusGroup').textContent = groupId ? '✅' : '❌';
+  document.getElementById('statusAlgo').textContent = algos.length ? '✅' : '❌';
+  document.getElementById('statusCategory').textContent = category ? '✅' : '❌';
+  
+  const canAnalyze = groupId && algos.length && category;
+  els.current.disabled = !canAnalyze;
+  els.next.disabled = !canAnalyze;
+  
+  if (canAnalyze) {
+    document.getElementById('promptPanel').style.display = 'none';
+  } else {
+    document.getElementById('promptPanel').style.display = 'block';
+  }
+}
+
+async function loadGroups() {
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/product-groups');
+  const data = await res.json();
+  hideLoader();
+  const options = [{label: 'Select Product Group', value: ''}].concat(data.groups);
+  setSelectOptions(els.group, options, []);
+  updatePrompt();
+}
+
+async function loadOptions() {
+  const groupId = els.group.value;
+  if (!groupId) {
+    setSelectOptions(els.brand, []);
+    setSelectOptions(els.category, []);
+    setSelectOptions(els.type, []);
+    updatePrompt();
+    resetIteration();
+    return;
+  }
+  
+  const currentCategory = els.category.value;
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: selectedValues(els.brand),
+    category: currentCategory || null
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/options', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (!data.ok) {
+    setSelectOptions(els.brand, []);
+    setSelectOptions(els.category, []);
+    setSelectOptions(els.type, []);
+    updatePrompt();
+    return;
+  }
+  
+  setSelectOptions(els.brand, data.brand_options || [], selectedValues(els.brand));
+  
+  const categories = data.category_options || [];
+  els.category.innerHTML = '<option value="">Select Category</option>';
+  categories.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.value;
+    opt.textContent = item.label;
+    if (currentCategory && String(item.value) === String(currentCategory)) {
+      opt.selected = true;
+    }
+    els.category.appendChild(opt);
+  });
+  renderCategoryDropdown();
+  
+  setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
+  updatePrompt();
+  
+  // Load iteration history if category is selected
+  if (currentCategory) {
+    await loadIterationHistory();
+  }
+}
+
+function resetIteration() {
+  currentIteration = 1;
+  iterationHistory = [];
+  analysisData = [];
+  els.iterationSummary.classList.add('hidden');
+  els.gridView.classList.add('hidden');
+  els.gridView.style.display = 'none';
+  els.chartView.classList.add('hidden');
+  els.chartView.style.display = 'none';
+  els.stats.classList.add('hidden');
+  els.stats.style.display = 'none';
+}
+
+async function loadIterationHistory() {
+  const groupId = els.group.value;
+  const category = els.category.value;
+  
+  if (!groupId || !category) return;
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: selectedValues(els.brand),
+    category: category,
+    types: selectedValues(els.type)
+  };
+  
+  const res = await fetch('/dimension/analyzer/api/iteration-history', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  
+  if (data.ok && data.history && data.history.length > 0) {
+    iterationHistory = data.history;
+    currentIteration = Math.max(...data.history.map(h => h.iteration));
+    displayIterationSummary();
+  } else {
+    resetIteration();
+  }
+}
+
+async function resetIterationData() {
+  const groupId = els.group.value;
+  const category = els.category.value;
+  
+  if (!groupId || !category) return;
+  
+  if (!confirm('Are you sure you want to reset all iterations? This will clear all saved analysis data for this category.')) {
+    return;
+  }
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: selectedValues(els.brand),
+    category: category,
+    types: selectedValues(els.type)
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/reset-iterations', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (data.ok) {
+    resetIteration();
+    alert('Iterations reset successfully!');
+  } else {
+    alert('Failed to reset iterations');
+  }
+}
+
+async function runAnalysis(isNext = false) {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  const algorithms = selectedValues(els.algo);
+  
+  if (!groupId || !category || !algorithms.length) {
+    alert('Please select Product Group, Category, and at least one Algorithm');
+    return;
+  }
+  
+  // If clicking Next but no analysis has been run in this session AND no iteration history exists, run iteration 1 first
+  if (isNext && analysisData.length === 0 && iterationHistory.length === 0) {
+    isNext = false;
+  }
+  
+  const payload = {
+    group_id: groupId,
+    brands: brands,
+    category: category,
+    types: types,
+    algorithms: algorithms,
+    h_mult: parseFloat(els.h.value),
+    w_mult: parseFloat(els.w.value),
+    d_mult: parseFloat(els.d.value),
+    dbscan_eps: parseFloat(els.eps.value),
+    dbscan_min_samples: parseInt(els.minSamp.value),
+    iteration: isNext ? currentIteration + 1 : currentIteration,
+    is_next: isNext
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/analyze', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const result = await res.json();
+  hideLoader();
+  
+  if (!result.ok) {
+    alert(result.message || 'Analysis failed');
+    return;
+  }
+  
+  if (isNext) {
+    currentIteration++;
+  }
+  
+  // Update iteration history
+  const existingIdx = iterationHistory.findIndex(h => h.iteration === result.iteration);
+  const iterData = {
+    iteration: result.iteration,
+    total: result.total,
+    normal: result.normals,
+    outlier: result.outliers
+  };
+  
+  if (existingIdx >= 0) {
+    iterationHistory[existingIdx] = iterData;
+  } else {
+    iterationHistory.push(iterData);
+  }
+  
+  analysisData = result.data;
+  
+  // Load all iterations data for global view
+  await loadAllIterationsData();
+  
+  displayIterationSummary();
+  displayResults(result);
+}
+
+async function loadAllIterationsData() {
+  const groupId = els.group.value;
+  const category = els.category.value;
+  
+  if (!groupId || !category) return;
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: selectedValues(els.brand),
+    category: category,
+    types: selectedValues(els.type),
+    current_iteration: currentIteration,
+    algorithms: selectedValues(els.algo)
+  };
+  
+  const res = await fetch('/dimension/analyzer/api/get-all-outliers', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  
+  if (!res.ok) return;
+  
+  const result = await res.json();
+  
+  if (result.ok) {
+    const previousOutliers = result.outliers || [];
+    allIterationsData = [...previousOutliers, ...analysisData];
+  }
+}
+
+
+
+function displayIterationSummary() {
+  if (iterationHistory.length === 0) {
+    els.iterationSummary.classList.add('hidden');
+    return;
+  }
+  
+  els.iterationSummary.classList.remove('hidden');
+  els.iterationSummaryBody.innerHTML = '';
+  
+  iterationHistory.sort((a, b) => a.iteration - b.iteration);
+  
+  iterationHistory.forEach((iter, idx) => {
+    const tr = document.createElement('tr');
+    const bgColor = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
+    tr.style.background = bgColor;
+    tr.style.transition = 'all 0.2s';
+    tr.innerHTML = `
+      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#475569;font-size:11px;">${iter.iteration}</td>
+      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#2563eb;font-size:11px;">${iter.total}</td>
+      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#16a34a;font-size:11px;">${iter.normal}</td>
+      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#dc2626;font-size:11px;">${iter.outlier}</td>
+    `;
+    tr.addEventListener('mouseenter', () => { tr.style.background = '#e0f2fe'; });
+    tr.addEventListener('mouseleave', () => { tr.style.background = bgColor; });
+    els.iterationSummaryBody.appendChild(tr);
+  });
+}
+
+function displayResults(result) {
+  const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  document.getElementById('promptPanel').style.display = 'none';
+  
+  // Calculate combined totals from iteration history
+  let combinedTotal = 0;
+  let combinedNormal = 0;
+  let combinedOutlier = 0;
+  
+  if (iterationHistory.length > 0) {
+    combinedTotal = iterationHistory[0].total;
+    const currentIter = iterationHistory.find(h => h.iteration === currentIteration);
+    if (currentIter) {
+      combinedNormal = currentIter.normal;
+    }
+    combinedOutlier = combinedTotal - combinedNormal;
+  }
+  
+  let displayData = result.data;
+  if (dataScope === 'global' && allIterationsData.length > 0) {
+    displayData = allIterationsData;
+  }
+  
+  const displayTotal = combinedTotal > 0 ? combinedTotal : result.total;
+  const displayNormal = combinedNormal > 0 ? combinedNormal : result.normals;
+  const displayOutlier = combinedOutlier > 0 ? combinedOutlier : result.outliers;
+  const displayPct = displayTotal > 0 ? ((displayOutlier / displayTotal * 100).toFixed(2)) : 0;
+  
+  els.stats.innerHTML = `
+    <span>
+      <span style="cursor:pointer;" onclick="exportData('all'); return false;">Showing: <strong>${displayTotal}</strong> products</span>
+      <span class="grid-icon" onclick="event.stopPropagation(); openGridPageAll(); return false;" title="View All in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+    </span>
+    <span>
+      <span style="cursor:pointer;" onclick="exportData('normal'); return false;">Normal: <strong style="color:#2563eb">${displayNormal}</strong></span>
+      <span class="grid-icon" onclick="event.stopPropagation(); openGridPageNormal(); return false;" title="View Normal in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+    </span>
+    <span>
+      <span style="cursor:pointer;" onclick="exportData('outlier'); return false;">Outliers: <strong style="color:#e74c3c">${displayOutlier} (${displayPct}%)</strong></span>
+      <span class="grid-icon" onclick="event.stopPropagation(); openGridPage(); return false;" title="View Outliers in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+    </span>
+  `;
+  els.stats.classList.remove('hidden');
+  els.stats.style.display = 'flex';
+  
+  if (viewMode === 'grid') {
+    els.chartView.classList.add('hidden');
+    els.chartView.style.display = 'none';
+    displayGrid(displayData, combinedTotal, combinedNormal, combinedOutlier);
+  } else {
+    els.gridView.classList.add('hidden');
+    els.gridView.style.display = 'none';
+    displayChart(displayData);
+  }
+}
+
+function displayGrid(data, combinedTotal = 0, combinedNormal = 0, combinedOutlier = 0) {
+  els.chartView.classList.add('hidden');
+  els.chartView.style.display = 'none';
+  els.gridView.classList.remove('hidden');
+  els.gridView.style.display = 'block';
+  
+  const brands = [...new Set(data.map(d => d.Brand))];
+  const category = data[0].Category;
+  const algorithms = selectedValues(els.algo);
+  const selectedBrands = selectedValues(els.brand);
+  const groupName = els.group.options[els.group.selectedIndex].text.split('(')[0].trim();
+  
+  const summaryData = [];
+  let totalAll = 0;
+  let normalAll = 0;
+  let outlierAll = 0;
+  
+  brands.forEach(brand => {
+    const brandData = data.filter(d => d.Brand === brand);
+    const total = brandData.length;
+    const normal = brandData.filter(d => !d.is_outlier_combined).length;
+    const outlier = brandData.filter(d => d.is_outlier_combined).length;
+    
+    totalAll += total;
+    normalAll += normal;
+    outlierAll += outlier;
+    
+    summaryData.push({
+      brand,
+      category,
+      total,
+      normal,
+      normal_pct: ((normal/total)*100).toFixed(2),
+      outlier,
+      outlier_pct: ((outlier/total)*100).toFixed(2)
+    });
+  });
+  
+  summaryData.sort((a, b) => b.outlier - a.outlier);
+  
+  document.getElementById('gridTitle').innerHTML = `Analysis Completed Successfully! <span style="font-size:13px;color:#7f8c8d;font-weight:normal;margin-left:8px;">(${brands.length} brand${brands.length > 1 ? 's' : ''} processed)</span>`;
+  
+  document.getElementById('gridSummaryMeta').innerHTML = `
+    <p><strong>Product Group:</strong> ${groupName}</p>
+    <p><strong>Algorithm(s):</strong> ${algorithms.join(', ')}</p>
+    <p><strong>Brand(s):</strong> ${selectedBrands.length ? selectedBrands.join(', ') : 'All Brands'}</p>
+    <p><strong>Category:</strong> ${category}</p>
+  `;
+  
+  els.gridBody.innerHTML = '';
+  summaryData.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.brand}</td>
+      <td>${item.category}</td>
+      <td>
+        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'all'); return false;">${item.total}</a>
+        <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', ''); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+      </td>
+      <td style="color:#27ae60;">
+        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'normal'); return false;">${item.normal} (${item.normal_pct}%)</a>
+        <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '1'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+      </td>
+      <td style="color:#dc2626;">
+        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'outlier'); return false;">${item.outlier} (${item.outlier_pct}%)</a>
+        <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '0'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
+      </td>
+    `;
+    els.gridBody.appendChild(tr);
+  });
+}
+
+function exportBrandData(brand, category, type) {
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  
+  if (!sourceData.length) return;
+  
+  let filtered;
+  if (type === 'all') {
+    filtered = sourceData.filter(d => d.Brand === brand && d.Category === category);
+  } else {
+    filtered = sourceData.filter(d => 
+      d.Brand === brand && 
+      d.Category === category && 
+      (type === 'normal' ? !d.is_outlier_combined : d.is_outlier_combined)
+    );
+  }
+  
+  const payload = { data: filtered, export_type: type };
+  
+  showLoader();
+  fetch('/dimension/analyzer/api/export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.blob())
+  .then(blob => {
+    hideLoader();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeBrand = brand.replace(/[^a-z0-9]/gi, '_');
+    const safeCategory = category.replace(/[^a-z0-9]/gi, '_');
+    a.download = `${type}_${safeBrand}_${safeCategory}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  })
+  .catch(() => { hideLoader(); alert('Export failed'); });
+}
+
+function displayChart(data) {
+  els.gridView.classList.add('hidden');
+  els.gridView.style.display = 'none';
+  els.chartView.classList.remove('hidden');
+  els.chartView.style.display = 'grid';
+  
+  const normals = data.filter(d => !d.is_outlier_combined);
+  const outliers = data.filter(d => d.is_outlier_combined);
+  
+  const allData = data;
+  const max_width = Math.max(...allData.map(d => d.W));
+  const max_height = Math.max(...allData.map(d => d.H));
+  const max_depth = Math.max(...allData.map(d => d.D));
+  
+  const traces = [];
+  
+  if (normals.length) {
+    traces.push({
+      x: normals.map(d => d.W),
+      y: normals.map(d => d.H),
+      z: normals.map(d => d.D),
+      mode: 'markers',
+      type: 'scatter3d',
+      name: 'Normal Products',
+      marker: {
+        size: 10,
+        color: '#4472C4',
+        opacity: 0.8,
+        line: {color: '#2E5090', width: 1.5},
+        symbol: 'circle'
+      },
+      text: normals.map(d => d.SKU),
+      customdata: normals,
+      hovertemplate: '<b style="font-size:14px">%{text}</b><br><br>' +
+                     '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
+                     '<b>Type:</b> %{customdata.Type}<br><br><b style="color:#2c3e50">📏 Dimensions:</b><br>' +
+                     'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
+                     'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
+      hoverlabel: { namelength: -1 }
+    });
+  }
+  
+  if (outliers.length) {
+    traces.push({
+      x: outliers.map(d => d.W),
+      y: outliers.map(d => d.H),
+      z: outliers.map(d => d.D),
+      mode: 'markers',
+      type: 'scatter3d',
+      name: 'Outlier Products',
+      marker: {
+        size: 12,
+        color: '#E74C3C',
+        opacity: 0.9,
+        line: {color: '#C0392B', width: 2},
+        symbol: 'diamond'
+      },
+      text: outliers.map(d => d.SKU),
+      customdata: outliers,
+      hovertemplate: '<b style="font-size:14px">⚠️ OUTLIER: %{text}</b><br><br>' +
+                     '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
+                     '<b>Type:</b> %{customdata.Type}<br><br><b style="color:#c0392b">📏 Dimensions:</b><br>' +
+                     'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
+                     'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
+      hoverlabel: { namelength: -1 }
+    });
+  }
+  
+  const layout = {
+    scene: {
+      xaxis: {
+        title: 'Width (W)',
+        range: [0, max_width],
+        gridcolor: '#ffffff',
+        showbackground: true,
+        backgroundcolor: '#f0f0f0'
+      },
+      yaxis: {
+        title: 'Height (H)',
+        range: [0, max_height],
+        gridcolor: '#ffffff',
+        showbackground: true,
+        backgroundcolor: '#f0f0f0'
+      },
+      zaxis: {
+        title: 'Depth (D)',
+        range: [0, max_depth],
+        gridcolor: '#ffffff',
+        showbackground: true,
+        backgroundcolor: '#f0f0f0'
+        
+      },
+      bgcolor: '#ffffff'
+    },
+    paper_bgcolor: '#ffffff',
+    margin: {l: 0, r: 0, b: 0, t: 0},
+    legend: {
+      x: 0.02,
+      y: 0.98,
+      bgcolor: '#ffffff',
+      bordercolor: '#ddd',
+      borderwidth: 1
+    }
+  };
+  
+  Plotly.react(els.chart, traces, layout, {displayModeBar: true, displaylogo: false, scrollZoom: true, hoverDistance: 50});
+  
+  els.chart.removeAllListeners('plotly_click');
+  els.chart.on('plotly_click', (ev) => {
+    if (!ev || !ev.points || !ev.points.length) return;
+    const point = ev.points[0];
+    const product = point.customdata;
+    
+    if (product) {
+      renderPreview(product);
+    }
+  });
+  
+  renderPreviewEmpty();
+}
+
+function renderPreviewEmpty() {
+  els.preview.style.background = '#f8fafc';
+  els.preview.style.borderColor = 'var(--line)';
+  els.preview.innerHTML = `
+    <h3 style="margin-top:0;">Product Preview</h3>
+    <p style="color:var(--muted);">Click any point in the 3D chart to view product details.</p>
+  `;
+}
+
+function renderPreview(p) {
+  const isOutlier = Boolean(p.is_outlier_combined);
+  
+  const bgColor = isOutlier ? '#fee' : '#eff6ff';
+  const borderColor = isOutlier ? '#ef4444' : '#3b82f6';
+  
+  els.preview.style.background = bgColor;
+  els.preview.style.borderColor = borderColor;
+  
+  let hOutlier = false;
+  let wOutlier = false;
+  let dOutlier = false;
+  
+  // Check if IQR bounds are available
+  const hasIQRBounds = (p.H_lower_bound != null && p.H_upper_bound != null);
+  
+  if (hasIQRBounds) {
+    hOutlier = p.H < p.H_lower_bound || p.H > p.H_upper_bound;
+    wOutlier = p.W < p.W_lower_bound || p.W > p.W_upper_bound;
+    dOutlier = p.D < p.D_lower_bound || p.D > p.D_upper_bound;
+  }
+  
+  const dimensionsHtml = `
+    <div class="panel">
+      <h3 style="margin-top:0;">📏 Dimensions</h3>
+      <div style="${(isOutlier && hOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Height: ${p.H} Inch</div>
+      <div style="${(isOutlier && wOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Width: ${p.W} Inch</div>
+      <div style="${(isOutlier && dOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Depth: ${p.D} Inch</div>
+    </div>
+  `;
+  
+  // IQR Analysis - show if IQR data is available
+  let iqrHtml = "";
+  if (p.H_IQR != null && p.W_IQR != null && p.D_IQR != null) {
+    iqrHtml = `
+      <div class="panel">
+        <h3 style="margin-top:0;">📊 IQR Analysis</h3>
+        <div>H_IQR: ${p.H_IQR.toFixed(2)}</div>
+        <div>W_IQR: ${p.W_IQR.toFixed(2)}</div>
+        <div>D_IQR: ${p.D_IQR.toFixed(2)}</div>
+      </div>`;
+  } else if (p.iqr_is_outlier != null) {
+    // Show IQR status even if detailed stats not available
+    iqrHtml = `
+      <div class="panel">
+        <h3 style="margin-top:0;">📊 IQR Analysis</h3>
+        <div>Status: <span style="${p.iqr_is_outlier ? 'color:#e74c3c;font-weight:600;' : 'color:#27ae60;font-weight:600;'}">${p.iqr_is_outlier ? 'Outlier' : 'Normal'}</span></div>
+      </div>`;
+  }
+  
+  // DBSCAN Analysis - show if DBSCAN data is available
+  let dbscanHtml = "";
+  if (p.dbscan_cluster != null) {
+    dbscanHtml = `
+      <div class="panel">
+        <h3 style="margin-top:0;">🎯 DBSCAN Analysis</h3>
+        <div>Cluster Assignment: <span style="${p.dbscan_cluster === -1 ? 'color:#e67e22;font-weight:600;' : 'color:#27ae60;font-weight:600;'}">${p.dbscan_cluster === -1 ? "Noise/Outlier" : "Cluster " + p.dbscan_cluster}</span></div>
+      </div>`;
+  } else if (p.dbscan_is_outlier != null) {
+    // Show DBSCAN status even if cluster not available
+    dbscanHtml = `
+      <div class="panel">
+        <h3 style="margin-top:0;">🎯 DBSCAN Analysis</h3>
+        <div>Status: <span style="${p.dbscan_is_outlier ? 'color:#e74c3c;font-weight:600;' : 'color:#27ae60;font-weight:600;'}">${p.dbscan_is_outlier ? 'Outlier' : 'Normal'}</span></div>
+      </div>`;
+  }
+  
+  // Outlier Range - show if outlier and bounds are available
+  let outlierRange = "";
+  if (isOutlier && hasIQRBounds) {
+    outlierRange = `
+      <div class="panel" style="border-color:#ef4444;background:#fff5f5;">
+        <h3 class="warn" style="margin-top:0;">⚠️ Outlier Analysis</h3>
+        <div style="${hOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Height Range: ${Math.max(0, p.H_lower_bound).toFixed(1)} - ${p.H_upper_bound.toFixed(1)} Inch</div>
+        <div style="${wOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Width Range: ${Math.max(0, p.W_lower_bound).toFixed(1)} - ${p.W_upper_bound.toFixed(1)} Inch</div>
+        <div style="${dOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Depth Range: ${Math.max(0, p.D_lower_bound).toFixed(1)} - ${p.D_upper_bound.toFixed(1)} Inch</div>
+        <div style="color:#e74c3c;font-weight:600;margin-top:8px;padding:8px;background:#fff5f5;border:1px solid #e74c3c;border-radius:4px;">⚠️ This product has dimensions outside the expected range!</div>
+      </div>
+    `;
+  }
+  
+  els.preview.innerHTML = `
+    <h3 style="margin-top:0;${isOutlier ? "color:#e74c3c;" : ""}">${isOutlier ? "⚠️ OUTLIER: " : ""}${p.SKU}</h3>
+    <div class="muted">${p.Brand} - ${p.Type}</div>
+    ${p.imageUrl ? `<img class="preview" src="${p.imageUrl}" alt="${p.SKU}">` : ""}
+    ${dimensionsHtml}
+    ${iqrHtml}
+    ${dbscanHtml}
+    ${outlierRange}
+  `;
+}
+
+async function exportData(type) {
+  if (!analysisData.length) return;
+  
+  const groupId = els.group.value;
+  const category = els.category.value;
+  
+  if (!groupId || !category) return;
+  
+  showLoader();
+  
+  // Fetch all outliers from previous iterations
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: selectedValues(els.brand),
+    category: category,
+    types: selectedValues(els.type),
+    current_iteration: currentIteration,
+    algorithms: selectedValues(els.algo)
+  };
+  
+  const res = await fetch('/dimension/analyzer/api/get-all-outliers', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  
+  if (!res.ok) {
+    hideLoader();
+    alert('Failed to load previous outliers');
+    return;
+  }
+  
+  const result = await res.json();
+  
+  if (!result.ok) {
+    hideLoader();
+    alert('Failed to load previous outliers');
+    return;
+  }
+  
+  // Combine previous outliers with current data
+  const previousOutliers = result.outliers || [];
+  let combinedData = [];
+  
+  if (type === 'outlier') {
+    // Current iteration outliers
+    const currentOutliers = analysisData.filter(d => d.is_outlier_combined);
+    // Combine with previous outliers
+    combinedData = [...previousOutliers, ...currentOutliers];
+  } else if (type === 'normal') {
+    // Only current iteration normals
+    combinedData = analysisData.filter(d => !d.is_outlier_combined);
+  } else {
+    // All: previous outliers + current data
+    combinedData = [...previousOutliers, ...analysisData];
+  }
+  
+  // Export combined data
+  const exportRes = await fetch('/dimension/analyzer/api/export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: combinedData, export_type: type})
+  });
+  
+  if (!exportRes.ok) {
+    hideLoader();
+    alert('Export failed');
+    return;
+  }
+  
+  const blob = await exportRes.blob();
+  hideLoader();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `analyzer_export_${type}.csv`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+function showLoader() {
+  document.getElementById('overlayLoader').classList.add('active');
+}
+
+function hideLoader() {
+  document.getElementById('overlayLoader').classList.remove('active');
+}
+
+function openGridPage() {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  // const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  
+  if (!groupId || !category) {
+    alert('Please select Product Group and Category');
+    return;
+  }
+  
+  const params = new URLSearchParams();
+  params.append('group_id', groupId);
+  if (brands.length > 0) {
+    brands.forEach(b => params.append('brands', b));
+  }
+  params.append('category', category);
+  if (types.length > 0) {
+    types.forEach(t => params.append('types', t));
+  }
+  params.append('final_status', '0');
+  // if (dataScope === 'individual') {
+  //   params.append('iteration', currentIteration);
+  // }
+  
+  const url = `/grid?${params.toString()}`;
+  window.open(url, '_blank');
+}
+
+function openGridPageAll() {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  // const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  
+  if (!groupId || !category) {
+    alert('Please select Product Group and Category');
+    return;
+  }
+  
+  const params = new URLSearchParams();
+  params.append('group_id', groupId);
+  if (brands.length > 0) {
+    brands.forEach(b => params.append('brands', b));
+  }
+  params.append('category', category);
+  if (types.length > 0) {
+    types.forEach(t => params.append('types', t));
+  }
+  // if (dataScope === 'individual') {
+  //   params.append('iteration', currentIteration);
+  // }
+  
+  const url = `/grid?${params.toString()}`;
+  window.open(url, '_blank');
+}
+
+function openGridPageNormal() {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  // const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  
+  if (!groupId || !category) {
+    alert('Please select Product Group and Category');
+    return;
+  }
+  
+  const params = new URLSearchParams();
+  params.append('group_id', groupId);
+  if (brands.length > 0) {
+    brands.forEach(b => params.append('brands', b));
+  }
+  params.append('category', category);
+  if (types.length > 0) {
+    types.forEach(t => params.append('types', t));
+  }
+  params.append('final_status', '1');
+  // if (dataScope === 'individual') {
+  //   params.append('iteration', currentIteration);
+  // }
+  
+  const url = `/grid?${params.toString()}`;
+  window.open(url, '_blank');
+}
+
+function openGridPageBrand(brand, category, finalStatus) {
+  const groupId = els.group.value;
+  const types = selectedValues(els.type);
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  
+  if (!groupId || !category) {
+    alert('Please select Product Group and Category');
+    return;
+  }
+  
+  const params = new URLSearchParams();
+  params.append('group_id', groupId);
+  params.append('brands', brand);
+  params.append('category', category);
+  if (types.length > 0) {
+    types.forEach(t => params.append('types', t));
+  }
+  if (finalStatus !== '') {
+    params.append('final_status', finalStatus);
+  }
+  if (dataScope === 'individual') {
+    params.append('iteration', currentIteration);
+  }
+  
+  const url = `/grid?${params.toString()}`;
+  window.open(url, '_blank');
+}
+
+els.group.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
+els.brand.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
+els.category.addEventListener('change', async () => { resetIteration(); await loadOptions(); updatePrompt(); });
+els.type.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
+els.algo.addEventListener('change', () => { syncAlgoPanels(); });
+els.h.addEventListener('input', () => { els.hVal.textContent = els.h.value; });
+els.w.addEventListener('input', () => { els.wVal.textContent = els.w.value; });
+els.d.addEventListener('input', () => { els.dVal.textContent = els.d.value; });
+els.eps.addEventListener('input', () => { els.epsVal.textContent = els.eps.value; });
+els.minSamp.addEventListener('input', () => { els.minSampVal.textContent = els.minSamp.value; });
+els.current.addEventListener('click', () => runAnalysis(false));
+els.next.addEventListener('click', () => runAnalysis(true));
+els.reset.addEventListener('click', resetIterationData);
+
+els.algoTrigger.addEventListener('click', () => {
+  const willOpen = els.algoMenu.classList.contains('hidden');
+  closeAllDropdownMenus();
+  if (willOpen) els.algoMenu.classList.remove('hidden');
+});
+
+els.brandTrigger.addEventListener('click', () => {
+  const willOpen = els.brandMenu.classList.contains('hidden');
+  closeAllDropdownMenus();
+  if (willOpen) els.brandMenu.classList.remove('hidden');
+});
+
+els.categoryTrigger.addEventListener('click', () => {
+  const willOpen = els.categoryMenu.classList.contains('hidden');
+  closeAllDropdownMenus();
+  if (willOpen) els.categoryMenu.classList.remove('hidden');
+});
+
+els.typeTrigger.addEventListener('click', () => {
+  const willOpen = els.typeMenu.classList.contains('hidden');
+  closeAllDropdownMenus();
+  if (willOpen) els.typeMenu.classList.remove('hidden');
+});
+
+document.addEventListener('click', (e) => {
+  const inAlgo = e.target.closest('#algoDropdown');
+  const inBrand = e.target.closest('#brandDropdown');
+  const inCategory = e.target.closest('#categoryDropdown');
+  const inType = e.target.closest('#typeDropdown');
+  if (!inAlgo && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+});
+
+document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
+  radio.addEventListener('change', async () => {
+    if (analysisData.length === 0) return;
+    
+    const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+    const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+    
+    showLoader();
+    
+    let displayData = analysisData;
+    if (dataScope === 'global') {
+      const groupId = els.group.value;
+      const category = els.category.value;
+      
+      const payload = {
+        group_id: parseInt(groupId),
+        brands: selectedValues(els.brand),
+        category: category,
+        types: selectedValues(els.type),
+        current_iteration: currentIteration,
+        algorithms: selectedValues(els.algo)
+      };
+      
+      const res = await fetch('/dimension/analyzer/api/get-all-outliers', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const result = await res.json();
+        if (result.ok) {
+          const previousOutliers = result.outliers || [];
+          displayData = [...previousOutliers, ...analysisData];
+          allIterationsData = displayData;
+        }
+      }
+    }
+    
+    hideLoader();
+    
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => !d.is_outlier_combined).length,
+      outliers: displayData.filter(d => d.is_outlier_combined).length
+    };
+    displayResults(result);
+  });
+});
+
+document.getElementById('individualBtn').addEventListener('click', function() {
+  if (analysisData.length === 0) return;
+  document.getElementById('individualBtn').classList.add('active');
+  document.getElementById('globalBtn').classList.remove('active');
+  const result = {
+    data: analysisData,
+    total: analysisData.length,
+    normals: analysisData.filter(d => !d.is_outlier_combined).length,
+    outliers: analysisData.filter(d => d.is_outlier_combined).length
+  };
+  displayResults(result);
+});
+
+document.getElementById('globalBtn').addEventListener('click', function() {
+  if (analysisData.length === 0) return;
+  document.getElementById('globalBtn').classList.add('active');
+  document.getElementById('individualBtn').classList.remove('active');
+  const displayData = allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const result = {
+    data: displayData,
+    total: displayData.length,
+    normals: displayData.filter(d => !d.is_outlier_combined).length,
+    outliers: displayData.filter(d => d.is_outlier_combined).length
+  };
+  displayResults(result);
+});
+
+(async function init() {
+  renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, 'Select Algorithm(s)');
+  syncAlgoPanels();
+  await loadGroups();
+  updatePrompt();
+})();
+</script>
+{% endblock %}
