@@ -1,0 +1,726 @@
+{% extends "base.html" %}
+{% block title %}Matching Items | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+<style>
+:root {
+  --bg: #ffffff;
+  --line: #dde5f1;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --blue: #2563eb;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+}
+* { box-sizing: border-box; }
+.page { padding: 16px; }
+.section { margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fafcff; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--ink); }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+select, button, input { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px; font-size: 13px; }
+button { cursor: pointer; background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 600; }
+button:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table th { background: #e0f2fe; padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #2563eb; color: #1e40af; cursor: pointer; user-select: none; }
+table th:hover { background: #bae6fd; }
+table th.sort-asc::after { content: ' ▲'; color: #2563eb; }
+table th.sort-desc::after { content: ' ▼'; color: #2563eb; }
+table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+table tr:hover { background: #f8fafc; cursor: pointer; }
+.url-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #6b7280; }
+.url-link { color: #2563eb; text-decoration: none; font-weight: 600; }
+.url-link:hover { text-decoration: underline; }
+.status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; }
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-approved { background: #d1fae5; color: #065f46; }
+.status-rejected { background: #fee2e2; color: #991b1b; }
+.action-dropdown { width: auto; padding: 4px 8px; font-size: 12px; }
+.action-dropdown.status-approve { background: #d1fae5; color: #065f46; font-weight: 600; }
+.action-dropdown.status-pending { background: #fef3c7; color: #92400e; font-weight: 600; }
+.action-dropdown.status-reject { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.select-hidden { display: none; }
+.multi-select { position: relative; }
+.ms-trigger { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px 10px; font-size: 13px; background: #ffffff; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.ms-menu { position: absolute; left: 0; right: 0; margin-top: 6px; border: 1px solid #c9d4e7; border-radius: 8px; background: #ffffff; z-index: 40; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); display: none; }
+.ms-menu:not(.hidden) { display: block; }
+.ms-actions { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid #e5eaf5; }
+.ms-search-wrap { padding: 8px; border-bottom: 1px solid #e5eaf5; }
+.ms-search { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 7px 9px; font-size: 13px; outline: none; }
+.ms-action-btn { width: auto; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 999px; font-size: 12px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
+.ms-options { max-height: 220px; overflow: auto; padding: 6px 8px 8px; }
+.ms-opt { display: grid; grid-template-columns: 16px 1fr; align-items: center; column-gap: 8px; padding: 5px 2px; font-size: 13px; }
+.ms-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; border: 1px solid #9ca3af; accent-color: #2563eb; }
+.label-count { font-weight: 600; color: #1d4ed8; margin-left: 4px; }
+.hidden { display: none; }
+.loading { text-align: center; padding: 20px; }
+.grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; column-gap: 0; }
+.grid-container.full { grid-template-columns: 1fr; }
+.grid-container > .section:not(:first-child) { border-left: 2px solid #2563eb; padding-left: 16px; margin-left: 16px; }
+.table-container { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+.pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding: 8px; }
+.pagination-info { font-size: 13px; color: #6b7280; }
+.pagination-controls { display: flex; gap: 8px; align-items: center; }
+.pagination-controls button { width: auto; padding: 6px 12px; font-size: 12px; }
+.pagination-controls select { width: auto; padding: 6px; font-size: 12px; }
+</style>
+
+<div class="page">
+  <h2 style="margin:0 0 16px;">Matching Items Grid</h2>
+
+  <!-- Filters Section -->
+  <div class="section">
+    <div class="section-title">Filters</div>
+    <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px;">
+      <div>
+        <label>Brand<span id="brandCount" class="label-count">(0 selected)</span></label>
+        <select id="brandFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="brandDropdown">
+          <div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+          <div class="ms-menu hidden" id="brandMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Category<span id="categoryCount" class="label-count">(0 selected)</span></label>
+        <select id="categoryFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="categoryDropdown">
+          <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+          <div class="ms-menu hidden" id="categoryMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Product Type<span id="typeCount" class="label-count">(0 selected)</span></label>
+        <select id="typeFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="typeDropdown">
+          <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
+          <div class="ms-menu hidden" id="typeMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Review Status<span id="statusCount" class="label-count">(0 selected)</span></label>
+        <select id="statusFilter" class="select-hidden" multiple>
+          <option value="0">Pending</option>
+          <option value="1">Approved</option>
+          <option value="2">Rejected</option>
+        </select>
+        <div class="multi-select" id="statusDropdown">
+          <div class="ms-trigger" id="statusTrigger">Select Status <span>▾</span></div>
+          <div class="ms-menu hidden" id="statusMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Attributes<span id="attrCount" class="label-count">(0 selected)</span></label>
+        <select id="attributeSelect" class="select-hidden" multiple>
+        </select>
+        <div class="multi-select" id="attrDropdown">
+          <div class="ms-trigger" id="attrTrigger">Select Attributes <span>▾</span></div>
+          <div class="ms-menu hidden" id="attrMenu"></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <button id="loadBtn" style="width:auto; padding:8px 24px;">Load Data</button>
+    </div>
+  </div>
+
+  <div class="loading hidden" id="loading">Loading...</div>
+
+  <!-- Grid Section -->
+  <div class="grid-container full hidden" id="gridContainer">
+    <div class="section" id="mainGridSection">
+      <div class="section-title">Matching Items (<span id="totalCount">0</span>)</div>
+      <div class="table-container">
+        <table id="gridTable">
+          <thead>
+            <tr>
+              <th data-col="brand">Brand</th>
+              <th data-col="category">Category</th>
+              <th data-col="product_type">Product Type</th>
+              <th data-col="sku">SKU</th>
+              <th data-col="name">Name</th>
+              <th data-col="price">Price</th>
+              <th data-col="url">URL</th>
+              <th data-col="competitor_id">Competitor ID</th>
+              <th data-col="score">Score</th>
+              <th data-col="score_status">Score Status</th>
+              <th data-col="competitor_count">Competitor Count</th>
+              <th data-col="review_status">Review Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info">
+          Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="showingTotal">0</span> items
+        </div>
+        <div class="pagination-controls">
+          <button id="firstPage">First</button>
+          <button id="prevPage">Previous</button>
+          <span style="font-size:13px;">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+          <button id="nextPage">Next</button>
+          <button id="lastPage">Last</button>
+          <select id="pageSize">
+            <option value="10">10 per page</option>
+            <option value="25" selected>25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section hidden" id="comparisonSection">
+      <div class="section-title">Comparison Details</div>
+      <div class="product-info" id="productInfo"></div>
+      <div class="table-container">
+        <table id="comparisonTable">
+          <thead>
+            <tr class="product-main-row" id="productMainRow"></tr>
+            <tr id="comparisonHead"></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+let currentSort = { column: null, direction: 'asc' };
+let currentCompSort = { column: null, direction: 'asc' };
+let allData = [];
+let allCompData = [];
+let currentProductId = null;
+let currentPage = 1;
+let pageSize = 25;
+
+$(document).ready(function() {
+  loadAttributes();  // Load attributes from database first
+  loadFilters();
+  
+  $('#brandFilter, #categoryFilter, #typeFilter').change(function() {
+    loadFilters();
+  });
+  
+  $('#loadBtn').click(loadGridData);
+  
+  // Multi-select handlers
+  $('#brandTrigger').click(() => toggleMenu('brandMenu'));
+  $('#categoryTrigger').click(() => toggleMenu('categoryMenu'));
+  $('#typeTrigger').click(() => toggleMenu('typeMenu'));
+  $('#statusTrigger').click(() => toggleMenu('statusMenu'));
+  $('#attrTrigger').click(() => toggleMenu('attrMenu'));
+  
+  $(document).click(function(e) {
+    if (!$(e.target).closest('.multi-select').length) {
+      closeAllMenus();
+    }
+  });
+  
+  renderMultiSelect($('#statusFilter')[0], $('#statusMenu')[0], $('#statusTrigger')[0], $('#statusCount')[0], 'Select Status');
+  // Don't render attribute select here - wait for loadAttributes to complete
+  
+  // Table sorting
+  $(document).on('click', '#gridTable th[data-col]', function() {
+    const col = $(this).data('col');
+    if (currentSort.column === col) {
+      currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSort.column = col;
+      currentSort.direction = 'asc';
+    }
+    sortAndDisplayGrid();
+  });
+  
+  // Comparison table sorting
+  $(document).on('click', '#comparisonTable th[data-col]', function() {
+    const col = $(this).data('col');
+    if (currentCompSort.column === col) {
+      currentCompSort.direction = currentCompSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentCompSort.column = col;
+      currentCompSort.direction = 'asc';
+    }
+    sortAndDisplayComparison();
+  });
+  
+  $('#firstPage').click(() => { currentPage = 1; sortAndDisplayGrid(); });
+  $('#prevPage').click(() => { if (currentPage > 1) { currentPage--; sortAndDisplayGrid(); } });
+  $('#nextPage').click(() => { const totalPages = Math.ceil(allData.length / pageSize); if (currentPage < totalPages) { currentPage++; sortAndDisplayGrid(); } });
+  $('#lastPage').click(() => { currentPage = Math.ceil(allData.length / pageSize); sortAndDisplayGrid(); });
+  $('#pageSize').change(function() { pageSize = parseInt($(this).val()); currentPage = 1; sortAndDisplayGrid(); });
+});
+
+function toggleMenu(menuId) {
+  const menu = $('#' + menuId);
+  const wasHidden = menu.hasClass('hidden');
+  closeAllMenus();
+  if (wasHidden) menu.removeClass('hidden');
+}
+
+function closeAllMenus() {
+  $('#brandMenu, #categoryMenu, #typeMenu, #statusMenu, #attrMenu').addClass('hidden');
+}
+
+function loadAttributes() {
+  $.ajax({
+    url: '/item-match/api/attributes',
+    method: 'GET',
+    success: function(data) {
+      if (data.attributes) {
+        const attrSelect = $('#attributeSelect')[0];
+        attrSelect.innerHTML = '';
+        
+        data.attributes.forEach(attr => {
+          const opt = document.createElement('option');
+          opt.value = attr.value;
+          opt.textContent = attr.label;
+          opt.selected = true;  // Select all by default
+          attrSelect.appendChild(opt);
+        });
+        
+        renderMultiSelect(attrSelect, $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
+      }
+    },
+    error: function() {
+      console.error('Failed to load attributes from database');
+    }
+  });
+}
+
+function renderMultiSelect(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const options = Array.from(selectEl.options);
+  const selectedSet = new Set(Array.from(selectEl.selectedOptions).map(o => o.value));
+  
+  if (!options.length) {
+    menuEl.innerHTML = '<div style="padding:8px;color:#6b7280;">No options</div>';
+    updateTrigger(selectEl, triggerEl, countEl, placeholder);
+    return;
+  }
+  
+  menuEl.innerHTML = '';
+  
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'ms-search-wrap';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'ms-search';
+  searchInput.placeholder = `Search ${placeholder.replace('Select ', '')}`;
+  searchWrap.appendChild(searchInput);
+  menuEl.appendChild(searchWrap);
+  
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.type = 'button';
+  selectAllBtn.className = 'ms-action-btn';
+  selectAllBtn.textContent = 'Select all';
+  const unselectAllBtn = document.createElement('button');
+  unselectAllBtn.type = 'button';
+  unselectAllBtn.className = 'ms-action-btn';
+  unselectAllBtn.textContent = 'Unselect all';
+  actions.appendChild(selectAllBtn);
+  actions.appendChild(unselectAllBtn);
+  menuEl.appendChild(actions);
+  
+  const optionsWrap = document.createElement('div');
+  optionsWrap.className = 'ms-options';
+  
+  options.forEach(opt => {
+    const row = document.createElement('label');
+    row.className = 'ms-opt';
+    row.dataset.filterText = String(opt.textContent || '').toLowerCase();
+    
+    // Apply color based on status
+    const status = opt.dataset.status;
+    if (status === 'complete') {
+      row.style.backgroundColor = '#d1fae5';
+    } else if (status === 'partial') {
+      row.style.backgroundColor = '#fef3c7';
+    }
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = String(opt.value);
+    cb.checked = selectedSet.has(String(opt.value));
+    const text = document.createElement('span');
+    text.textContent = opt.textContent;
+    row.appendChild(cb);
+    row.appendChild(text);
+    optionsWrap.appendChild(row);
+    cb.addEventListener('change', () => syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder));
+  });
+  
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(optionsWrap.querySelectorAll('.ms-opt')).forEach(row => {
+      const text = row.dataset.filterText || '';
+      row.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+  
+  menuEl.appendChild(optionsWrap);
+  
+  selectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = true; });
+    syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  unselectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+    syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  updateTrigger(selectEl, triggerEl, countEl, placeholder);
+}
+
+function syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const selected = new Set(Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value));
+  Array.from(selectEl.options).forEach(opt => { opt.selected = selected.has(String(opt.value)); });
+  updateTrigger(selectEl, triggerEl, countEl, placeholder);
+  $(selectEl).trigger('change');
+}
+
+function updateTrigger(selectEl, triggerEl, countEl, placeholder) {
+  const selectedCount = Array.from(selectEl.selectedOptions).length;
+  countEl.textContent = `(${selectedCount} selected)`;
+  triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+}
+
+function loadFilters() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  
+  $.ajax({
+    url: '/item-match/api/filters',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories }),
+    success: function(data) {
+      const brandEl = $('#brandFilter')[0];
+      const catEl = $('#categoryFilter')[0];
+      const typeEl = $('#typeFilter')[0];
+      
+      const currentBrands = brands;
+      const currentCats = categories;
+      const currentTypes = Array.from(typeEl.selectedOptions).map(o => o.value);
+      
+      brandEl.innerHTML = '';
+      data.brands.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.value;
+        opt.textContent = b.label;
+        opt.dataset.status = b.status;
+        if (currentBrands.includes(b.value)) opt.selected = true;
+        brandEl.appendChild(opt);
+      });
+      
+      catEl.innerHTML = '';
+      data.categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.value;
+        opt.textContent = c.label;
+        opt.dataset.status = c.status;
+        if (currentCats.includes(c.value)) opt.selected = true;
+        catEl.appendChild(opt);
+      });
+      
+      typeEl.innerHTML = '';
+      data.types.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.value;
+        opt.textContent = t.label;
+        opt.dataset.status = t.status;
+        if (currentTypes.includes(t.value)) opt.selected = true;
+        typeEl.appendChild(opt);
+      });
+      
+      renderMultiSelect(brandEl, $('#brandMenu')[0], $('#brandTrigger')[0], $('#brandCount')[0], 'Select Brand');
+      renderMultiSelect(catEl, $('#categoryMenu')[0], $('#categoryTrigger')[0], $('#categoryCount')[0], 'Select Category');
+      renderMultiSelect(typeEl, $('#typeMenu')[0], $('#typeTrigger')[0], $('#typeCount')[0], 'Select Product Type');
+    }
+  });
+}
+
+function loadGridData() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const statusFilter = Array.from($('#statusFilter')[0].selectedOptions).map(o => o.value);
+  
+  $('#loading').removeClass('hidden');
+  $('#gridContainer').addClass('hidden');
+  
+  $.ajax({
+    url: '/matching-items/api/grid-data',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories, types, status_filter: statusFilter }),
+    success: function(response) {
+      $('#loading').addClass('hidden');
+      if(response.error) {
+        alert(response.error);
+        return;
+      }
+      allData = response.data;
+      currentPage = 1;
+      sortAndDisplayGrid();
+    },
+    error: function() {
+      $('#loading').addClass('hidden');
+      alert('Error loading data');
+    }
+  });
+}
+
+function sortAndDisplayGrid() {
+  let sorted = [...allData];
+  
+  if (currentSort.column) {
+    sorted.sort((a, b) => {
+      let aVal = a[currentSort.column];
+      let bVal = b[currentSort.column];
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+  
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  if (currentPage > totalPages) currentPage = totalPages || 1;
+  
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, sorted.length);
+  const paginatedData = sorted.slice(startIdx, endIdx);
+  
+  displayGrid(paginatedData);
+  
+  $('#showingStart').text(sorted.length > 0 ? startIdx + 1 : 0);
+  $('#showingEnd').text(endIdx);
+  $('#showingTotal').text(sorted.length);
+  $('#currentPage').text(currentPage);
+  $('#totalPages').text(totalPages || 1);
+  
+  $('#firstPage, #prevPage').prop('disabled', currentPage === 1);
+  $('#nextPage, #lastPage').prop('disabled', currentPage >= totalPages);
+}
+
+function displayGrid(data) {
+  $('#totalCount').text(allData.length);
+  
+  const tbody = $('#gridTable tbody');
+  tbody.empty();
+  
+  data.forEach(row => {
+    const statusClass = row.review_status == 0 ? 'status-pending' : row.review_status == 1 ? 'status-approved' : 'status-rejected';
+    const statusText = row.review_status == 0 ? 'Pending' : row.review_status == 1 ? 'Approved' : 'Rejected';
+    const scoreStatusColor = row.score_status === 'Matched' ? '#10b981' : row.score_status === 'Review' ? '#f59e0b' : '#ef4444';
+    
+    tbody.append(`
+      <tr data-product-id="${row.product_id}">
+        <td>${row.brand ?? '-'}</td>
+        <td>${row.category ?? '-'}</td>
+        <td>${row.product_type ?? '-'}</td>
+        <td><a href="${row.url}" target="_blank" class="url-link">${row.sku}</a></td>
+        <td>${row.name ?? '-'}</td>
+        <td>$${row.price ?? 0}</td>
+        <td class="url-cell" title="${row.url}">${row.url}</td>
+        <td>${row.competitor_id ?? '-'}</td>
+        <td>${row.score ?? '-'}</td>
+        <td style="color:${scoreStatusColor};font-weight:600">${row.score_status ?? '-'}</td>
+        <td>${row.competitor_count ?? 0}</td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+      </tr>
+    `);
+  });
+  
+  // Update sort indicators
+  $('#gridTable th').removeClass('sort-asc sort-desc');
+  if (currentSort.column) {
+    $(`#gridTable th[data-col="${currentSort.column}"]`).addClass(`sort-${currentSort.direction}`);
+  }
+  
+  // Row click handler
+  $('#gridTable tbody tr').click(function() {
+    const productId = $(this).data('product-id');
+    loadComparison(productId);
+  });
+  
+  $('#gridContainer').removeClass('hidden');
+}
+
+function loadComparison(productId) {
+  currentProductId = productId;
+  const attributes = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  
+  $.ajax({
+    url: '/matching-items/api/comparison',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ product_id: productId, attributes }),
+    success: function(response) {
+      if(response.error) {
+        alert(response.error);
+        return;
+      }
+      displayComparison(response.data);
+    },
+    error: function() {
+      alert('Error loading comparison');
+    }
+  });
+}
+
+function updateReviewStatus(compId, action) {
+  const statusMap = { 'approve': 'approved', 'reject': 'rejected', 'pending': 'pending' };
+  const status = statusMap[action];
+  
+  $.ajax({
+    url: '/matching-items/api/update-status',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ comp_id: compId, review_status: status }),
+    success: function(response) {
+      if(response.success) {
+        // Reload both grid and comparison to reflect changes
+        loadGridData();
+        
+        // Reload comparison for current product
+        if (currentProductId) {
+          loadComparison(currentProductId);
+        }
+      } else {
+        alert('Error: ' + response.error);
+      }
+    },
+    error: function() {
+      alert('Error updating status');
+    }
+  });
+}
+
+function displayComparison(data) {
+  allCompData = data.comparisons;
+  currentCompSort = { column: null, direction: 'asc' };
+  
+  $('#gridContainer').removeClass('full');
+  $('#comparisonSection').removeClass('hidden');
+  
+  const sys = data.system_product;
+  
+  // 1. Product info outside table
+  $('#productInfo').html(`
+    <strong>Brand:</strong> ${sys.brand ?? '-'} &nbsp;|&nbsp;
+    <strong>Category:</strong> ${sys.category ?? '-'} &nbsp;|&nbsp;
+    <strong>Product Type:</strong> ${sys.product_type ?? '-'} &nbsp;|&nbsp;
+    <strong>Product ID:</strong> ${sys.system_product_id}
+  `);
+  
+  // 2. System product row in thead (first row)
+  let mainRowHtml = '';
+  if (data.attributes.includes('sku')) mainRowHtml += `<th><a href="${sys.url}" target="_blank" class="url-link">${sys.sku}</a></th>`;
+  if (data.attributes.includes('price')) mainRowHtml += `<th>$${sys.price}</th>`;
+  if (data.attributes.includes('url')) mainRowHtml += `<th class="url-cell" title="${sys.url}">${sys.url}</th>`;
+  if (data.attributes.includes('sku')) mainRowHtml += '<th>-</th>';
+  if (data.attributes.includes('price')) mainRowHtml += '<th>-</th>';
+  if (data.attributes.includes('url')) mainRowHtml += '<th>-</th>';
+  mainRowHtml += '<th>-</th><th>-</th><th>-</th>';
+  $('#productMainRow').html(mainRowHtml);
+  
+  // 3. Column headers in thead (second row)
+  let headerHtml = '';
+  if (data.attributes.includes('sku')) headerHtml += '<th data-col="sku">Competitor SKU</th>';
+  if (data.attributes.includes('price')) headerHtml += '<th data-col="price">Competitor Price</th>';
+  if (data.attributes.includes('url')) headerHtml += '<th data-col="url">Competitor URL</th>';
+  if (data.attributes.includes('sku')) headerHtml += '<th>SKU Score</th>';
+  if (data.attributes.includes('price')) headerHtml += '<th>Price Score</th>';
+  if (data.attributes.includes('url')) headerHtml += '<th>URL Score</th>';
+  headerHtml += '<th data-col="score">Final Score</th><th data-col="status">Status</th><th>Action</th>';
+  $('#comparisonHead').html(headerHtml);
+  
+  // 4. Competitor rows in tbody
+  renderComparisonRows(allCompData, data.attributes);
+}
+
+function sortAndDisplayComparison() {
+  let sorted = [...allCompData];
+  
+  if (currentCompSort.column) {
+    sorted.sort((a, b) => {
+      let aVal = a[currentCompSort.column];
+      let bVal = b[currentCompSort.column];
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return currentCompSort.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return currentCompSort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+  
+  const attributes = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  renderComparisonRows(sorted, attributes);
+}
+
+function renderComparisonRows(comparisons, attributes) {
+  const tbody = $('#comparisonTable tbody');
+  tbody.empty();
+  
+  comparisons.forEach(comp => {
+    const statusColor = comp.status === 'Matched' ? '#10b981' : comp.status === 'Review' ? '#f59e0b' : '#ef4444';
+    
+    // Determine selected action based on review_status
+    let selectedAction = 'pending';
+    if (comp.review_status === 1) selectedAction = 'approve';
+    else if (comp.review_status === 2) selectedAction = 'reject';
+    
+    const dropdownClass = selectedAction === 'approve' ? 'status-approve' : selectedAction === 'reject' ? 'status-reject' : 'status-pending';
+    
+    let rowHtml = '<tr>';
+    
+    if (attributes.includes('sku')) rowHtml += `<td><a href="${comp.url}" target="_blank" class="url-link">${comp.sku ?? '-'}</a></td>`;
+    if (attributes.includes('price')) rowHtml += `<td>$${comp.price ?? 0}</td>`;
+    if (attributes.includes('url')) rowHtml += `<td class="url-cell" title="${comp.url}">${comp.url}</td>`;
+    if (attributes.includes('sku')) rowHtml += `<td>${comp.sku_score !== null && comp.sku_score !== undefined ? comp.sku_score + '%' : '-'}</td>`;
+    if (attributes.includes('price')) rowHtml += `<td>${comp.price_score !== null && comp.price_score !== undefined ? comp.price_score + '%' : '-'}</td>`;
+    if (attributes.includes('url')) rowHtml += `<td>${comp.url_score !== null && comp.url_score !== undefined ? comp.url_score + '%' : '-'}</td>`;
+    rowHtml += `<td>${comp.score !== null && comp.score !== undefined ? comp.score + '%' : '-'}</td>
+      <td style="color:${statusColor};font-weight:600">${comp.status ?? '-'}</td>`;
+    rowHtml += `<td>
+      <select class="action-dropdown ${dropdownClass}" data-competitor-id="${comp.id}">
+        <option value="pending" ${selectedAction === 'pending' ? 'selected' : ''}>Pending</option>
+        <option value="approve" ${selectedAction === 'approve' ? 'selected' : ''}>Approve</option>
+        <option value="reject" ${selectedAction === 'reject' ? 'selected' : ''}>Reject</option>
+      </select>
+    </td></tr>`;
+    
+    tbody.append(rowHtml);
+  });
+  
+  $('#comparisonTable th').removeClass('sort-asc sort-desc');
+  if (currentCompSort.column) {
+    $(`#comparisonTable th[data-col="${currentCompSort.column}"]`).addClass(`sort-${currentCompSort.direction}`);
+  }
+  
+  $('.action-dropdown').change(function() {
+    const compId = $(this).data('competitor-id');
+    const action = $(this).val();
+    
+    if (!action) return;
+    
+    $(this).removeClass('status-approve status-pending status-reject');
+    $(this).addClass('status-' + action);
+    
+    updateReviewStatus(compId, action);
+  });
+}
+</script>
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Analyzer | 1Stopbedroom Dashboard{% endblock %}
 {% block content %}
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-3.3.1.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -84,7 +84,7 @@ button {
   border: 1px solid #c9d4e7;
   border-radius: 8px;
   background: #ffffff;
-  z-index: 40;
+  z-index: 1001;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 .ms-actions {
@@ -96,6 +96,29 @@ button {
 .ms-search-wrap {
   padding: 8px;
   border-bottom: 1px solid #e5eaf5;
+}
+.ms-filter-wrap {
+  padding: 8px;
+  border-bottom: 1px solid #e5eaf5;
+  display: flex;
+  gap: 4px;
+}
+.ms-filter-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #6b7280;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.ms-filter-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
 }
 .ms-search {
   width: 100%;
@@ -145,6 +168,12 @@ button {
   line-height: 1.3;
   word-break: break-word;
 }
+.ms-opt.analyzed-full {
+  background: #dbffed;
+}
+.ms-opt.analyzed-partial {
+  background: #ffefdd;
+}
 .cat-opt {
   padding: 7px 8px;
   border-radius: 6px;
@@ -157,6 +186,20 @@ button {
   background: #dbeafe;
   color: #1d4ed8;
   font-weight: 600;
+}
+.cat-opt.analyzed-full {
+  background: #dbffed;
+}
+.cat-opt.analyzed-full.active {
+  background: #86efac;
+  color: #065f46;
+}
+.cat-opt.analyzed-partial {
+  background: #ffefdd;
+}
+.cat-opt.analyzed-partial.active {
+  background: #ffefdd;
+  color: #7c2d12;
 }
 .ms-empty {
   padding: 8px 4px;
@@ -216,6 +259,7 @@ button {
   display: flex;
   gap: 15px;
   flex-wrap: wrap;
+  align-items: center;
   font-size: 13px;
 }
 .stats a { color: var(--blue); text-decoration: underline; }
@@ -249,11 +293,45 @@ button {
 }
 #chart {
   width: 100%;
-  height: clamp(420px, 60vh, 720px);
-  min-height: 420px;
+  aspect-ratio: 3 / 2;
+  max-height: 800px;
+  box-sizing: border-box;
   border: 2px solid #3498db;
   border-radius: 8px;
   background: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+#chart .modebar {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 1000 !important;
+}
+#chart .modebar-group {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  padding: 4px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+#chart .modebar-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 4px !important;
+  margin: 0 2px !important;
+  border-radius: 3px !important;
+  transition: background 0.2s !important;
+}
+#chart .modebar-btn:hover {
+  background: #f0f0f0 !important;
+}
+#chart .modebar-btn.active {
+  background: #e3f2fd !important;
+}
+#chart .modebar-btn svg {
+  width: 100% !important;
+  height: 100% !important;
 }
 #preview {
   border: 1px solid var(--line);
@@ -261,7 +339,7 @@ button {
   padding: 10px;
   background: #f8fafc;
   min-height: 420px;
-  max-height: clamp(420px, 60vh, 720px);
+  max-height: 800px;
   overflow-y: auto;
 }
 img.preview {
@@ -465,6 +543,154 @@ img.preview {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.modal-overlay.active { display: flex; }
+.modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 1100px;
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e5e7eb;
+}
+.modal-header h2 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 18px;
+  flex: 1;
+  white-space: nowrap;
+}
+.modal-close {
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-left: 15px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.modal-close:hover {
+  background: #dc2626;
+}
+.modal-summary {
+  margin-bottom: 15px;
+  padding: 12px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  display: none;
+}
+.modal-summary.active {
+  display: block;
+}
+.modal-summary h3 {
+  margin: 0 0 8px;
+  color: #15803d;
+  font-size: 14px;
+}
+.summary-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.summary-item {
+  display: flex;
+  gap: 8px;
+  padding: 0;
+  align-items: center;
+}
+.summary-label {
+  color: #6b7280;
+  white-space: nowrap;
+  min-width: 180px;
+}
+.summary-value {
+  font-weight: 600;
+  color: #1f2937;
+}
+.modal-progress {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+.modal-progress h3 {
+  margin: 0 0 10px;
+  color: #1e40af;
+  font-size: 16px;
+}
+.progress-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2563eb;
+}
+.modal-table-container {
+  overflow-x: auto;
+}
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.modal-table th {
+  background: #f3f4f6;
+  padding: 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #d1d5db;
+  position: sticky;
+  top: 0;
+}
+.modal-table td {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.modal-table tr:hover {
+  background: #f9fafb;
+}
+.status-processing {
+  color: #f59e0b;
+  font-weight: 600;
+}
+.status-completed {
+  color: #10b981;
+  font-weight: 600;
+}
+.status-pending {
+  color: #6b7280;
+}
 @media (max-width: 980px) {
   .row { grid-template-columns: 1fr !important; }
   .iqr-grid { grid-template-columns: 1fr; }
@@ -475,6 +701,50 @@ img.preview {
 </style>
 <div class="page">
 <div class="overlay-loader" id="overlayLoader"><div class="loader-spinner"></div></div>
+
+<!-- Analyze Multiple Modal -->
+<div class="modal-overlay" id="analyzeMultipleModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>🔄 Processing Multiple Combinations</h2>
+      <button class="modal-close" onclick="closeAnalyzeMultipleModal()">×</button>
+    </div>
+    <div class="modal-summary" id="modalSummary">
+      <h3>📊 Analysis Summary</h3>
+      <div class="summary-grid">
+        <div class="summary-item"><span class="summary-label">Selected Algorithm(s):</span><span class="summary-value" id="summaryAlgorithms">-</span></div>
+        <div class="summary-item"><span class="summary-label">Processed Brands:</span><span class="summary-value" id="summaryBrands">0</span></div>
+        <div class="summary-item"><span class="summary-label">Total Combinations:</span><span class="summary-value" id="summaryTotal">0</span></div>
+        <div class="summary-item"><span class="summary-label">Valid Combinations:</span><span class="summary-value" id="summaryValid">0</span></div>
+        <div class="summary-item"><span class="summary-label">Invalid Combinations:</span><span class="summary-value" id="summaryInvalid">0</span></div>
+        <div class="summary-item"><span class="summary-label">Total Items:</span><span class="summary-value" id="summaryTotalItems">0</span></div>
+        <div class="summary-item"><span class="summary-label">Normal Items:</span><span class="summary-value" style="color:#10b981;" id="summaryNormal">0</span></div>
+        <div class="summary-item"><span class="summary-label">Outlier Items:</span><span class="summary-value" style="color:#ef4444;" id="summaryOutlier">0</span></div>
+      </div>
+    </div>
+    <div class="modal-progress">
+      <div class="progress-text">Processed Combinations: <span id="processedCount">0</span> / <span id="totalCount">0</span></div>
+    </div>
+    <div class="modal-table-container">
+      <table class="modal-table">
+        <thead>
+          <tr>
+            <th>Brand</th>
+            <th>Category</th>
+            <th>Product Type</th>
+            <th>Total Items</th>
+            <th>Normal Items</th>
+            <th>Outlier Items</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="modalTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <h2 style="margin:0 0 8px;">Dimension Analyzer</h2>
 
 <div class="row">
@@ -556,6 +826,8 @@ img.preview {
 </div>
 </div>
 
+
+
 <div class="view-toggle">
 <div style="display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:start;">
 <div>
@@ -568,32 +840,57 @@ img.preview {
 </div>
 </div>
 <div>
-<label>🔄 Data Scope:</label>
+<label>💾 Save To DB:</label>
 <div class="toggle-switch">
-<button id="individualBtn" class="active" data-scope="individual">Current</button>
-<button id="globalBtn" data-scope="global">Global</button>
+<button id="saveNoBtn" class="active" data-save="no">No</button>
+<button id="saveYesBtn" data-save="yes">Yes</button>
+</div>
+</div>
+<div>
+<label>🔍 Analysis:</label>
+<div class="toggle-switch">
+<button id="analysisAllBtn" class="active" data-analysis="all">All</button>
+<button id="analysisNormalBtn" data-analysis="normal">Normal</button>
 </div>
 </div>
 </div>
 <div style="display:flex;gap:10px;">
-<button id="currentBtn" style="width:120px;background:#27ae60;border-color:#27ae60;">Current</button>
-<button id="nextBtn" style="width:140px;background:#e67e22;border-color:#e67e22;">Next (Analyze)</button>
+<button id="analyzeBtn" style="width:120px;background:#27ae60;border-color:#27ae60;">Analyze</button>
+<button id="analyzeMultipleBtn" style="width:150px;background:#3498db;border-color:#3498db;">Analyze Multiple</button>
 <button id="resetBtn" style="width:100px;background:#e74c3c;border-color:#e74c3c;">Reset</button>
 </div>
 </div>
-<div id="iterationSummary" class="hidden">
+<div style="display:flex;gap:15px;">
+<div id="iterationSummary" class="hidden" style="flex:1;">
 <h3 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#2563eb;">📊 Iteration Summary</h3>
-<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
+<table id="iterationTable" style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
 <thead>
 <tr style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;">
 <th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">ITERATION</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">EPS</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">MIN SAMPLE</th>
 <th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">TOTAL</th>
 <th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">NORMAL</th>
 <th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">OUTLIER</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">MANUAL OUTLIER</th>
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">ACTION</th>
 </tr>
 </thead>
 <tbody id="iterationSummaryBody"></tbody>
 </table>
+</div>
+<div id="clusterSummary" class="hidden" style="flex:0.6;">
+<h3 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#e67e22;">🎯 Cluster Summary</h3>
+<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
+<thead>
+<tr style="background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:#fff;">
+<th style="padding:6px 8px;text-align:center;font-weight:600;border:none;">CLUSTER</th>
+<th style="padding:6px 4px;text-align:center;font-weight:600;border:none;width:60px;">SET OUTLIER</th>
+</tr>
+</thead>
+<tbody id="clusterSummaryBody"></tbody>
+</table>
+</div>
 </div>
 </div>
 </div>
@@ -603,7 +900,6 @@ img.preview {
 <div id="promptBody" style="color:#7f1d1d;line-height:1.7;">
 <div>Product Group (Required) <span id="statusGroup" style="font-weight:600;">❌</span></div>
 <div>Algorithm(s) (Required) <span id="statusAlgo" style="font-weight:600;">✅</span></div>
-<div>Category (Required) <span id="statusCategory" style="font-weight:600;">❌</span></div>
 </div>
 </div>
 
@@ -678,8 +974,7 @@ const els = {
   minSamp: document.getElementById('dbscanMinSamples'),
   epsVal: document.getElementById('epsVal'),
   minSampVal: document.getElementById('minSampVal'),
-  current: document.getElementById('currentBtn'),
-  next: document.getElementById('nextBtn'),
+  analyze: document.getElementById('analyzeBtn'),
   reset: document.getElementById('resetBtn'),
   stats: document.getElementById('statsBar'),
   gridView: document.getElementById('gridView'),
@@ -691,7 +986,9 @@ const els = {
   categoryDropdown: document.getElementById('categoryDropdown'),
   typeDropdown: document.getElementById('typeDropdown'),
   iterationSummary: document.getElementById('iterationSummary'),
-  iterationSummaryBody: document.getElementById('iterationSummaryBody')
+  iterationSummaryBody: document.getElementById('iterationSummaryBody'),
+  clusterSummary: document.getElementById('clusterSummary'),
+  clusterSummaryBody: document.getElementById('clusterSummaryBody')
 };
 
 function selectedValues(selectEl) {
@@ -705,6 +1002,8 @@ function setSelectOptions(selectEl, options, selected = []) {
     const opt = document.createElement('option');
     opt.value = item.value;
     opt.textContent = item.label;
+    if (item.analyzed_count !== undefined) opt.dataset.analyzedCount = item.analyzed_count;
+    if (item.total_count !== undefined) opt.dataset.totalCount = item.total_count;
     if (old.has(String(item.value))) opt.selected = true;
     selectEl.appendChild(opt);
   });
@@ -740,6 +1039,28 @@ function renderCategoryDropdown() {
   searchInput.placeholder = 'Search Category';
   searchWrap.appendChild(searchInput);
   
+  // Add filter buttons
+  const filterWrap = document.createElement('div');
+  filterWrap.className = 'ms-filter-wrap';
+  const filterPending = document.createElement('button');
+  filterPending.type = 'button';
+  filterPending.className = 'ms-filter-btn';
+  filterPending.textContent = 'Pending';
+  filterPending.dataset.filter = 'pending';
+  const filterPartial = document.createElement('button');
+  filterPartial.type = 'button';
+  filterPartial.className = 'ms-filter-btn';
+  filterPartial.textContent = 'Partial';
+  filterPartial.dataset.filter = 'partial';
+  const filterFull = document.createElement('button');
+  filterFull.type = 'button';
+  filterFull.className = 'ms-filter-btn';
+  filterFull.textContent = 'Full';
+  filterFull.dataset.filter = 'full';
+  filterWrap.appendChild(filterPending);
+  filterWrap.appendChild(filterPartial);
+  filterWrap.appendChild(filterFull);
+  
   const optionsWrap = document.createElement('div');
   optionsWrap.className = 'ms-options';
   
@@ -749,6 +1070,22 @@ function renderCategoryDropdown() {
     row.dataset.value = String(opt.value || '');
     row.dataset.filterText = String(opt.textContent || '').toLowerCase();
     row.textContent = opt.textContent;
+    
+    // Add analysis status class and data attribute
+    let statusType = 'pending';
+    if (opt.dataset.analyzedCount && opt.dataset.totalCount) {
+      const analyzed = parseInt(opt.dataset.analyzedCount);
+      const total = parseInt(opt.dataset.totalCount);
+      if (analyzed === total) {
+        row.classList.add('analyzed-full');
+        statusType = 'full';
+      } else if (analyzed > 0) {
+        row.classList.add('analyzed-partial');
+        statusType = 'partial';
+      }
+    }
+    row.dataset.statusType = statusType;
+    
     if (String(opt.value || '') === String(selectedValue)) row.classList.add('active');
     row.addEventListener('click', () => {
       els.category.value = String(opt.value || '');
@@ -759,15 +1096,40 @@ function renderCategoryDropdown() {
     optionsWrap.appendChild(row);
   });
   
+  // Filter button click handlers
+  const activeFilters = new Set();
+  [filterPending, filterPartial, filterFull].forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('active')) {
+        btn.classList.remove('active');
+        activeFilters.delete(btn.dataset.filter);
+      } else {
+        btn.classList.add('active');
+        activeFilters.add(btn.dataset.filter);
+      }
+      
+      Array.from(optionsWrap.querySelectorAll('.cat-opt')).forEach(row => {
+        if (activeFilters.size === 0 || activeFilters.has(row.dataset.statusType)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  });
+  
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim().toLowerCase();
     Array.from(optionsWrap.querySelectorAll('.cat-opt')).forEach(row => {
       const txt = row.dataset.filterText || '';
-      row.style.display = !q || txt.includes(q) ? '' : 'none';
+      const matchesSearch = !q || txt.includes(q);
+      const matchesFilter = activeFilters.size === 0 || activeFilters.has(row.dataset.statusType);
+      row.style.display = matchesSearch && matchesFilter ? '' : 'none';
     });
   });
   
   els.categoryMenu.appendChild(searchWrap);
+  els.categoryMenu.appendChild(filterWrap);
   els.categoryMenu.appendChild(optionsWrap);
   updateCategoryTrigger();
 }
@@ -823,6 +1185,36 @@ function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, place
   searchWrap.appendChild(searchInput);
   menuEl.appendChild(searchWrap);
   
+  // Check if analyzed status data exists
+  const hasAnalyzedStatus = options.some(opt => opt.dataset.analyzedCount !== undefined && opt.dataset.totalCount !== undefined);
+  
+  // Add filter buttons only if analyzed status exists
+  let filterWrap, filterPending, filterPartial, filterFull, activeFilters;
+  if (hasAnalyzedStatus) {
+    filterWrap = document.createElement('div');
+    filterWrap.className = 'ms-filter-wrap';
+    filterPending = document.createElement('button');
+    filterPending.type = 'button';
+    filterPending.className = 'ms-filter-btn';
+    filterPending.textContent = 'Pending';
+    filterPending.dataset.filter = 'pending';
+    filterPartial = document.createElement('button');
+    filterPartial.type = 'button';
+    filterPartial.className = 'ms-filter-btn';
+    filterPartial.textContent = 'Partial';
+    filterPartial.dataset.filter = 'partial';
+    filterFull = document.createElement('button');
+    filterFull.type = 'button';
+    filterFull.className = 'ms-filter-btn';
+    filterFull.textContent = 'Full';
+    filterFull.dataset.filter = 'full';
+    filterWrap.appendChild(filterPending);
+    filterWrap.appendChild(filterPartial);
+    filterWrap.appendChild(filterFull);
+    menuEl.appendChild(filterWrap);
+    activeFilters = new Set();
+  }
+  
   const selectAllBtn = document.createElement('button');
   selectAllBtn.type = 'button';
   selectAllBtn.className = 'ms-action-btn';
@@ -844,6 +1236,23 @@ function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, place
     row.className = 'ms-opt';
     row.dataset.filterText = String(opt.textContent || '').toLowerCase();
     
+    // Add analysis status class and data attribute only if analyzed status exists
+    let statusType = 'pending';
+    if (hasAnalyzedStatus && opt.dataset.analyzedCount && opt.dataset.totalCount) {
+      const analyzed = parseInt(opt.dataset.analyzedCount);
+      const total = parseInt(opt.dataset.totalCount);
+      if (analyzed === total) {
+        row.classList.add('analyzed-full');
+        statusType = 'full';
+      } else if (analyzed > 0) {
+        row.classList.add('analyzed-partial');
+        statusType = 'partial';
+      }
+    }
+    if (hasAnalyzedStatus) {
+      row.dataset.statusType = statusType;
+    }
+    
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.value = String(opt.value);
@@ -861,11 +1270,36 @@ function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, place
     });
   });
   
+  // Filter button click handlers only if analyzed status exists
+  if (hasAnalyzedStatus) {
+    [filterPending, filterPartial, filterFull].forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('active')) {
+          btn.classList.remove('active');
+          activeFilters.delete(btn.dataset.filter);
+        } else {
+          btn.classList.add('active');
+          activeFilters.add(btn.dataset.filter);
+        }
+        
+        Array.from(optionsWrap.querySelectorAll('.ms-opt')).forEach(row => {
+          if (activeFilters.size === 0 || activeFilters.has(row.dataset.statusType)) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+  }
+  
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim().toLowerCase();
     Array.from(optionsWrap.querySelectorAll('.ms-opt')).forEach(row => {
       const text = row.dataset.filterText || '';
-      row.style.display = !q || text.includes(q) ? '' : 'none';
+      const matchesSearch = !q || text.includes(q);
+      const matchesFilter = !hasAnalyzedStatus || activeFilters.size === 0 || activeFilters.has(row.dataset.statusType);
+      row.style.display = matchesSearch && matchesFilter ? '' : 'none';
     });
   });
   
@@ -910,11 +1344,9 @@ function updatePrompt() {
   
   document.getElementById('statusGroup').textContent = groupId ? '✅' : '❌';
   document.getElementById('statusAlgo').textContent = algos.length ? '✅' : '❌';
-  document.getElementById('statusCategory').textContent = category ? '✅' : '❌';
   
-  const canAnalyze = groupId && algos.length && category;
-  els.current.disabled = !canAnalyze;
-  els.next.disabled = !canAnalyze;
+  const canAnalyze = groupId && algos.length;
+  els.analyze.disabled = !canAnalyze;
   
   if (canAnalyze) {
     document.getElementById('promptPanel').style.display = 'none';
@@ -929,7 +1361,11 @@ async function loadGroups() {
   const data = await res.json();
   hideLoader();
   const options = [{label: 'Select Product Group', value: ''}].concat(data.groups);
-  setSelectOptions(els.group, options, []);
+  const defaultSelected = data.default_group_id ? [String(data.default_group_id)] : [];
+  setSelectOptions(els.group, options, defaultSelected);
+  if (data.default_group_id) {
+    await loadOptions();
+  }
   updatePrompt();
 }
 
@@ -977,6 +1413,8 @@ async function loadOptions() {
     const opt = document.createElement('option');
     opt.value = item.value;
     opt.textContent = item.label;
+    if (item.analyzed_count !== undefined) opt.dataset.analyzedCount = item.analyzed_count;
+    if (item.total_count !== undefined) opt.dataset.totalCount = item.total_count;
     if (currentCategory && String(item.value) === String(currentCategory)) {
       opt.selected = true;
     }
@@ -997,7 +1435,9 @@ function resetIteration() {
   currentIteration = 1;
   iterationHistory = [];
   analysisData = [];
+  allIterationsData = [];
   els.iterationSummary.classList.add('hidden');
+  els.clusterSummary.classList.add('hidden');
   els.gridView.classList.add('hidden');
   els.gridView.style.display = 'none';
   els.chartView.classList.add('hidden');
@@ -1027,29 +1467,44 @@ async function loadIterationHistory() {
   const data = await res.json();
   
   if (data.ok && data.history && data.history.length > 0) {
-    iterationHistory = data.history;
-    currentIteration = Math.max(...data.history.map(h => h.iteration));
+    // Keep any unsaved current iteration before reloading from DB
+    const unsavedIter = iterationHistory.find(h => !h.saved && h.iteration === currentIteration);
+    
+    iterationHistory = data.history.map(h => ({...h, saved: true}));
+    currentIteration = Math.max(...data.history.map(h => h.iteration)) + 1;
+    
+    // Re-add unsaved iteration if it exists
+    if (unsavedIter) {
+      iterationHistory.push(unsavedIter);
+    }
+    
     displayIterationSummary();
   } else {
-    resetIteration();
+    currentIteration = 1;
+    // Don't clear iterationHistory here - keep any unsaved iterations
   }
 }
 
 async function resetIterationData() {
   const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
   const category = els.category.value;
+  const types = selectedValues(els.type);
   
-  if (!groupId || !category) return;
+  if (!groupId) {
+    alert('Please select Product Group at least.');
+    return;
+  }
   
-  if (!confirm('Are you sure you want to reset all iterations? This will clear all saved analysis data for this category.')) {
+  if (!confirm('Are you sure you want to reset? This will delete all iteration records for the selected filters.')) {
     return;
   }
   
   const payload = {
     group_id: parseInt(groupId),
-    brands: selectedValues(els.brand),
+    brands: brands,
     category: category,
-    types: selectedValues(els.type)
+    types: types
   };
   
   showLoader();
@@ -1063,28 +1518,155 @@ async function resetIterationData() {
   
   if (data.ok) {
     resetIteration();
-    alert('Iterations reset successfully!');
+    await loadOptions();
+    alert('Reset successfully!');
   } else {
-    alert('Failed to reset iterations');
+    alert('Failed to reset');
   }
 }
 
-async function runAnalysis(isNext = false) {
+async function loadSavedIteration(iterationId) {
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/load-iteration', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({iteration_id: iterationId})
+  });
+  const result = await res.json();
+  hideLoader();
+  
+  if (!result.ok) {
+    alert(result.message || 'Failed to load iteration');
+    return;
+  }
+  
+  const filters = result.filters;
+  
+  if (filters.brand) {
+    Array.from(els.brand.options).forEach(opt => {
+      opt.selected = opt.value === filters.brand;
+    });
+  }
+  
+  if (filters.category) {
+    els.category.value = filters.category;
+  }
+  
+  await loadOptions();
+  
+  if (filters.product_types && filters.product_types.length > 0) {
+    Array.from(els.type.options).forEach(opt => {
+      opt.selected = filters.product_types.includes(opt.value);
+    });
+  }
+  renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Type(s)');
+  
+  if (filters.eps) {
+    els.eps.value = filters.eps;
+    els.epsVal.textContent = filters.eps;
+  }
+  if (filters.sample) {
+    els.minSamp.value = filters.sample;
+    els.minSampVal.textContent = filters.sample;
+  }
+  
+  if (filters.algorithm) {
+    Array.from(els.algo.options).forEach(opt => {
+      opt.selected = opt.value === filters.algorithm;
+    });
+    syncAlgoPanels();
+  }
+  
+  document.getElementById('saveNoBtn').classList.add('active');
+  document.getElementById('saveYesBtn').classList.remove('active');
+  
+  window.loadingExistingIteration = iterationId;
+  window.savedIterationData = result.iteration_data || [];
+  await runAnalysis();
+  window.loadingExistingIteration = null;
+  window.savedIterationData = null;
+  
+  setTimeout(() => {
+    document.querySelectorAll('#iterationSummaryBody tr').forEach(tr => {
+      const idx = Array.from(tr.parentNode.children).indexOf(tr);
+      tr.style.background = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
+    });
+    const selectedRow = document.querySelector(`#iterationSummaryBody tr[data-iteration-id="${iterationId}"]`);
+    if (selectedRow) {
+      selectedRow.style.background = '#d1fae5';
+      selectedRow.addEventListener('mouseenter', () => { selectedRow.style.background = '#d1fae5'; });
+      selectedRow.addEventListener('mouseleave', () => { selectedRow.style.background = '#d1fae5'; });
+    }
+  }, 100);
+}
+
+async function deleteIteration(iterationId) {
+  if (!confirm('Are you sure you want to delete this iteration? This will recalculate aggregate data for affected products.')) {
+    return;
+  }
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/delete-iteration', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({iteration_id: iterationId})
+  });
+  const result = await res.json();
+  hideLoader();
+  
+  if (result.ok) {
+    iterationHistory = iterationHistory.filter(h => h.iteration_id !== iterationId);
+    if (iterationHistory.length === 0) {
+      els.iterationSummary.classList.add('hidden');
+    } else {
+      displayIterationSummary();
+    }
+    alert('Iteration deleted successfully!');
+  } else {
+    alert(result.message || 'Failed to delete iteration');
+  }
+}
+
+async function runAnalysis() {
   const groupId = els.group.value;
   const brands = selectedValues(els.brand);
   const category = els.category.value;
   const types = selectedValues(els.type);
   const algorithms = selectedValues(els.algo);
   
-  if (!groupId || !category || !algorithms.length) {
-    alert('Please select Product Group, Category, and at least one Algorithm');
+  if (!groupId || !algorithms.length) {
+    alert('Please select Product Group and at least one Algorithm');
     return;
   }
   
-  // If clicking Next but no analysis has been run in this session AND no iteration history exists, run iteration 1 first
-  if (isNext && analysisData.length === 0 && iterationHistory.length === 0) {
-    isNext = false;
+  if (!category) {
+    alert('Please select Category');
+    return;
   }
+  
+  const saveYesBtn = document.getElementById('saveYesBtn');
+  const saveToDb = saveYesBtn && saveYesBtn.classList.contains('active');
+  
+  if (saveToDb) {
+    if (brands.length === 0) {
+      alert('Please select one brand');
+      return;
+    }
+    
+    if (brands.length > 1) {
+      alert('Please select only one brand');
+      return;
+    }
+  }
+  
+  const analysisAllBtn = document.getElementById('analysisAllBtn');
+  const analysisMode = analysisAllBtn && analysisAllBtn.classList.contains('active') ? 'all' : 'normal';
+  
+  // Determine which iteration to use for this analysis
+  let iterationToUse = currentIteration;
+  
+  // If saving, use the current iteration and prepare to increment
+  // If not saving, keep using the same iteration number
   
   const payload = {
     group_id: groupId,
@@ -1097,8 +1679,9 @@ async function runAnalysis(isNext = false) {
     d_mult: parseFloat(els.d.value),
     dbscan_eps: parseFloat(els.eps.value),
     dbscan_min_samples: parseInt(els.minSamp.value),
-    iteration: isNext ? currentIteration + 1 : currentIteration,
-    is_next: isNext
+    iteration: iterationToUse,
+    analysis_mode: analysisMode,
+    save_to_db: saveToDb
   };
   
   showLoader();
@@ -1115,32 +1698,60 @@ async function runAnalysis(isNext = false) {
     return;
   }
   
-  if (isNext) {
-    currentIteration++;
-  }
-  
-  // Update iteration history
-  const existingIdx = iterationHistory.findIndex(h => h.iteration === result.iteration);
-  const iterData = {
-    iteration: result.iteration,
-    total: result.total,
-    normal: result.normals,
-    outlier: result.outliers
-  };
-  
-  if (existingIdx >= 0) {
-    iterationHistory[existingIdx] = iterData;
-  } else {
-    iterationHistory.push(iterData);
-  }
-  
   analysisData = result.data;
   
-  // Load all iterations data for global view
+  // Merge saved iteration data if loading existing iteration
+  if (window.savedIterationData && window.savedIterationData.length > 0) {
+    const savedDataMap = {};
+    window.savedIterationData.forEach(item => {
+      savedDataMap[item.SKU] = item;
+    });
+    
+    analysisData.forEach(d => {
+      const saved = savedDataMap[d.SKU];
+      if (saved) {
+        d.outlier_mode = saved.outlier_mode;
+        d.is_outlier_combined = saved.is_outlier_combined;
+        d.dbscan_cluster = saved.dbscan_cluster;
+      }
+    });
+  }
+  
+  // Calculate outliers for current analysis
+  const manualOutliers = analysisData.filter(d => d.is_outlier_combined && d.outlier_mode === 1).length;
+  const automaticOutliers = analysisData.filter(d => d.is_outlier_combined && (d.outlier_mode === 0 || d.outlier_mode === null)).length;
+  
+  const currentIterData = {
+    iteration: iterationToUse,
+    total_count: result.total_count || result.total,
+    normal_count: result.normal_count || (result.total - automaticOutliers - manualOutliers),
+    outlier_count: result.outlier_count || automaticOutliers,
+    manual_outlier_count: result.manual_outlier_count || manualOutliers,
+    eps: result.eps || parseFloat(els.eps.value),
+    sample: result.sample || parseInt(els.minSamp.value),
+    saved: saveToDb
+  };
+  
+  // Remove any existing unsaved iteration with same number
+  iterationHistory = iterationHistory.filter(h => h.iteration !== iterationToUse || h.saved);
+  
+  // Add current iteration to history only if not loading existing iteration
+  if (!window.loadingExistingIteration) {
+    iterationHistory.push(currentIterData);
+  }
+  
+  // If saved to DB, increment iteration for next analysis and refresh dropdowns
+  if (saveToDb) {
+    currentIteration++;
+    await loadOptions(); // Refresh dropdown backgrounds
+  }
+  
   await loadAllIterationsData();
   
   displayIterationSummary();
-  displayResults(result);
+  
+  // Always display current iteration data after analysis with forced individual mode
+  displayResults(result, true);
 }
 
 async function loadAllIterationsData() {
@@ -1187,51 +1798,370 @@ function displayIterationSummary() {
   
   iterationHistory.sort((a, b) => a.iteration - b.iteration);
   
+  const algorithms = selectedValues(els.algo);
+  const hasCluster = algorithms.includes('DBSCAN');
+  const iterTable = document.getElementById('iterationTable');
+  
+  if (hasCluster) {
+    iterTable.style.fontSize = '10px';
+    iterTable.querySelectorAll('th').forEach(th => {
+      th.style.padding = '5px 4px';
+      th.style.fontSize = '10px';
+    });
+  } else {
+    iterTable.style.fontSize = '11px';
+    iterTable.querySelectorAll('th').forEach(th => {
+      th.style.padding = '6px 8px';
+      th.style.fontSize = '11px';
+    });
+  }
+  
   iterationHistory.forEach((iter, idx) => {
     const tr = document.createElement('tr');
+    if (iter.iteration_id) {
+      tr.setAttribute('data-iteration-id', iter.iteration_id);
+    }
     const bgColor = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
     tr.style.background = bgColor;
     tr.style.transition = 'all 0.2s';
+    const padding = hasCluster ? '5px 4px' : '6px 8px';
+    const fontSize = hasCluster ? '10px' : '11px';
+    const manualOutlier = iter.manual_outlier || 0;
+    const savedIcon = iter.saved ? `<span style="cursor:pointer;" onclick="loadSavedIteration(${iter.iteration_id}); return false;" title="View this iteration">👁️</span>` : '';
+    const deleteIcon = iter.saved ? `<span style="cursor:pointer;color:#dc2626;margin-left:8px;" onclick="deleteIteration(${iter.iteration_id}); return false;" title="Delete this iteration">🗑️</span>` : '';
     tr.innerHTML = `
-      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#475569;font-size:11px;">${iter.iteration}</td>
-      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#2563eb;font-size:11px;">${iter.total}</td>
-      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#16a34a;font-size:11px;">${iter.normal}</td>
-      <td style="padding:6px 8px;text-align:center;border:none;font-weight:600;color:#dc2626;font-size:11px;">${iter.outlier}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#475569;font-size:${fontSize};">${iter.iteration}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#6366f1;font-size:${fontSize};">${iter.eps || '-'}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#8b5cf6;font-size:${fontSize};">${iter.sample || '-'}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#2563eb;font-size:${fontSize};">${iter.total_count}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#16a34a;font-size:${fontSize};">${iter.normal_count}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#dc2626;font-size:${fontSize};">${iter.outlier_count}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-weight:600;color:#f59e0b;font-size:${fontSize};">${iter.manual_outlier_count}</td>
+      <td style="padding:${padding};text-align:center;border:none;font-size:${fontSize};">${savedIcon}${deleteIcon}</td>
     `;
     tr.addEventListener('mouseenter', () => { tr.style.background = '#e0f2fe'; });
     tr.addEventListener('mouseleave', () => { tr.style.background = bgColor; });
     els.iterationSummaryBody.appendChild(tr);
   });
+  
+  displayClusterSummary();
 }
 
-function displayResults(result) {
-  const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+function displayClusterSummary() {
+  const algorithms = selectedValues(els.algo);
+  const globalBtn = document.getElementById('globalBtn');
+  const dataScope = globalBtn && globalBtn.classList.contains('active') ? 'global' : 'individual';
+  
+  if (!algorithms.includes('DBSCAN')) {
+    els.clusterSummary.classList.add('hidden');
+    return;
+  }
+  
+  // Check if last iteration is saved
+  const lastIter = iterationHistory.length > 0 ? iterationHistory[iterationHistory.length - 1] : null;
+  const isLastIterSaved = lastIter && lastIter.saved;
+  
+  // Determine which data and iteration to use for cluster summary
+  let sourceData, targetIteration;
+  
+  if (isLastIterSaved) {
+    // Last iteration is saved: use that iteration number
+    targetIteration = lastIter.iteration;
+    sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  } else {
+    // Last iteration not saved: use current iteration - 1 (unsaved iteration)
+    targetIteration = lastIter ? lastIter.iteration : currentIteration;
+    sourceData = analysisData;
+  }
+  
+  if (sourceData.length === 0) {
+    els.clusterSummary.classList.add('hidden');
+    return;
+  }
+  
+  // Group by cluster
+  const clusterData = {};
+  
+  sourceData.forEach(d => {
+    if (d.dbscan_cluster != null) {
+      const cluster = d.dbscan_cluster;
+      const key = `${cluster}`;
+      
+      if (!clusterData[key]) {
+        clusterData[key] = {
+          cluster: cluster,
+          total: 0,
+          outliers: 0,
+          manualOutliers: 0
+        };
+      }
+      
+      clusterData[key].total++;
+      if (d.is_outlier_combined) {
+        clusterData[key].outliers++;
+        if (d.outlier_mode === 1) {
+          clusterData[key].manualOutliers++;
+        }
+      }
+    }
+  });
+  
+  if (Object.keys(clusterData).length === 0) {
+    els.clusterSummary.classList.add('hidden');
+    return;
+  }
+  
+  els.clusterSummary.classList.remove('hidden');
+  els.clusterSummaryBody.innerHTML = '';
+  
+  // Sort clusters: Noise/Outlier last, others by cluster number
+  const sortedClusters = Object.values(clusterData).sort((a, b) => {
+    if (a.cluster === -1) return 1;
+    if (b.cluster === -1) return -1;
+    return a.cluster - b.cluster;
+  });
+  
+  sortedClusters.forEach((data, idx) => {
+    const tr = document.createElement('tr');
+    const isFullyMarked = data.outliers === data.total && data.manualOutliers === data.total;
+    const bgColor = isFullyMarked ? '#fee2e2' : (idx % 2 === 0 ? '#f8fafc' : '#ffffff');
+    tr.style.background = bgColor;
+    tr.style.transition = 'all 0.2s';
+    
+    const clusterLabel = data.cluster === -1 ? 'Noise/Outlier' : `Cluster ${data.cluster}`;
+    
+    // Get cluster color from chart
+    const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
+    let clusterColor;
+    if (isFullyMarked) {
+      clusterColor = '#dc2626';
+    } else if (data.cluster === -1) {
+      clusterColor = '#e67e22';
+    } else {
+      clusterColor = clusterColors[idx % clusterColors.length];
+    }
+    
+    // Determine icon display
+    let iconHtml = '';
+    if (data.cluster !== -1) {
+      // Not Noise/Outlier cluster - show icon
+      if (isFullyMarked) {
+        // Cluster is marked as outlier - show red icon
+        iconHtml = `
+          <span class="grid-icon cluster-outlier-btn" data-cluster="${data.cluster}" data-iteration="${targetIteration}" data-saved="${isLastIterSaved}" title="Remove this cluster from outliers" style="margin:0;width:18px;height:18px;background:#e74c3c;">
+            <svg viewBox="0 0 24 24" style="width:10px;height:10px;"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-11h2v6h-2zm0 8h2v2h-2z"/></svg>
+          </span>
+        `;
+      } else {
+        // Cluster not marked - show grayed out icon
+        iconHtml = `
+          <span class="grid-icon cluster-outlier-btn" data-cluster="${data.cluster}" data-iteration="${targetIteration}" data-saved="${isLastIterSaved}" title="Mark all products in this cluster as outliers" style="margin:0;width:18px;height:18px;background:#9ca3af;">
+            <svg viewBox="0 0 24 24" style="width:10px;height:10px;"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-11h2v6h-2zm0 8h2v2h-2z"/></svg>
+          </span>
+        `;
+      }
+    }
+    
+    tr.innerHTML = `
+      <td style="padding:5px 4px;text-align:center;border:none;font-weight:600;color:${clusterColor};font-size:10px;">${clusterLabel} (${data.total})</td>
+      <td style="padding:5px 4px;text-align:center;border:none;">${iconHtml}</td>
+    `;
+    tr.addEventListener('mouseenter', () => { tr.style.background = '#fef3c7'; });
+    tr.addEventListener('mouseleave', () => { tr.style.background = bgColor; });
+    els.clusterSummaryBody.appendChild(tr);
+  });
+  
+  // Add event listeners to cluster outlier buttons
+  document.querySelectorAll('.cluster-outlier-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const cluster = parseInt(this.dataset.cluster);
+      const iteration = parseInt(this.dataset.iteration);
+      const isSaved = this.dataset.saved === 'true';
+      const isMarked = this.style.background === 'rgb(231, 76, 60)';
+      
+      if (isSaved) {
+        if (isMarked) {
+          removeClusterOutlier(cluster, iteration);
+        } else {
+          setClusterAsOutlier(cluster, iteration);
+        }
+      } else {
+        alert('Please save the current iteration before marking clusters as outliers.');
+      }
+    });
+  });
+}
+
+async function removeClusterOutlier(cluster, iteration = null) {
+  if (!confirm(`Are you sure you want to remove outlier status from ${cluster === -1 ? 'Noise/Outlier' : 'Cluster ' + cluster}?`)) {
+    return;
+  }
+  
   const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const targetIteration = iteration !== null ? iteration : (iterationHistory.length > 0 ? iterationHistory[iterationHistory.length - 1].iteration : currentIteration);
+  const clusterProducts = sourceData.filter(d => d.dbscan_cluster === cluster).map(d => d.SKU);
+  
+  if (clusterProducts.length === 0) {
+    alert('No products found in this cluster');
+    return;
+  }
+  
+  const payload = {
+    skus: clusterProducts,
+    iteration: targetIteration,
+    brands: selectedValues(els.brand),
+    category: els.category.value
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/remove-cluster-outlier', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (data.ok) {
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster) {
+        d.is_outlier_combined = false;
+        d.outlier_mode = null;
+      }
+    });
+    
+    const targetIterIdx = iterationHistory.findIndex(h => h.iteration === targetIteration);
+    if (targetIterIdx >= 0) {
+      const iterData = sourceData.filter(d => (d.iteration_closed || targetIteration) === targetIteration);
+      const manualOutliers = iterData.filter(d => d.is_outlier_combined && d.outlier_mode === 1).length;
+      const automaticOutliers = iterData.filter(d => d.is_outlier_combined && (d.outlier_mode === 0 || d.outlier_mode === null)).length;
+      const totalOutliers = manualOutliers + automaticOutliers;
+      const normalCount = iterData.length - totalOutliers;
+      
+      iterationHistory[targetIterIdx].manual_outlier_count = manualOutliers;
+      iterationHistory[targetIterIdx].outlier_count = automaticOutliers;
+      iterationHistory[targetIterIdx].normal_count = normalCount;
+    }
+    
+    displayClusterSummary();
+    displayIterationSummary();
+    
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => !d.is_outlier_combined).length,
+      outliers: displayData.filter(d => d.is_outlier_combined).length
+    };
+    displayResults(result);
+    
+    alert(`Successfully removed outlier status from ${clusterProducts.length} products`);
+  } else {
+    alert('Failed to update products: ' + (data.message || 'Unknown error'));
+  }
+}
+
+async function setClusterAsOutlier(cluster, iteration = null) {
+  if (!confirm(`Are you sure you want to mark all products in ${cluster === -1 ? 'Noise/Outlier' : 'Cluster ' + cluster} as outliers?`)) {
+    return;
+  }
+  
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  
+  // Use the passed iteration or fall back to the last saved iteration
+  const targetIteration = iteration !== null ? iteration : (iterationHistory.length > 0 ? iterationHistory[iterationHistory.length - 1].iteration : currentIteration);
+  
+  // Filter by cluster
+  const clusterProducts = sourceData.filter(d => d.dbscan_cluster === cluster).map(d => d.SKU);
+  
+  if (clusterProducts.length === 0) {
+    alert('No products found in this cluster');
+    return;
+  }
+  
+  const payload = {
+    skus: clusterProducts,
+    final_status: 0,
+    iteration: targetIteration,
+    brands: selectedValues(els.brand),
+    category: els.category.value
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/set-cluster-outlier', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (data.ok) {
+    // Update local data immediately
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster) {
+        d.is_outlier_combined = true;
+        d.outlier_mode = 1;
+      }
+    });
+    
+    // Recalculate outliers for target iteration
+    const targetIterIdx = iterationHistory.findIndex(h => h.iteration === targetIteration);
+    if (targetIterIdx >= 0) {
+      const iterData = sourceData.filter(d => (d.iteration_closed || targetIteration) === targetIteration);
+      const manualOutliers = iterData.filter(d => d.is_outlier_combined && d.outlier_mode === 1).length;
+      const automaticOutliers = iterData.filter(d => d.is_outlier_combined && (d.outlier_mode === 0 || d.outlier_mode === null)).length;
+      const totalOutliers = manualOutliers + automaticOutliers;
+      const normalCount = iterData.length - totalOutliers;
+      
+      iterationHistory[targetIterIdx].manual_outlier_count = manualOutliers;
+      iterationHistory[targetIterIdx].outlier_count = automaticOutliers;
+      iterationHistory[targetIterIdx].normal_count = normalCount;
+    }
+    
+    // Refresh all displays
+    displayClusterSummary();
+    displayIterationSummary();
+    
+    // Refresh chart and stats
+    const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => !d.is_outlier_combined).length,
+      outliers: displayData.filter(d => d.is_outlier_combined).length
+    };
+    displayResults(result);
+    
+    alert(`Successfully marked ${clusterProducts.length} products as outliers`);
+  } else {
+    alert('Failed to update products: ' + (data.message || 'Unknown error'));
+  }
+}
+
+function displayResults(result, forceIndividual = false) {
+  const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
   document.getElementById('promptPanel').style.display = 'none';
   
-  // Calculate combined totals from iteration history
-  let combinedTotal = 0;
-  let combinedNormal = 0;
-  let combinedOutlier = 0;
-  
-  if (iterationHistory.length > 0) {
-    combinedTotal = iterationHistory[0].total;
-    const currentIter = iterationHistory.find(h => h.iteration === currentIteration);
-    if (currentIter) {
-      combinedNormal = currentIter.normal;
-    }
-    combinedOutlier = combinedTotal - combinedNormal;
-  }
+  // Determine data scope: force individual if specified, otherwise check current state
+  const globalBtn = document.getElementById('globalBtn');
+  const dataScope = forceIndividual ? 'individual' : (globalBtn && globalBtn.classList.contains('active') ? 'global' : 'individual');
   
   let displayData = result.data;
-  if (dataScope === 'global' && allIterationsData.length > 0) {
-    displayData = allIterationsData;
-  }
+  let displayTotal, displayNormal, displayOutlier, displayPct;
   
-  const displayTotal = combinedTotal > 0 ? combinedTotal : result.total;
-  const displayNormal = combinedNormal > 0 ? combinedNormal : result.normals;
-  const displayOutlier = combinedOutlier > 0 ? combinedOutlier : result.outliers;
-  const displayPct = displayTotal > 0 ? ((displayOutlier / displayTotal * 100).toFixed(2)) : 0;
+  // Current view: show data from latest iteration
+  displayTotal = result.total;
+  displayNormal = result.normals;
+  displayOutlier = result.outliers;
+  displayPct = displayTotal > 0 ? ((displayOutlier / displayTotal * 100).toFixed(2)) : 0;
+  
+  const individualActive = forceIndividual || dataScope === 'individual' ? 'active' : '';
+  const globalActive = !forceIndividual && dataScope === 'global' ? 'active' : '';
   
   els.stats.innerHTML = `
     <span>
@@ -1246,6 +2176,13 @@ function displayResults(result) {
       <span style="cursor:pointer;" onclick="exportData('outlier'); return false;">Outliers: <strong style="color:#e74c3c">${displayOutlier} (${displayPct}%)</strong></span>
       <span class="grid-icon" onclick="event.stopPropagation(); openGridPage(); return false;" title="View Outliers in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
     </span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:13px;font-weight:600;">🔄 Data Scope:</span>
+      <div class="toggle-switch">
+        <button id="individualBtn" class="${individualActive}" data-scope="individual">Current</button>
+        <button id="globalBtn" class="${globalActive}" data-scope="global">Global</button>
+      </div>
+    </span>
   `;
   els.stats.classList.remove('hidden');
   els.stats.style.display = 'flex';
@@ -1253,7 +2190,7 @@ function displayResults(result) {
   if (viewMode === 'grid') {
     els.chartView.classList.add('hidden');
     els.chartView.style.display = 'none';
-    displayGrid(displayData, combinedTotal, combinedNormal, combinedOutlier);
+    displayGrid(displayData);
   } else {
     els.gridView.classList.add('hidden');
     els.gridView.style.display = 'none';
@@ -1261,7 +2198,7 @@ function displayResults(result) {
   }
 }
 
-function displayGrid(data, combinedTotal = 0, combinedNormal = 0, combinedOutlier = 0) {
+function displayGrid(data) {
   els.chartView.classList.add('hidden');
   els.chartView.style.display = 'none';
   els.gridView.classList.remove('hidden');
@@ -1389,31 +2326,51 @@ function displayChart(data) {
   
   const traces = [];
   
-  if (normals.length) {
+  // Group normals by cluster
+  const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
+  const clusterGroups = {};
+  
+  normals.forEach(d => {
+    const cluster = d.dbscan_cluster != null ? d.dbscan_cluster : 'none';
+    if (!clusterGroups[cluster]) clusterGroups[cluster] = [];
+    clusterGroups[cluster].push(d);
+  });
+  
+  // Create trace for each cluster
+  Object.keys(clusterGroups).sort((a, b) => {
+    if (a === 'none') return 1;
+    if (b === 'none') return -1;
+    return parseInt(a) - parseInt(b);
+  }).forEach((cluster, idx) => {
+    const clusterData = clusterGroups[cluster];
+    const color = cluster === 'none' ? '#4472C4' : clusterColors[idx % clusterColors.length];
+    const clusterName = cluster === 'none' ? 'Normal Products' : `Cluster ${cluster}`;
+    
     traces.push({
-      x: normals.map(d => d.W),
-      y: normals.map(d => d.H),
-      z: normals.map(d => d.D),
+      x: clusterData.map(d => d.W),
+      y: clusterData.map(d => d.H),
+      z: clusterData.map(d => d.D),
       mode: 'markers',
       type: 'scatter3d',
-      name: 'Normal Products',
+      name: clusterName,
       marker: {
         size: 10,
-        color: '#4472C4',
+        color: color,
         opacity: 0.8,
-        line: {color: '#2E5090', width: 1.5},
+        line: {color: color, width: 1.5},
         symbol: 'circle'
       },
-      text: normals.map(d => d.SKU),
-      customdata: normals,
+      text: clusterData.map(d => d.SKU),
+      customdata: clusterData,
       hovertemplate: '<b style="font-size:14px">%{text}</b><br><br>' +
                      '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
                      '<b>Type:</b> %{customdata.Type}<br><br><b style="color:#2c3e50">📏 Dimensions:</b><br>' +
                      'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
                      'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
-      hoverlabel: { namelength: -1 }
+      hoverlabel: { namelength: -1 },
+      visible: true
     });
-  }
+  });
   
   if (outliers.length) {
     traces.push({
@@ -1437,48 +2394,55 @@ function displayChart(data) {
                      '<b>Type:</b> %{customdata.Type}<br><br><b style="color:#c0392b">📏 Dimensions:</b><br>' +
                      'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
                      'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
-      hoverlabel: { namelength: -1 }
+      hoverlabel: { namelength: -1 },
+      visible: true
     });
   }
   
   const layout = {
     scene: {
       xaxis: {
-        title: 'Width (W)',
+        title: { text: 'Width (W)' },
         range: [0, max_width],
         gridcolor: '#ffffff',
         showbackground: true,
         backgroundcolor: '#f0f0f0'
       },
       yaxis: {
-        title: 'Height (H)',
+        title: { text: 'Height (H)' },
         range: [0, max_height],
         gridcolor: '#ffffff',
         showbackground: true,
         backgroundcolor: '#f0f0f0'
       },
       zaxis: {
-        title: 'Depth (D)',
+        title: { text: 'Depth (D)' },
         range: [0, max_depth],
         gridcolor: '#ffffff',
         showbackground: true,
         backgroundcolor: '#f0f0f0'
-        
       },
-      bgcolor: '#ffffff'
+      bgcolor: '#ffffff',
+      camera: {
+        up: { x: 0, y: 1, z: 0 },
+        center: { x: 0, y: 0, z: 0 },
+        eye: { x: 1.8, y: 1.8, z: 1.2 }
+      }
     },
     paper_bgcolor: '#ffffff',
-    margin: {l: 0, r: 0, b: 0, t: 0},
+    margin: { l: 0, r: 0, b: 0, t: 0 },
     legend: {
-      x: 0.02,
-      y: 0.98,
-      bgcolor: '#ffffff',
+      x: 0.96,
+      y: 0.90,
+      xanchor: "right",
+      yanchor: "top",
+      bgcolor: 'rgba(255, 255, 255, 0.9)',
       bordercolor: '#ddd',
       borderwidth: 1
     }
   };
   
-  Plotly.react(els.chart, traces, layout, {displayModeBar: true, displaylogo: false, scrollZoom: true, hoverDistance: 50});
+  Plotly.react(els.chart, traces, layout, {displayModeBar: true, displaylogo: false, scrollZoom: true, hoverDistance: 50, responsive: true});
   
   els.chart.removeAllListeners('plotly_click');
   els.chart.on('plotly_click', (ev) => {
@@ -1570,6 +2534,8 @@ function renderPreview(p) {
       </div>`;
   }
   
+
+  
   // Outlier Range - show if outlier and bounds are available
   let outlierRange = "";
   if (isOutlier && hasIQRBounds) {
@@ -1585,7 +2551,7 @@ function renderPreview(p) {
   }
   
   els.preview.innerHTML = `
-    <h3 style="margin-top:0;${isOutlier ? "color:#e74c3c;" : ""}">${isOutlier ? "⚠️ OUTLIER: " : ""}${p.SKU}</h3>
+    <h3 style="margin-top:0;${isOutlier ? "color:#e74c3c;" : ""}">${isOutlier ? "⚠️ OUTLIER: " : ""}<a href="${p.url_key || '#'}" target="_blank" style="color:inherit;text-decoration:underline;">${p.SKU}</a></h3>
     <div class="muted">${p.Brand} - ${p.Type}</div>
     ${p.imageUrl ? `<img class="preview" src="${p.imageUrl}" alt="${p.SKU}">` : ""}
     ${dimensionsHtml}
@@ -1775,7 +2741,8 @@ function openGridPageNormal() {
 function openGridPageBrand(brand, category, finalStatus) {
   const groupId = els.group.value;
   const types = selectedValues(els.type);
-  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const globalBtn = document.getElementById('globalBtn');
+  const dataScope = globalBtn && globalBtn.classList.contains('active') ? 'global' : 'individual';
   
   if (!groupId || !category) {
     alert('Please select Product Group and Category');
@@ -1810,9 +2777,226 @@ els.w.addEventListener('input', () => { els.wVal.textContent = els.w.value; });
 els.d.addEventListener('input', () => { els.dVal.textContent = els.d.value; });
 els.eps.addEventListener('input', () => { els.epsVal.textContent = els.eps.value; });
 els.minSamp.addEventListener('input', () => { els.minSampVal.textContent = els.minSamp.value; });
-els.current.addEventListener('click', () => runAnalysis(false));
-els.next.addEventListener('click', () => runAnalysis(true));
+els.analyze.addEventListener('click', () => runAnalysis());
 els.reset.addEventListener('click', resetIterationData);
+
+document.getElementById('analyzeMultipleBtn').addEventListener('click', () => runAnalyzeMultiple());
+
+async function runAnalyzeMultiple() {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  const algorithms = selectedValues(els.algo);
+  
+  if (!groupId || !algorithms.length) {
+    alert('Please select Product Group and at least one Algorithm');
+    return;
+  }
+  
+  const saveYesBtn = document.getElementById('saveYesBtn');
+  const saveToDb = saveYesBtn && saveYesBtn.classList.contains('active');
+  
+  const payload = {
+    group_id: groupId,
+    brands: brands,
+    category: category,
+    types: types,
+    algorithms: algorithms,
+    h_mult: parseFloat(els.h.value),
+    w_mult: parseFloat(els.w.value),
+    d_mult: parseFloat(els.d.value),
+    dbscan_eps: parseFloat(els.eps.value),
+    dbscan_min_samples: parseInt(els.minSamp.value),
+    save_to_db: saveToDb
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/analyze-multiple', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const result = await res.json();
+  hideLoader();
+  
+  if (!result.ok) {
+    alert(result.message || 'Failed to generate combinations');
+    return;
+  }
+  
+  // Show modal and start processing
+  showAnalyzeMultipleModal(result.final_groups, result.total_valid_groups, payload);
+}
+
+function showAnalyzeMultipleModal(finalGroups, totalValidGroups, config) {
+  const modal = document.getElementById('analyzeMultipleModal');
+  const modalBody = document.getElementById('modalTableBody');
+  const processedCount = document.getElementById('processedCount');
+  const totalCount = document.getElementById('totalCount');
+  const modalSummary = document.getElementById('modalSummary');
+  
+  modalBody.innerHTML = '';
+  processedCount.textContent = '0';
+  totalCount.textContent = totalValidGroups;
+  modalSummary.classList.remove('active');
+  
+  // Calculate summary stats
+  const validGroups = finalGroups.filter(g => g.is_valid);
+  const invalidGroups = finalGroups.filter(g => !g.is_valid);
+  const totalItems = validGroups.reduce((sum, g) => sum + g.total_count, 0);
+  
+  // Get unique brands and categories from valid groups
+  const uniqueBrands = new Set(validGroups.map(g => g.brand));
+  
+  document.getElementById('summaryAlgorithms').textContent = config.algorithms.join(', ');
+  document.getElementById('summaryBrands').textContent = uniqueBrands.size;
+  document.getElementById('summaryTotal').textContent = finalGroups.length;
+  document.getElementById('summaryValid').textContent = validGroups.length;
+  document.getElementById('summaryInvalid').textContent = invalidGroups.length;
+  document.getElementById('summaryTotalItems').textContent = totalItems;
+  document.getElementById('summaryNormal').textContent = '0';
+  document.getElementById('summaryOutlier').textContent = '0';
+  
+  modal.classList.add('active');
+  
+  // Start processing combinations sequentially
+  processNextCombination(finalGroups, 0, config, {normal: 0, outlier: 0});
+}
+
+function closeAnalyzeMultipleModal() {
+  const saveYesBtn = document.getElementById('saveYesBtn');
+  const saveToDb = saveYesBtn && saveYesBtn.classList.contains('active');
+  
+  document.getElementById('analyzeMultipleModal').classList.remove('active');
+  
+  // Refresh dropdown backgrounds if data was saved
+  if (saveToDb) {
+    loadOptions();
+  }
+}
+
+async function processNextCombination(finalGroups, index, config, totals) {
+  const validGroups = finalGroups.filter(g => g.is_valid);
+  
+  if (index >= validGroups.length) {
+    // Show summary when all done
+    document.getElementById('modalSummary').classList.add('active');
+    return;
+  }
+  
+  const combination = validGroups[index];
+  const modalBody = document.getElementById('modalTableBody');
+  const processedCount = document.getElementById('processedCount');
+  
+  // Parse product types for grid links
+  const productTypes = combination.product_type.includes('|') ? combination.product_type.split('|') : [combination.product_type];
+  
+  // Add row to table with processing status
+  const row = document.createElement('tr');
+  row.id = `combo-row-${index}`;
+  
+  // Format product types for display
+  const productTypeDisplay = combination.product_type.includes('|') 
+    ? combination.product_type.split('|').map(t => `<div style="padding:2px 0;border-bottom:1px solid #e5e7eb;">${t}</div>`).join('')
+    : combination.product_type;
+  
+  row.innerHTML = `
+    <td>${combination.brand}</td>
+    <td>${combination.category}</td>
+    <td style="padding:0;">${productTypeDisplay}</td>
+    <td id="total-${index}">${combination.total_count}</td>
+    <td id="normal-${index}">-</td>
+    <td id="outlier-${index}">-</td>
+    <td id="status-${index}" class="status-processing">Processing...</td>
+  `;
+  modalBody.appendChild(row);
+  
+  // Process combination
+  const payload = {
+    group_id: config.group_id,
+    combination: combination,
+    algorithms: config.algorithms,
+    h_mult: config.h_mult,
+    w_mult: config.w_mult,
+    d_mult: config.d_mult,
+    dbscan_eps: config.dbscan_eps,
+    dbscan_min_samples: config.dbscan_min_samples,
+    save_to_db: config.save_to_db
+  };
+  
+  try {
+    const res = await fetch('/dimension/analyzer/api/process-combination', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    
+    if (result.ok) {
+      // Update totals
+      totals.normal += result.normal_count;
+      totals.outlier += result.outlier_count;
+      
+      // Update summary
+      document.getElementById('summaryNormal').textContent = totals.normal;
+      document.getElementById('summaryOutlier').textContent = totals.outlier;
+      
+      // Build grid URLs
+      const groupId = config.group_id;
+      const brand = encodeURIComponent(combination.brand);
+      const category = encodeURIComponent(combination.category);
+      const typesParam = productTypes.map(t => `types=${encodeURIComponent(t)}`).join('&');
+      
+      const allUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}`;
+      const normalUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=1`;
+      const outlierUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=0`;
+      
+      // Update row with results and grid icons
+      document.getElementById(`total-${index}`).innerHTML = `
+        ${combination.total_count}
+        <span class="grid-icon" onclick="window.open('${allUrl}', '_blank')" title="View All in Grid" style="margin-left:6px;width:16px;height:16px;display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+        </span>
+      `;
+      
+      document.getElementById(`normal-${index}`).innerHTML = `
+        <span style="color:#10b981;font-weight:600;">${result.normal_count} (${result.normal_count_percent}%)</span>
+        <span class="grid-icon" onclick="window.open('${normalUrl}', '_blank')" title="View Normal in Grid" style="margin-left:6px;width:16px;height:16px;display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+        </span>
+      `;
+      
+      document.getElementById(`outlier-${index}`).innerHTML = `
+        <span style="color:#ef4444;font-weight:600;">${result.outlier_count} (${result.outlier_count_percent}%)</span>
+        <span class="grid-icon" onclick="window.open('${outlierUrl}', '_blank')" title="View Outliers in Grid" style="margin-left:6px;width:16px;height:16px;display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+        </span>
+      `;
+      
+      document.getElementById(`status-${index}`).textContent = 'Completed';
+      document.getElementById(`status-${index}`).className = 'status-completed';
+      
+      // Update processed count
+      processedCount.textContent = (index + 1).toString();
+      
+      // Process next combination
+      setTimeout(() => processNextCombination(finalGroups, index + 1, config, totals), 500);
+    } else {
+      document.getElementById(`status-${index}`).textContent = 'Failed';
+      document.getElementById(`status-${index}`).style.color = '#ef4444';
+      
+      // Continue with next combination
+      setTimeout(() => processNextCombination(finalGroups, index + 1, config, totals), 500);
+    }
+  } catch (error) {
+    document.getElementById(`status-${index}`).textContent = 'Error';
+    document.getElementById(`status-${index}`).style.color = '#ef4444';
+    
+    // Continue with next combination
+    setTimeout(() => processNextCombination(finalGroups, index + 1, config, totals), 500);
+  }
+}
 
 els.algoTrigger.addEventListener('click', () => {
   const willOpen = els.algoMenu.classList.contains('hidden');
@@ -1851,7 +3035,8 @@ document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
     if (analysisData.length === 0) return;
     
     const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
-    const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+    const globalBtn = document.getElementById('globalBtn');
+    const dataScope = globalBtn && globalBtn.classList.contains('active') ? 'global' : 'individual';
     
     showLoader();
     
@@ -1897,31 +3082,92 @@ document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
   });
 });
 
-document.getElementById('individualBtn').addEventListener('click', function() {
-  if (analysisData.length === 0) return;
-  document.getElementById('individualBtn').classList.add('active');
-  document.getElementById('globalBtn').classList.remove('active');
-  const result = {
-    data: analysisData,
-    total: analysisData.length,
-    normals: analysisData.filter(d => !d.is_outlier_combined).length,
-    outliers: analysisData.filter(d => d.is_outlier_combined).length
-  };
-  displayResults(result);
+els.stats.addEventListener('click', async function(e) {
+  const individualBtn = e.target.closest('#individualBtn');
+  const globalBtn = e.target.closest('#globalBtn');
+  
+  if (individualBtn) {
+    if (analysisData.length === 0) return;
+    document.getElementById('individualBtn').classList.add('active');
+    document.getElementById('globalBtn').classList.remove('active');
+    
+    // Show current iteration data
+    const result = {
+      data: analysisData,
+      total: analysisData.length,
+      normals: analysisData.filter(d => !d.is_outlier_combined).length,
+      outliers: analysisData.filter(d => d.is_outlier_combined).length
+    };
+    displayResults(result);
+    displayClusterSummary();
+  } else if (globalBtn) {
+    if (analysisData.length === 0) return;
+    document.getElementById('globalBtn').classList.add('active');
+    document.getElementById('individualBtn').classList.remove('active');
+    
+    // Load global aggregate data from product table
+    showLoader();
+    await loadIterationHistory();
+    
+    const groupId = els.group.value;
+    const category = els.category.value;
+    const payload = {
+      group_id: parseInt(groupId),
+      brands: selectedValues(els.brand),
+      category: category,
+      types: selectedValues(els.type),
+      algorithms: selectedValues(els.algo)
+    };
+    
+    const res = await fetch('/dimension/analyzer/api/get-global-aggregate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    
+    if (res.ok) {
+      const result = await res.json();
+      if (result.ok && result.data) {
+        allIterationsData = result.data;
+        const displayResult = {
+          data: allIterationsData,
+          total: allIterationsData.length,
+          normals: allIterationsData.filter(d => !d.is_outlier_combined).length,
+          outliers: allIterationsData.filter(d => d.is_outlier_combined).length
+        };
+        hideLoader();
+        displayResults(displayResult);
+        displayClusterSummary();
+        return;
+      }
+    }
+    
+    hideLoader();
+    alert('Failed to load global aggregate data');
+  }
 });
 
-document.getElementById('globalBtn').addEventListener('click', function() {
-  if (analysisData.length === 0) return;
-  document.getElementById('globalBtn').classList.add('active');
-  document.getElementById('individualBtn').classList.remove('active');
-  const displayData = allIterationsData.length > 0 ? allIterationsData : analysisData;
-  const result = {
-    data: displayData,
-    total: displayData.length,
-    normals: displayData.filter(d => !d.is_outlier_combined).length,
-    outliers: displayData.filter(d => d.is_outlier_combined).length
-  };
-  displayResults(result);
+document.addEventListener('click', function(e) {
+  const saveNoBtn = e.target.closest('#saveNoBtn');
+  const saveYesBtn = e.target.closest('#saveYesBtn');
+  const analysisAllBtn = e.target.closest('#analysisAllBtn');
+  const analysisNormalBtn = e.target.closest('#analysisNormalBtn');
+  
+  if (saveNoBtn) {
+    document.getElementById('saveNoBtn').classList.add('active');
+    document.getElementById('saveYesBtn').classList.remove('active');
+  } else if (saveYesBtn) {
+    document.getElementById('saveYesBtn').classList.add('active');
+    document.getElementById('saveNoBtn').classList.remove('active');
+  }
+  
+  if (analysisAllBtn) {
+    document.getElementById('analysisAllBtn').classList.add('active');
+    document.getElementById('analysisNormalBtn').classList.remove('active');
+  } else if (analysisNormalBtn) {
+    document.getElementById('analysisNormalBtn').classList.add('active');
+    document.getElementById('analysisAllBtn').classList.remove('active');
+  }
 });
 
 (async function init() {

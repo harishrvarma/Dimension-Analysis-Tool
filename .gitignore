@@ -6,8 +6,8 @@ Thumbs.db
 *.log
 
 # Env files
-#.env
-#.env.*
+.env
+.env.*
 
 # Python (any project)
 __pycache__/

@@ -15,6 +15,12 @@ from sqlalchemy import engine_from_config, pool
 from models.base.base import Base
 from models.product import Product
 from models.product_group import ProductGroup
+from models.matching.matching_system_product import MatchingSystemProduct
+from models.matching.matching_competitor_product import MatchingCompetitorProduct
+from models.dimension.product_iteration import ProductIteration
+from models.dimension.product_iteration_item import DimensionProductIterationItem
+from models.carton.product import CartonProduct
+from models.carton.product_part import CartonProductPart
 
 config = context.config
 

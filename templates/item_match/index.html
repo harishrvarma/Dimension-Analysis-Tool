@@ -1,0 +1,1757 @@
+{% extends "base.html" %}
+{% block title %}Item Match | 1Stopbedroom Dashboard{% endblock %}
+{% block content %}
+<style>
+:root {
+  --bg: #ffffff;
+  --line: #dde5f1;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --blue: #2563eb;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+}
+* { box-sizing: border-box; }
+.page { padding: 16px; }
+.section { margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fafcff; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--ink); }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+select, button, input { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px; font-size: 13px; }
+button { cursor: pointer; background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 600; }
+button:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
+.slider-group { margin-bottom: 16px; }
+.slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.slider-row { display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; align-items: center; margin-bottom: 12px; }
+.slider-row label { margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: flex-start; gap: 4px; }
+.slider-row input[type="number"] { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 6px 8px; font-size: 13px; text-align: center; }
+.slider { width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; }
+.slider::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--blue); cursor: pointer; }
+.score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
+.score-card { padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.2s; border: 2px solid transparent; }
+.score-card:hover { transform: translateY(-2px); }
+.score-card.active { border-color: var(--blue); }
+.score-card h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+.score-card h2 { margin: 0; font-size: 2.5rem; font-weight: bold; }
+.score-card.total { background: #eff6ff; } .score-card.total h2 { color: var(--blue); }
+.score-card.matched { background: #f0fdf4; } .score-card.matched h2 { color: var(--green); }
+.score-card.review { background: #fffbeb; } .score-card.review h2 { color: var(--yellow); }
+.score-card.not-matched { background: #fef2f2; } .score-card.not-matched h2 { color: var(--red); }
+.chart-container { max-width: 500px; margin: 20px auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.product-main-row { background: #eff6ff; border: 2px solid #2563eb; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+.product-info { background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.info-item { font-size: 13px; } .info-item strong { color: var(--muted); }
+table th { background: #f8fafc; padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; cursor: pointer; user-select: none; }
+#comparisonTable th { position: sticky; top: 42px; z-index: 9; }
+table th:hover { background: #e5e7eb; }
+table th.sort-asc::after { content: ' ▲'; color: #2563eb; }
+table th.sort-desc::after { content: ' ▼'; color: #2563eb; }
+table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+table tr:hover { background: #f8fafc; cursor: pointer; }
+.table-container { max-height: 500px; overflow-y: auto; }
+.hidden { display: none; }
+.loading { text-align: center; padding: 20px; }
+.select-hidden { display: none; }
+.multi-select { position: relative; }
+.ms-trigger { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px 10px; font-size: 13px; background: #ffffff; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.ms-menu { position: absolute; left: 0; right: 0; margin-top: 6px; border: 1px solid #c9d4e7; border-radius: 8px; background: #ffffff; z-index: 40; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); display: none; }
+.ms-menu:not(.hidden) { display: block; }
+.ms-actions { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid #e5eaf5; }
+.ms-search-wrap { padding: 8px; border-bottom: 1px solid #e5eaf5; }
+.ms-search { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 7px 9px; font-size: 13px; outline: none; }
+.ms-action-btn { width: auto; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 999px; font-size: 12px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
+.ms-options { max-height: 220px; overflow: auto; padding: 6px 8px 8px; }
+.ms-opt { display: grid; grid-template-columns: 16px 1fr; align-items: center; column-gap: 8px; padding: 5px 2px; font-size: 13px; }
+.ms-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; border: 1px solid #9ca3af; accent-color: #2563eb; }
+.label-count { font-weight: 600; color: #1d4ed8; margin-left: 4px; }
+.chip-container { display: flex; gap: 6px; margin-bottom: 12px; }
+.chip { display: inline-flex; align-items: center; padding: 4px 10px; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 16px; font-size: 12px; font-weight: 600; color: #1e40af; cursor: pointer; transition: all 0.2s; user-select: none; }
+.chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.chip:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.section-title { font-size: 16px; font-weight: 600; color: var(--ink); }
+.pagination { display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); white-space: nowrap; }
+.pagination button { padding: 5px 10px; border: 1px solid #2563eb; border-radius: 4px; background: #fff; color: #2563eb; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; min-width: 32px; }
+.pagination button:hover:not(:disabled) { background: #2563eb; color: #fff; }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; border-color: #9ca3af; color: #9ca3af; }
+.pagination span { font-size: 12px; font-weight: 600; color: var(--ink); padding: 0 6px; white-space: nowrap; }
+table th { background: #e0f2fe; padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #2563eb; cursor: pointer; user-select: none; color: #1e40af; }
+table th:hover { background: #bae6fd; }
+.url-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #6b7280; }
+.url-link { color: #2563eb; text-decoration: none; font-weight: 600; }
+.url-link:hover { text-decoration: underline; }
+.detail-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.detail-content { background: white; border-radius: 12px; max-width: 1200px; max-height: 90vh; overflow-y: auto; padding: 24px; }
+.detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.close-btn { background: #ef4444; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: none; }
+.product-info { background: #f8fafc; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; color: #4b5563; }
+.price-calc-row { background: #f8fafc; border: 2px solid #2563eb; padding: 12px; border-radius: 6px; margin-top: 12px; margin-bottom: 12px; font-size: 13px; color: #1f2937; }
+.price-calc-row strong { color: #1f2937; font-weight: 700; }
+.price-calc-row .price-value { font-weight: 700; font-size: 15px; color: #2563eb; }
+.info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.info-item { font-size: 13px; } .info-item strong { color: var(--muted); }
+.action-dropdown { width: auto; padding: 4px 8px; font-size: 12px; }
+.action-dropdown.status-approve { background: #d1fae5; color: #065f46; font-weight: 600; }
+.action-dropdown.status-pending { background: #fef3c7; color: #92400e; font-weight: 600; }
+.action-dropdown.status-reject { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.progress-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 50px; }
+.progress-modal:not(.hidden) { display: flex; }
+.progress-content { background: white; border-radius: 12px; padding: 32px; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.progress-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; }
+.progress-bar-container { width: 100%; height: 30px; background: #e5e7eb; border-radius: 15px; overflow: hidden; margin-bottom: 16px; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.3s; }
+.progress-info { font-size: 14px; color: #6b7280; margin-bottom: 8px; }
+.progress-status { font-size: 13px; color: #1f2937; font-weight: 600; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+.progress-percentage { font-size: 16px; color: #2563eb; font-weight: 700; }
+.stats-collapse { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-top: 16px; flex-shrink: 0; }
+.stats-collapse-header { background: #f3f4f6; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; }
+.stats-collapse-header:hover { background: #e5e7eb; }
+.stats-collapse-body { padding: 12px; background: #fafcff; display: none; }
+.brand-progress-table { margin-top: 16px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.brand-progress-header { background: #f3f4f6; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+.brand-progress-header:hover { background: #e5e7eb; }
+.brand-progress-body { flex: 1; overflow-y: auto; min-height: 0; }
+.brand-progress-body table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.brand-progress-body th { background: #f9fafb; padding: 8px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 1; }
+.brand-progress-body td { padding: 8px; border-bottom: 1px solid #f3f4f6; }
+.brand-progress-body tr:hover { background: #f9fafb; }
+.brand-processing { background: #fffbeb; }
+.brand-completed { background: #f0fdf4; }
+.collapse-icon { transition: transform 0.2s; }
+.collapse-icon.collapsed { transform: rotate(-90deg); }
+</style>
+
+<div class="page">
+  <h2 style="margin:0 0 16px;">Item Match Analysis</h2>
+
+  <!-- Filters Section -->
+  <div class="section">
+    <div class="section-title">Filters</div>
+    <div class="row">
+      <div>
+        <label>Brand<span id="brandCount" class="label-count">(0 selected)</span></label>
+        <select id="brandFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="brandDropdown">
+          <div class="ms-trigger" id="brandTrigger">Select Brand <span>▾</span></div>
+          <div class="ms-menu hidden" id="brandMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Category<span id="categoryCount" class="label-count">(0 selected)</span></label>
+        <select id="categoryFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="categoryDropdown">
+          <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
+          <div class="ms-menu hidden" id="categoryMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Product Type<span id="typeCount" class="label-count">(0 selected)</span></label>
+        <select id="typeFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="typeDropdown">
+          <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
+          <div class="ms-menu hidden" id="typeMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Attributes<span id="attrCount" class="label-count">(0 selected)</span></label>
+        <select id="attributeSelect" class="select-hidden" multiple>
+        </select>
+        <div class="multi-select" id="attrDropdown">
+          <div class="ms-trigger" id="attrTrigger">Select Attributes <span>▾</span></div>
+          <div class="ms-menu hidden" id="attrMenu"></div>
+        </div>
+      </div>
+      <div>
+        <label>Algorithm<span id="algoCount" class="label-count">(0 selected)</span></label>
+        <select id="algorithmSelect" class="select-hidden" multiple>
+          <option value="tfidf" selected>TF-IDF Vectorization</option>
+          <option value="custom">Custom (SKU + URL + Price)</option>
+          <option value="tfidf_price">TF-IDF + Price Margin</option>
+        </select>
+        <div class="multi-select" id="algoDropdown">
+          <div class="ms-trigger" id="algoTrigger">Select Algorithm <span>▾</span></div>
+          <div class="ms-menu hidden" id="algoMenu"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Configuration Section -->
+  <div class="section">
+    <div id="weightGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;">
+      <!-- Weightage Configuration -->
+      <div id="weightageSection">
+        <div class="section-title">Weightage Configuration</div>
+        <div class="slider-row" id="skuWeightRow">
+          <label>SKU Weight<span id="skuPercentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+          <input type="range" id="skuWeight" class="slider" min="0" max="100" value="35">
+          <input type="number" id="skuWeightInput" min="0" max="100" value="35">
+        </div>
+        <div class="slider-row" id="urlWeightRow">
+          <label>URL Weight<span id="urlPercentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+          <input type="range" id="urlWeight" class="slider" min="0" max="100" value="40">
+          <input type="number" id="urlWeightInput" min="0" max="100" value="40">
+        </div>
+        <div class="slider-row" id="priceWeightRow">
+          <label>Price Weight<span id="pricePercentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+          <input type="range" id="priceWeight" class="slider" min="0" max="100" value="25">
+          <input type="number" id="priceWeightInput" min="0" max="100" value="25">
+        </div>
+      </div>
+      
+      <!-- Price Margin Configuration -->
+      <div style="border-left: 2px solid #dde5f1; padding-left: 16px;">
+        <div class="section-title">Price Margin Configuration</div>
+        <div class="slider-row">
+          <label>Margin %</label>
+          <input type="range" id="priceMargin" class="slider" min="0" max="100" value="25">
+          <input type="number" id="priceMarginInput" min="0" max="100" value="25">
+        </div>
+        <div class="slider-row">
+          <label>Margin Diff %</label>
+          <input type="range" id="marginDiff" class="slider" min="0" max="100" value="10">
+          <input type="number" id="marginDiffInput" min="0" max="100" value="10">
+        </div>
+      </div>
+      
+      <!-- Status Configuration -->
+      <div style="border-left: 2px solid #dde5f1; padding-left: 16px;">
+        <div class="section-title">Status Configuration</div>
+        <div class="slider-row">
+          <label>Matched (≥)</label>
+          <input type="range" id="matchedThreshold" class="slider" min="0" max="100" value="85">
+          <input type="number" id="matchedThresholdInput" min="0" max="100" value="85">
+        </div>
+        <div class="slider-row">
+          <label>Review (≥)</label>
+          <input type="range" id="reviewThreshold" class="slider" min="0" max="100" value="70">
+          <input type="number" id="reviewThresholdInput" min="0" max="100" value="70">
+        </div>
+        <div class="slider-row">
+          <label>Not Matched (&lt;)</label>
+          <input type="range" id="notMatchedThreshold" class="slider" min="0" max="100" value="70" disabled>
+          <input type="number" id="notMatchedThresholdInput" min="0" max="100" value="70" disabled>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score Summary & Compare Button -->
+  <div class="section">
+    <div style="display:flex; gap:20px; align-items:flex-start;">
+      <!-- Left side: Product counts, checkboxes and buttons -->
+      <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:8px;">
+        <!-- Product count cards in single row -->
+        <div style="display:flex; gap:6px;">
+          <div class="score-card total" data-status="all" style="padding:6px 10px;">
+            <h3 style="font-size:10px; margin:0 0 2px;">Total</h3>
+            <h2 style="font-size:1.2rem; margin:0;" id="totalItems">0</h2>
+          </div>
+          <div class="score-card matched hidden" data-status="Matched" style="padding:6px 10px;" id="matchedCard">
+            <h3 style="font-size:10px; margin:0 0 2px;">Matched</h3>
+            <h2 style="font-size:1.2rem; margin:0;" id="matchedItems">0</h2>
+          </div>
+          <div class="score-card review hidden" data-status="Review" style="padding:6px 10px;" id="reviewCard">
+            <h3 style="font-size:10px; margin:0 0 2px;">Review</h3>
+            <h2 style="font-size:1.2rem; margin:0;" id="reviewItems">0</h2>
+          </div>
+          <div class="score-card not-matched hidden" data-status="Not Matched" style="padding:6px 10px;" id="notMatchedCard">
+            <h3 style="font-size:10px; margin:0 0 2px;">Not Matched</h3>
+            <h2 style="font-size:1.2rem; margin:0;" id="notMatchedItems">0</h2>
+          </div>
+        </div>
+        
+        <!-- Checkboxes -->
+        <div style="display:flex; gap:12px; align-items:center;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
+            <input type="checkbox" id="saveScoreCheck" style="width:14px; height:14px;">
+            <span>Save Score</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
+            <input type="checkbox" id="saveTopMostCheck" style="width:14px; height:14px;">
+            <span>Save Top Most</span>
+          </label>
+        </div>
+        
+        <!-- Buttons -->
+        <div style="display:flex; gap:8px;">
+          <button id="compareBtn" style="width:120px; height:36px; font-size:13px; padding:0;" disabled>Analyze</button>
+          <button id="analyseMultipleBtn" style="width:140px; height:36px; font-size:13px; padding:0;" disabled>Analyse Multiple</button>
+        </div>
+      </div>
+      
+      <!-- Right side: Chart -->
+      <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+        <div style="max-width:350px; width:100%;">
+          <div class="section-title" style="text-align:center; margin-bottom:8px; font-size:13px;">Status Distribution</div>
+          <canvas id="statusChart" style="max-height:200px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading hidden" id="loading">Analyzing...</div>
+
+  <!-- Results Section -->
+  <div id="resultsSection" class="hidden">
+
+    <!-- Product List Section -->
+    <div class="section hidden" id="productListSection">
+      <div class="section-header">
+        <div class="section-title" id="productListTitle">Item List</div>
+        <div class="pagination">
+          <button id="prevPage">&lt;</button>
+          <span id="paginationInfo">Page 1 of 1</span>
+          <button id="nextPage">&gt;</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table id="productTable">
+          <thead>
+            <tr>
+              <th data-col="brand">Brand</th>
+              <th data-col="category">Category</th>
+              <th data-col="product_type">Product Type</th>
+              <th data-col="sku">SKU</th>
+              <th data-col="total_items">Total Compared</th>
+              <th data-col="matched_count">Matched</th>
+              <th data-col="review_count">Review</th>
+              <th data-col="not_matched_count">Not Matched</th>
+              <th data-col="max_score">Best Score</th>
+              <th data-col="status">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Item Details Section -->
+    <div class="section hidden" id="itemDetailsSection">
+      <div class="section-title">Item Comparison Details</div>
+      <div class="product-info" id="productInfo"></div>
+      <div class="table-container">
+        <table id="comparisonTable">
+          <thead>
+            <tr class="product-main-row" id="productMainRow"></tr>
+            <tr id="comparisonTableHead"></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Modal -->
+<div id="progressModal" class="progress-modal hidden">
+  <div class="progress-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="progress-title" style="margin:0;">Analyzing All Products</div>
+      <button id="closeProgressBtn" style="width:auto;padding:6px 12px;background:#ef4444;border:none;">Stop & Close</button>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+    </div>
+    <div class="progress-info" id="progressInfo">Initializing...</div>
+    <div class="progress-status">
+      <span id="progressStatus"></span>
+      <span class="progress-percentage" id="progressPercentage"></span>
+    </div>
+    <div class="stats-collapse">
+      <div class="stats-collapse-header" onclick="$('#statsCollapseBody').toggle(); $('#statsCollapseIcon').toggleClass('collapsed');">
+        <span>Statistics & Configuration</span>
+        <span id="statsCollapseIcon" class="collapse-icon collapsed">▼</span>
+      </div>
+      <div id="statsCollapseBody" class="stats-collapse-body"></div>
+    </div>
+    <div id="brandProgressContainer" class="brand-progress-table" style="display:none;">
+      <div class="brand-progress-header" onclick="$('#brandProgressBody').toggle(); $('#brandCollapseIcon').toggleClass('collapsed');">
+        <span>Brand & Category Progress</span>
+        <span id="brandCollapseIcon" class="collapse-icon">▼</span>
+      </div>
+      <div id="brandProgressBody" class="brand-progress-body"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let allResults = [];
+let chartInstance = null;
+let currentSort = { column: 'max_score', direction: 'desc' };
+let detailSort = { column: null, direction: 'asc' };
+let currentPage = 1;
+let pageSize = 15;
+let selectedProducts = new Set();
+let progressInterval = null;
+let isAnalyzing = false;
+let brandCategoryProgress = {};
+let dbAttributes = [];  // Store attributes from DB
+let dbPriceConfig = {};  // Store price config from DB
+let dbStatusConfig = {};  // Store status config from DB
+
+function loadAttributesFromDB() {
+  $.ajax({
+    url: '/item-match/api/attributes',
+    method: 'GET',
+    success: function(data) {
+      if (data.attributes) {
+        dbAttributes = data.attributes;
+        dbPriceConfig = data.price_config || {};
+        dbStatusConfig = data.status_config || {};
+        
+        const attrSelect = $('#attributeSelect')[0];
+        attrSelect.innerHTML = '';
+        
+        data.attributes.forEach(attr => {
+          const opt = document.createElement('option');
+          opt.value = attr.value;
+          opt.textContent = attr.label;
+          opt.selected = true;  // Select all by default
+          attrSelect.appendChild(opt);
+        });
+        
+        renderMultiSelect(attrSelect, $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
+        updateWeightSliders();
+        loadDefaultWeights();
+        loadPriceConfig();
+        loadStatusConfig();
+        
+        // Force update button states after a short delay to ensure DOM is ready
+        setTimeout(function() {
+          updateButtonStates();
+        }, 100);
+      }
+    },
+    error: function() {
+      console.error('Failed to load attributes from database');
+    }
+  });
+}
+
+function loadDefaultWeights() {
+  dbAttributes.forEach(attr => {
+    const weight = attr.default_weight || 33;
+    if ($(`#${attr.value}WeightInput`).length) {
+      $(`#${attr.value}WeightInput`).val(weight);
+      $(`#${attr.value}Weight`).val(weight);
+    }
+  });
+  updateWeightPercentages();
+}
+
+function loadPriceConfig() {
+  if (dbPriceConfig.margin) {
+    $('#priceMargin').val(dbPriceConfig.margin);
+    $('#priceMarginInput').val(dbPriceConfig.margin);
+  }
+  if (dbPriceConfig.margin_diff) {
+    $('#marginDiff').val(dbPriceConfig.margin_diff);
+    $('#marginDiffInput').val(dbPriceConfig.margin_diff);
+  }
+}
+
+function loadStatusConfig() {
+  if (dbStatusConfig.matched) {
+    $('#matchedThreshold').val(dbStatusConfig.matched);
+    $('#matchedThresholdInput').val(dbStatusConfig.matched);
+  }
+  if (dbStatusConfig.review) {
+    $('#reviewThreshold').val(dbStatusConfig.review);
+    $('#reviewThresholdInput').val(dbStatusConfig.review);
+    $('#notMatchedThreshold').val(dbStatusConfig.review);
+    $('#notMatchedThresholdInput').val(dbStatusConfig.review);
+  }
+}
+
+$(document).ready(function() {
+  loadAttributesFromDB();  // Load attributes from database first
+  loadFilters();
+  updateCounts();
+  
+  $('#brandFilter, #categoryFilter, #typeFilter, #attributeSelect').change(function() {
+    loadFilters();
+    updateCounts();
+    $('#itemDetailsSection').addClass('hidden');
+  });
+  
+  $('#attributeSelect').change(function() {
+    updateWeightSliders();
+  });
+  
+  $('.chip').click(function() {
+    $(this).toggleClass('active');
+    updateWeightSliders();
+    updateCounts();
+  });
+  
+  $('#compareBtn').click(runAnalysis);
+  
+  // Slider handlers
+  $('#skuWeight').on('input', function() {
+    $('#skuWeightInput').val($(this).val());
+    updateWeightPercentages();
+  });
+  $('#skuWeightInput').on('input', function() {
+    let val = Math.max(0, Math.min(100, $(this).val()));
+    $(this).val(val);
+    $('#skuWeight').val(val);
+    updateWeightPercentages();
+  });
+  
+  $('#priceWeight').on('input', function() {
+    $('#priceWeightInput').val($(this).val());
+    updateWeightPercentages();
+  });
+  $('#priceWeightInput').on('input', function() {
+    let val = Math.max(0, Math.min(100, $(this).val()));
+    $(this).val(val);
+    $('#priceWeight').val(val);
+    updateWeightPercentages();
+  });
+  
+  $('#urlWeight').on('input', function() {
+    $('#urlWeightInput').val($(this).val());
+    updateWeightPercentages();
+  });
+  $('#urlWeightInput').on('input', function() {
+    let val = Math.max(0, Math.min(100, $(this).val()));
+    $(this).val(val);
+    $('#urlWeight').val(val);
+    updateWeightPercentages();
+  });
+  
+  $('#priceMargin').on('input', function() {
+    $('#priceMarginInput').val($(this).val());
+  });
+  $('#priceMarginInput').on('input', function() {
+    let val = Math.max(0, Math.min(100, $(this).val()));
+    $(this).val(val);
+    $('#priceMargin').val(val);
+  });
+  
+  $('#marginDiff').on('input', function() {
+    $('#marginDiffInput').val($(this).val());
+  });
+  $('#marginDiffInput').on('input', function() {
+    let val = Math.max(0, Math.min(100, $(this).val()));
+    $(this).val(val);
+    $('#marginDiff').val(val);
+  });
+  
+  $('#matchedThreshold').on('input', function() {
+    const reviewVal = parseInt($('#reviewThreshold').val());
+    let val = parseInt($(this).val());
+    if (val < reviewVal) val = reviewVal;
+    $(this).val(val);
+    $('#matchedThresholdInput').val(val);
+  });
+  $('#matchedThresholdInput').on('input', function() {
+    const reviewVal = parseInt($('#reviewThreshold').val());
+    let val = Math.max(0, Math.min(100, parseInt($(this).val())));
+    if (val < reviewVal) val = reviewVal;
+    $(this).val(val);
+    $('#matchedThreshold').val(val);
+  });
+  
+  $('#reviewThreshold').on('input', function() {
+    const matchedVal = parseInt($('#matchedThreshold').val());
+    let val = parseInt($(this).val());
+    if (val > matchedVal) val = matchedVal;
+    $(this).val(val);
+    $('#reviewThresholdInput').val(val);
+    $('#notMatchedThreshold').val(val);
+    $('#notMatchedThresholdInput').val(val);
+  });
+  $('#reviewThresholdInput').on('input', function() {
+    const matchedVal = parseInt($('#matchedThreshold').val());
+    let val = Math.max(0, Math.min(100, parseInt($(this).val())));
+    if (val > matchedVal) val = matchedVal;
+    $(this).val(val);
+    $('#reviewThreshold').val(val);
+    $('#notMatchedThreshold').val(val);
+    $('#notMatchedThresholdInput').val(val);
+  });
+  
+  // Score card click handlers
+  $('.score-card').click(function() {
+    const status = $(this).data('status');
+    $('.score-card').removeClass('active');
+    $(this).addClass('active');
+    $('#itemDetailsSection').addClass('hidden');
+    showProductList(status);
+  });
+  
+  // Table sorting
+  $(document).on('click', '#productTable th[data-col]', function() {
+    const col = $(this).data('col');
+    if (currentSort.column === col) {
+      currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSort.column = col;
+      currentSort.direction = 'desc';
+    }
+    currentPage = 1;
+    const activeStatus = $('.score-card.active').data('status') || 'all';
+    showProductList(activeStatus);
+  });
+  
+  // Pagination
+  $(document).on('click', '#prevPage', function() {
+    if (currentPage > 1) {
+      currentPage--;
+      const activeStatus = $('.score-card.active').data('status') || 'all';
+      showProductList(activeStatus);
+    }
+  });
+  
+  $(document).on('click', '#nextPage', function() {
+    currentPage++;
+    const activeStatus = $('.score-card.active').data('status') || 'all';
+    showProductList(activeStatus);
+  });
+  
+  $(document).on('click', '#comparisonTable th[data-col]', function() {
+    const col = $(this).data('col');
+    if (detailSort.column === col) {
+      detailSort.direction = detailSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      detailSort.column = col;
+      detailSort.direction = 'desc';
+    }
+    sortComparisonTable();
+  });
+  
+  // Multi-select handlers
+  $('#brandTrigger').click(() => toggleMenu('brandMenu'));
+  $('#categoryTrigger').click(() => toggleMenu('categoryMenu'));
+  $('#typeTrigger').click(() => toggleMenu('typeMenu'));
+  $('#attrTrigger').click(() => toggleMenu('attrMenu'));
+  $('#algoTrigger').click(() => toggleMenu('algoMenu'));
+  
+  $(document).click(function(e) {
+    if (!$(e.target).closest('.multi-select').length) {
+      closeAllMenus();
+    }
+  });
+  
+  renderMultiSelect($('#attributeSelect')[0], $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
+  renderMultiSelect($('#algorithmSelect')[0], $('#algoMenu')[0], $('#algoTrigger')[0], $('#algoCount')[0], 'Select Algorithm');
+  updateWeightSliders();
+  
+  $('#analyseMultipleBtn').click(function() {
+    analyseMultipleProducts();
+  });
+  
+  $('#closeProgressBtn').click(function() {
+    stopAnalysis();
+  });
+});
+
+function toggleMenu(menuId) {
+  const menu = $('#' + menuId);
+  const wasHidden = menu.hasClass('hidden');
+  closeAllMenus();
+  if (wasHidden) menu.removeClass('hidden');
+}
+
+function closeAllMenus() {
+  $('#brandMenu, #categoryMenu, #typeMenu, #attrMenu, #algoMenu').addClass('hidden');
+}
+
+function updateWeightSliders() {
+  const selected = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  const container = $('#weightageSection');
+  
+  container.empty();
+  container.append('<div class="section-title">Weightage Configuration</div>');
+  
+  selected.forEach(attrName => {
+    const attr = dbAttributes.find(a => a.value === attrName);
+    const defaultWeight = attr ? attr.default_weight : 33;
+    
+    const rowHtml = `
+      <div class="slider-row" id="${attrName}WeightRow">
+        <label>${attrName.toUpperCase()} Weight<span id="${attrName}Percentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+        <input type="range" id="${attrName}Weight" class="slider" min="0" max="100" value="${defaultWeight}">
+        <input type="number" id="${attrName}WeightInput" min="0" max="100" value="${defaultWeight}">
+      </div>
+    `;
+    container.append(rowHtml);
+    
+    // Attach event handlers
+    $(`#${attrName}Weight`).on('input', function() {
+      $(`#${attrName}WeightInput`).val($(this).val());
+      updateWeightPercentages();
+    });
+    
+    $(`#${attrName}WeightInput`).on('input', function() {
+      let val = Math.max(0, Math.min(100, $(this).val()));
+      $(this).val(val);
+      $(`#${attrName}Weight`).val(val);
+      updateWeightPercentages();
+    });
+  });
+  
+  updateWeightPercentages();
+}
+
+function updateWeightPercentages() {
+  const selected = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  const weights = {};
+  let totalWeight = 0;
+  
+  selected.forEach(attrName => {
+    const val = parseInt($(`#${attrName}WeightInput`).val()) || 0;
+    weights[attrName] = val;
+    totalWeight += val;
+  });
+  
+  if (totalWeight === 0) totalWeight = 1;
+  
+  selected.forEach(attrName => {
+    const percentage = ((weights[attrName] / totalWeight) * 100).toFixed(2);
+    $(`#${attrName}Percentage`).text(`(${percentage}%)`);
+  });
+}
+
+function getSelectedAttributes() {
+  return Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+}
+
+function renderMultiSelect(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const options = Array.from(selectEl.options);
+  const selectedSet = new Set(Array.from(selectEl.selectedOptions).map(o => o.value));
+  
+  if (!options.length) {
+    menuEl.innerHTML = '<div style="padding:8px;color:#6b7280;">No options</div>';
+    updateTrigger(selectEl, triggerEl, countEl, placeholder);
+    return;
+  }
+  
+  menuEl.innerHTML = '';
+  
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'ms-search-wrap';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'ms-search';
+  searchInput.placeholder = `Search ${placeholder.replace('Select ', '')}`;
+  searchWrap.appendChild(searchInput);
+  menuEl.appendChild(searchWrap);
+  
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.type = 'button';
+  selectAllBtn.className = 'ms-action-btn';
+  selectAllBtn.textContent = 'Select all';
+  const unselectAllBtn = document.createElement('button');
+  unselectAllBtn.type = 'button';
+  unselectAllBtn.className = 'ms-action-btn';
+  unselectAllBtn.textContent = 'Unselect all';
+  actions.appendChild(selectAllBtn);
+  actions.appendChild(unselectAllBtn);
+  menuEl.appendChild(actions);
+  
+  const optionsWrap = document.createElement('div');
+  optionsWrap.className = 'ms-options';
+  
+  options.forEach(opt => {
+    const row = document.createElement('label');
+    row.className = 'ms-opt';
+    row.dataset.filterText = String(opt.textContent || '').toLowerCase();
+    
+    // Apply color based on status
+    const status = opt.dataset.status;
+    if (status === 'complete') {
+      row.style.backgroundColor = '#d1fae5';
+    } else if (status === 'partial') {
+      row.style.backgroundColor = '#fef3c7';
+    }
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = String(opt.value);
+    cb.checked = selectedSet.has(String(opt.value));
+    const text = document.createElement('span');
+    text.textContent = opt.textContent;
+    row.appendChild(cb);
+    row.appendChild(text);
+    optionsWrap.appendChild(row);
+    cb.addEventListener('change', () => syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder));
+  });
+  
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(optionsWrap.querySelectorAll('.ms-opt')).forEach(row => {
+      const text = row.dataset.filterText || '';
+      row.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+  
+  menuEl.appendChild(optionsWrap);
+  
+  selectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = true; });
+    syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  unselectAllBtn.addEventListener('click', () => {
+    Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = false; });
+    syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder);
+  });
+  
+  updateTrigger(selectEl, triggerEl, countEl, placeholder);
+}
+
+function syncSelect(selectEl, menuEl, triggerEl, countEl, placeholder) {
+  const selected = new Set(Array.from(menuEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value));
+  Array.from(selectEl.options).forEach(opt => { opt.selected = selected.has(String(opt.value)); });
+  updateTrigger(selectEl, triggerEl, countEl, placeholder);
+  $(selectEl).trigger('change');
+}
+
+function updateTrigger(selectEl, triggerEl, countEl, placeholder) {
+  const selectedCount = Array.from(selectEl.selectedOptions).length;
+  countEl.textContent = `(${selectedCount} selected)`;
+  triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
+}
+
+function loadFilters() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  
+  $.ajax({
+    url: '/item-match/api/filters',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories }),
+    success: function(data) {
+      const brandEl = $('#brandFilter')[0];
+      const catEl = $('#categoryFilter')[0];
+      const typeEl = $('#typeFilter')[0];
+      
+      const currentBrands = brands;
+      const currentCats = categories;
+      const currentTypes = Array.from(typeEl.selectedOptions).map(o => o.value);
+      
+      brandEl.innerHTML = '';
+      data.brands.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.value;
+        opt.textContent = b.label;
+        opt.dataset.status = b.status;
+        if (currentBrands.includes(b.value)) opt.selected = true;
+        brandEl.appendChild(opt);
+      });
+      
+      catEl.innerHTML = '';
+      data.categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.value;
+        opt.textContent = c.label;
+        opt.dataset.status = c.status;
+        if (currentCats.includes(c.value)) opt.selected = true;
+        catEl.appendChild(opt);
+      });
+      
+      typeEl.innerHTML = '';
+      data.types.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.value;
+        opt.textContent = t.label;
+        opt.dataset.status = t.status;
+        if (currentTypes.includes(t.value)) opt.selected = true;
+        typeEl.appendChild(opt);
+      });
+      
+      renderMultiSelect(brandEl, $('#brandMenu')[0], $('#brandTrigger')[0], $('#brandCount')[0], 'Select Brand');
+      renderMultiSelect(catEl, $('#categoryMenu')[0], $('#categoryTrigger')[0], $('#categoryCount')[0], 'Select Category');
+      renderMultiSelect(typeEl, $('#typeMenu')[0], $('#typeTrigger')[0], $('#typeCount')[0], 'Select Product Type');
+    }
+  });
+}
+
+function updateCounts() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const attributes = getSelectedAttributes();
+  
+  const hasAnyFilter = brands.length > 0 || categories.length > 0 || types.length > 0;
+  const hasAttribute = attributes.length > 0;
+  
+  // Analyze button: needs attributes AND at least one filter
+  $('#compareBtn').prop('disabled', !hasAttribute || !hasAnyFilter);
+  
+  // Analyse Multiple button: always enabled if attributes selected (works with or without filters)
+  $('#analyseMultipleBtn').prop('disabled', false);  // Force enable for testing
+  
+  if (hasAnyFilter) {
+    $.ajax({
+      url: '/item-match/api/counts',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ brands, categories, types }),
+      success: function(data) {
+        $('#totalItems').text(data.product_count);
+      }
+    });
+  } else {
+    $('#totalItems').text('0');
+  }
+}
+
+
+
+function analyseMultipleProducts() {
+  if (isAnalyzing) {
+    alert('Analysis already in progress');
+    return;
+  }
+  
+  isAnalyzing = true;
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const attributes = getSelectedAttributes();
+  const weights = {
+    sku: parseInt($('#skuWeightInput').val()),
+    price: parseInt($('#priceWeightInput').val()),
+    url: parseInt($('#urlWeightInput').val())
+  };
+  const thresholds = {
+    matched: parseInt($('#matchedThresholdInput').val()),
+    review: parseInt($('#reviewThresholdInput').val())
+  };
+  const priceConfig = {
+    margin: parseInt($('#priceMarginInput').val()),
+    margin_diff: parseInt($('#marginDiffInput').val())
+  };
+  
+  $('#progressModal').removeClass('hidden');
+  $('#progressBar').css('width', '0%');
+  $('#progressPercentage').text('0%');
+  $('#progressInfo').text('Getting total count...');
+  $('#progressStatus').text('');
+  
+  const attrs = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.textContent).join(', ');
+  const algos = algorithms.join(', ');
+  const wts = Object.entries(weights).map(([k,v]) => `${k}:${v}`).join(', ');
+  const thresh = Object.entries(thresholds).map(([k,v]) => `${k}:${v}`).join(', ');
+  
+  let initialHtml = `
+    <div style="padding-bottom:12px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">
+      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">STATISTICS</div>
+      <div style="display:flex;gap:16px;font-size:14px;">
+        <div>Matched: <span style="color:#10b981;font-weight:700;">0</span></div>
+        <div>Review: <span style="color:#f59e0b;font-weight:700;">0</span></div>
+        <div>Not Matched: <span style="color:#ef4444;font-weight:700;">0</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">
+      <div><span style="color:#6b7280;">ALGORITHMS:</span> <span style="color:#1f2937;font-weight:600;">${algos}</span></div>
+      <div><span style="color:#6b7280;">ATTRIBUTES:</span> <span style="color:#1f2937;font-weight:600;">${attrs}</span></div>
+      <div><span style="color:#6b7280;">WEIGHTS:</span> <span style="color:#1f2937;font-weight:600;">${wts}</span></div>
+      <div><span style="color:#6b7280;">THRESHOLDS:</span> <span style="color:#1f2937;font-weight:600;">${thresh}</span></div>`;
+  
+  if (attributes.includes('price')) {
+    initialHtml += `<div><span style="color:#6b7280;">PRICE:</span> <span style="color:#1f2937;font-weight:600;">Margin ${priceConfig.margin}%, Diff ${priceConfig.margin_diff}%</span></div>`;
+  }
+  
+  initialHtml += `</div>`;
+  
+  $('#statsCollapseBody').html(initialHtml);
+  $('#brandProgressContainer').show();
+  $('#brandProgressBody').html('<div style="padding:12px;text-align:center;color:#6b7280;">Processing...</div>');
+  brandCategoryProgress = {};
+  
+  $.ajax({
+    url: '/item-match/api/analyze-multiple',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig }),
+    success: function(response) {
+      if(response.success) {
+        const brandCategories = response.brand_categories;
+        processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig);
+      } else {
+        $('#progressModal').addClass('hidden');
+        alert('Error: ' + response.error);
+      }
+    },
+    error: function() {
+      $('#progressModal').addClass('hidden');
+      alert('Error starting analysis');
+    }
+  });
+}
+
+function processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig) {
+  const brands = Object.keys(brandCategories);
+  let totalCategories = 0;
+  brands.forEach(b => { totalCategories += brandCategories[b].length; });
+  
+  let processedCategories = 0;
+  let currentBrandIndex = 0;
+  let currentCategoryIndex = 0;
+  
+  function processNext() {
+    if (!isAnalyzing) return;
+    
+    if (currentBrandIndex >= brands.length) {
+      // All done
+      isAnalyzing = false;
+      $('#progressBar').css('width', '100%');
+      $('#progressPercentage').text('100%');
+      $('#progressInfo').text('Completed!');
+      $('#progressStatus').text(`Processed all ${totalCategories} categories`);
+      setTimeout(function() {
+        $('#progressModal').addClass('hidden');
+        loadFilters();  // Reload filters to update colors
+        alert(`Analysis completed!\nProcessed: ${totalCategories} categories`);
+      }, 1500);
+      return;
+    }
+    
+    const brand = brands[currentBrandIndex];
+    const categories = brandCategories[brand];
+    
+    if (currentCategoryIndex >= categories.length) {
+      // Move to next brand
+      currentBrandIndex++;
+      currentCategoryIndex = 0;
+      processNext();
+      return;
+    }
+    
+    const category = categories[currentCategoryIndex];
+    const progress = Math.round((processedCategories / totalCategories) * 100);
+    
+    $('#progressBar').css('width', progress + '%');
+    $('#progressPercentage').text(progress + '%');
+    $('#progressInfo').text(`Processing: ${brand} - ${category}`);
+    $('#progressStatus').text(`Processed: ${processedCategories} / ${totalCategories} categories`);
+    
+    $.ajax({
+      url: '/item-match/api/analyze-brand-category',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        brand: brand,
+        category: category,
+        algorithms: algorithms,
+        attributes: attributes,
+        weights: weights,
+        thresholds: thresholds,
+        price_config: priceConfig,
+        reset_scores: processedCategories === 0
+      }),
+      success: function(response) {
+        if(response.success) {
+          processedCategories++;
+          currentCategoryIndex++;
+          
+          const stats = response.stats || {matched: 0, review: 0, not_matched: 0};
+          const brandCategoryProgress = response.brand_category_progress || {};
+          
+          let totalWeight = 0;
+          attributes.forEach(attr => {
+            if (weights[attr]) totalWeight += weights[attr];
+          });
+          const weightPercentages = {};
+          attributes.forEach(attr => {
+            if (weights[attr]) weightPercentages[attr] = ((weights[attr] / totalWeight) * 100).toFixed(1);
+          });
+          
+          const algos = algorithms.join(', ');
+          const attrs = attributes.join(', ');
+          const wts = Object.entries(weights).filter(([k]) => attributes.includes(k)).map(([k,v]) => `${k}:${v} (${weightPercentages[k]}%)`).join(', ');
+          const thresh = Object.entries(thresholds).map(([k,v]) => `${k}:${v}`).join(', ');
+          
+          let detailsHtml = `
+            <div style="padding-bottom:12px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">
+              <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">STATISTICS</div>
+              <div style="display:flex;gap:16px;font-size:14px;">
+                <div>Matched: <span style="color:#10b981;font-weight:700;">${stats.matched}</span></div>
+                <div>Review: <span style="color:#f59e0b;font-weight:700;">${stats.review}</span></div>
+                <div>Not Matched: <span style="color:#ef4444;font-weight:700;">${stats.not_matched}</span></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">
+              <div><span style="color:#6b7280;">ALGORITHMS:</span> <span style="color:#1f2937;font-weight:600;">${algos}</span></div>
+              <div><span style="color:#6b7280;">ATTRIBUTES:</span> <span style="color:#1f2937;font-weight:600;">${attrs}</span></div>
+              <div><span style="color:#6b7280;">WEIGHTS:</span> <span style="color:#1f2937;font-weight:600;">${wts}</span></div>
+              <div><span style="color:#6b7280;">THRESHOLDS:</span> <span style="color:#1f2937;font-weight:600;">${thresh}</span></div>`;
+          
+          if (attributes.includes('price')) {
+            detailsHtml += `<div><span style="color:#6b7280;">PRICE:</span> <span style="color:#1f2937;font-weight:600;">Margin ${priceConfig.margin}%, Diff ${priceConfig.margin_diff}%</span></div>`;
+          }
+          
+          detailsHtml += `</div>`;
+          
+          $('#statsCollapseBody').html(detailsHtml);
+          
+          if (brandCategoryProgress && Object.keys(brandCategoryProgress).length > 0) {
+            updateBrandCategoryProgress(brandCategoryProgress);
+          }
+          
+          processNext();
+        } else {
+          $('#progressModal').addClass('hidden');
+          alert('Error: ' + response.error);
+        }
+      },
+      error: function() {
+        $('#progressModal').addClass('hidden');
+        alert('Error processing brand/category');
+      }
+    });
+  }
+  
+  processNext();
+}
+
+function processChunkByRange(offset, total, chunkSize, processed, algorithms, attributes, weights, thresholds, priceConfig) {
+  if (!isAnalyzing) {
+    return;
+  }
+  
+  if (offset >= total) {
+    isAnalyzing = false;
+    $('#progressBar').css('width', '100%');
+    $('#progressPercentage').text('100%');
+    $('#progressInfo').text('Completed!');
+    $('#progressStatus').text(`Processed ${processed} products`);
+    setTimeout(function() {
+      $('#progressModal').addClass('hidden');
+      loadFilters();  // Reload filters to update colors
+      alert(`Analysis completed!\nProcessed: ${processed} products`);
+    }, 1500);
+    return;
+  }
+  
+  const progress = Math.round((offset / total) * 100);
+  
+  $('#progressBar').css('width', progress + '%');
+  $('#progressPercentage').text(progress + '%');
+  $('#progressInfo').text(`Processing products ${offset + 1} to ${Math.min(offset + chunkSize, total)}`);
+  $('#progressStatus').text(`Processed: ${processed} / ${total} products`);
+  
+  $.ajax({
+    url: '/item-match/api/analyze-chunk',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      offset: offset,
+      limit: chunkSize,
+      algorithms: algorithms,
+      attributes: attributes,
+      weights: weights,
+      thresholds: thresholds,
+      price_config: priceConfig,
+      reset_scores: offset === 0
+    }),
+    success: function(response) {
+      if(response.success) {
+        const stats = response.stats || {matched: 0, review: 0, not_matched: 0};
+        const lastProduct = response.last_product;
+        const brandCategoryProgress = response.brand_category_progress || {};
+        
+        console.log('Brand Category Progress:', brandCategoryProgress);
+        
+        const algos = algorithms.join(', ');
+        const attrs = attributes.join(', ');
+        const wts = Object.entries(weights).map(([k,v]) => `${k}:${v}`).join(', ');
+        const thresh = Object.entries(thresholds).map(([k,v]) => `${k}:${v}`).join(', ');
+        
+        let configHtml = `
+          <div style="padding-bottom:12px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">STATISTICS</div>
+            <div style="display:flex;gap:16px;font-size:14px;">
+              <div>Matched: <span style="color:#10b981;font-weight:700;">${stats.matched}</span></div>
+              <div>Review: <span style="color:#f59e0b;font-weight:700;">${stats.review}</span></div>
+              <div>Not Matched: <span style="color:#ef4444;font-weight:700;">${stats.not_matched}</span></div>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">ALGORITHMS</div>
+            <div style="font-size:13px;color:#1f2937;">${algos}</div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">ATTRIBUTES</div>
+            <div style="font-size:13px;color:#1f2937;">${attrs}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">WEIGHTS</div>
+              <div style="font-size:13px;color:#1f2937;">${wts}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">THRESHOLDS</div>
+              <div style="font-size:13px;color:#1f2937;">${thresh}</div>
+            </div>
+          </div>`;
+        
+        if (attributes.includes('price')) {
+          configHtml += `
+          <div style="margin-bottom:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">PRICE CONFIG</div>
+            <div style="font-size:13px;color:#1f2937;">Margin: ${priceConfig.margin}% | Margin Diff: ${priceConfig.margin_diff}%</div>
+          </div>`;
+        }
+        
+        if (lastProduct) {
+          configHtml += `
+          <div style="margin-top:12px;padding:8px;background:#eff6ff;border-radius:4px;">
+            <div style="font-size:12px;color:#1e40af;margin-bottom:4px;font-weight:600;">LAST PROCESSED</div>
+            <div style="font-size:13px;color:#1f2937;font-weight:600;">${lastProduct.sku} - ${lastProduct.name}</div>
+            <div style="font-size:12px;color:#6b7280;">${lastProduct.brand} | ${lastProduct.category}</div>
+          </div>`;
+        }
+        
+        $('#progressConfig').html(configHtml);
+        
+        // Update brand/category progress
+        if (brandCategoryProgress && Object.keys(brandCategoryProgress).length > 0) {
+          updateBrandCategoryProgress(brandCategoryProgress);
+        }
+        
+        processChunkByRange(offset + chunkSize, total, chunkSize, processed + response.processed, algorithms, attributes, weights, thresholds, priceConfig);
+      } else {
+        $('#progressModal').addClass('hidden');
+        alert('Error: ' + response.error);
+      }
+    },
+    error: function() {
+      $('#progressModal').addClass('hidden');
+      alert('Error processing chunk');
+    }
+  });
+}
+
+function pollProgress(jobId) {
+  progressInterval = setInterval(function() {
+    $.ajax({
+      url: `/item-match/api/analyze-progress/${jobId}`,
+      method: 'GET',
+      success: function(data) {
+        const progress = data.progress || 0;
+        $('#progressBar').css('width', progress + '%');
+        $('#progressInfo').text(data.current || 'Processing...');
+        $('#progressStatus').text(`Processed: ${data.processed || 0} / ${data.total || 0} products`);
+        
+        if (data.status === 'completed') {
+          clearInterval(progressInterval);
+          progressInterval = null;
+          setTimeout(function() {
+            $('#progressModal').addClass('hidden');
+            alert(`Analysis completed!\nTotal products: ${data.total}\nProcessed: ${data.processed}\nBrands: ${data.brands_processed}`);
+          }, 1000);
+        } else if (data.status === 'failed') {
+          clearInterval(progressInterval);
+          progressInterval = null;
+          $('#progressModal').addClass('hidden');
+          alert('Error: ' + data.current);
+        }
+      },
+      error: function() {
+        clearInterval(progressInterval);
+        progressInterval = null;
+        $('#progressModal').addClass('hidden');
+        alert('Error checking progress');
+      }
+    });
+  }, 1000);
+}
+
+function stopAnalysis() {
+  isAnalyzing = false;
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+  $('#progressModal').addClass('hidden');
+  $('#progressBar').css('width', '0%');
+  $('#progressPercentage').text('');
+  $('#progressInfo').text('Initializing...');
+  $('#progressStatus').text('');
+  $('#progressConfig').html('');
+  $('#brandProgressContainer').hide();
+  $('#brandProgressBody').html('');
+  brandCategoryProgress = {};
+  
+  // Reload filters to update colors after stopping
+  loadFilters();
+}
+
+function updateBrandCategoryProgress(progressData) {
+  console.log('updateBrandCategoryProgress called with:', progressData);
+  
+  // Show the container if hidden
+  $('#brandProgressContainer').show();
+  
+  // Replace data for the current brand (don't accumulate)
+  Object.keys(progressData).forEach(brand => {
+    brandCategoryProgress[brand] = progressData[brand];
+  });
+  
+  // Render as table - show only the current brand
+  let html = '<table><thead><tr><th>Brand</th><th>Category</th><th>Progress</th><th>Matched</th><th>Review</th><th>Not Matched</th></tr></thead><tbody>';
+  
+  Object.keys(progressData).sort().forEach(brand => {
+    const categories = progressData[brand];
+    Object.keys(categories).sort().forEach(category => {
+      const cat = categories[category];
+      const rowClass = cat.completed ? 'brand-completed' : 'brand-processing';
+      html += `
+        <tr class="${rowClass}">
+          <td style="font-weight:600;">${brand}</td>
+          <td>${category}</td>
+          <td>${cat.processed}/${cat.total}</td>
+          <td style="color:#10b981;font-weight:600;">${cat.matched}</td>
+          <td style="color:#f59e0b;font-weight:600;">${cat.review}</td>
+          <td style="color:#ef4444;font-weight:600;">${cat.not_matched}</td>
+        </tr>`;
+    });
+  });
+  
+  html += '</tbody></table>';
+  $('#brandProgressBody').html(html);
+}
+
+function runAnalysis() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const attributes = getSelectedAttributes();
+  
+  // Build weights dynamically
+  const weights = {};
+  attributes.forEach(attr => {
+    weights[attr] = parseInt($(`#${attr}WeightInput`).val()) || 0;
+  });
+  
+  const thresholds = {
+    matched: parseInt($('#matchedThresholdInput').val()),
+    review: parseInt($('#reviewThresholdInput').val())
+  };
+  const priceConfig = {
+    margin: parseInt($('#priceMarginInput').val()),
+    margin_diff: parseInt($('#marginDiffInput').val())
+  };
+  const saveScore = $('#saveScoreCheck').is(':checked');
+  const saveTopMost = $('#saveTopMostCheck').is(':checked');
+  
+  $('#loading').removeClass('hidden');
+  $('#resultsSection').addClass('hidden');
+  
+  $.ajax({
+    url: '/item-match/api/analyze',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig, save_score: saveScore, save_top_most: saveTopMost }),
+    success: function(response) {
+      $('#loading').addClass('hidden');
+      if(response.error) {
+        alert(response.error);
+        return;
+      }
+      displayResults(response);
+    },
+    error: function() {
+      $('#loading').addClass('hidden');
+      alert('Error running analysis');
+    }
+  });
+}
+
+function displayResults(data) {
+  allResults = data.summary;
+  
+  $('#totalItems').text(data.stats.total);
+  $('#matchedItems').text(data.stats.matched);
+  $('#reviewItems').text(data.stats.review);
+  $('#notMatchedItems').text(data.stats.not_matched);
+  
+  $('#matchedCard, #reviewCard, #notMatchedCard').removeClass('hidden');
+  
+  updateChart(data.stats);
+  
+  // Reload filters to update colors
+  loadFilters();
+  
+  $('#resultsSection').removeClass('hidden');
+  $('#productListSection').addClass('hidden');
+  $('#itemDetailsSection').addClass('hidden');
+  $('.score-card').removeClass('active');
+}
+
+function updateChart(stats) {
+  const ctx = document.getElementById('statusChart').getContext('2d');
+  
+  if(chartInstance) {
+    chartInstance.destroy();
+  }
+  
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Matched', 'Review', 'Not Matched'],
+      datasets: [{
+        data: [stats.matched, stats.review, stats.not_matched],
+        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const index = elements[0].index;
+          const statusMap = ['Matched', 'Review', 'Not Matched'];
+          const status = statusMap[index];
+          $('.score-card').removeClass('active');
+          $(`.score-card[data-status="${status}"]`).addClass('active');
+          $('#itemDetailsSection').addClass('hidden');
+          showProductList(status);
+        }
+      }
+    }
+  });
+}
+
+function showProductList(status) {
+  const filtered = status === 'all' ? allResults : allResults.filter(r => r.status === status);
+  
+  // Sort data
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal = a[currentSort.column];
+    let bVal = b[currentSort.column];
+    
+    // Handle numeric vs string
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    
+    if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+  
+  // Pagination
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  currentPage = Math.min(currentPage, Math.max(1, totalPages));
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = startIdx + pageSize;
+  const paginated = sorted.slice(startIdx, endIdx);
+  
+  $('#productListTitle').text(`Product List - ${status === 'all' ? 'All' : status} (${sorted.length})`);
+  
+  const tbody = $('#productTable tbody');
+  tbody.empty();
+  
+  paginated.forEach(row => {
+    const statusColor = row.status === 'Matched' ? '#10b981' : row.status === 'Review' ? '#f59e0b' : '#ef4444';
+    tbody.append(`
+      <tr data-product-id="${row.product_id}">
+        <td>${row.brand ?? '-'}</td>
+        <td>${row.category ?? '-'}</td>
+        <td>${row.product_type ?? '-'}</td>
+        <td>${row.sku}</td>
+        <td>${row.total_items ?? 0}</td>
+        <td style="color:#10b981;font-weight:600">${row.matched_count ?? 0}</td>
+        <td style="color:#f59e0b;font-weight:600">${row.review_count ?? 0}</td>
+        <td style="color:#ef4444;font-weight:600">${row.not_matched_count ?? 0}</td>
+        <td>${row.max_score}%</td>
+        <td style="color:${statusColor};font-weight:600">${row.status}</td>
+      </tr>
+    `);
+  });
+  
+  $('#productTable tbody tr').click(function() {
+    const productId = $(this).data('product-id');
+    showItemDetails(productId);
+  });
+  
+  // Update sort indicators
+  $('#productTable th').removeClass('sort-asc sort-desc');
+  const colMap = { 0: 'brand', 1: 'category', 2: 'product_type', 3: 'sku', 4: 'total_items', 5: 'matched_count', 6: 'review_count', 7: 'not_matched_count', 8: 'max_score', 9: 'status' };
+  const colIndex = Object.keys(colMap).find(k => colMap[k] === currentSort.column);
+  if (colIndex) {
+    $(`#productTable th:eq(${colIndex})`).addClass(`sort-${currentSort.direction}`);
+  }
+  
+  // Update pagination
+  $('#paginationInfo').text(`Page ${currentPage} of ${totalPages} (${sorted.length} items)`);
+  $('#prevPage').prop('disabled', currentPage === 1);
+  $('#nextPage').prop('disabled', currentPage === totalPages);
+  
+  $('#productListSection').removeClass('hidden');
+}
+
+function sortComparisonTable() {
+  const tbody = $('#comparisonTable tbody');
+  const rows = tbody.find('tr').toArray();
+  
+  rows.sort((a, b) => {
+    const aVal = $(a).data(detailSort.column);
+    const bVal = $(b).data(detailSort.column);
+    
+    if (aVal < bVal) return detailSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return detailSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+  
+  tbody.empty().append(rows);
+  
+  // Update sort indicators
+  $('#comparisonTable th').removeClass('sort-asc sort-desc');
+  $(`#comparisonTable th[data-col="${detailSort.column}"]`).addClass(`sort-${detailSort.direction}`);
+}
+
+function showItemDetails(productId) {
+  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const attributes = getSelectedAttributes();
+  const weights = {
+    sku: parseInt($('#skuWeightInput').val()),
+    price: parseInt($('#priceWeightInput').val()),
+    url: parseInt($('#urlWeightInput').val())
+  };
+  const thresholds = {
+    matched: parseInt($('#matchedThresholdInput').val()),
+    review: parseInt($('#reviewThresholdInput').val())
+  };
+  const priceConfig = {
+    margin: parseInt($('#priceMarginInput').val()),
+    margin_diff: parseInt($('#marginDiffInput').val())
+  };
+  
+  $.ajax({
+    url: `/item-match/api/item-details/${productId}`,
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ algorithms, attributes, weights, thresholds, price_config: priceConfig }),
+    success: function(data) {
+      if(data.error) {
+        alert(data.error);
+        return;
+      }
+      
+      const p = data.product;
+      
+      // Store product ID for reload after save
+      $('#comparisonTable').data('product-id', productId);
+      
+      // Show product info with price calculation details
+      let infoHtml = `<strong>Brand:</strong> ${p.brand ?? '-'} | <strong>Category:</strong> ${p.category ?? '-'}`;
+      if (p.product_type) infoHtml += ` | <strong>Type:</strong> ${p.product_type}`;
+      infoHtml += ` | <strong>System Product ID:</strong> ${p.product_id}`;
+      
+      // Add price calculation details if price attribute is selected and using custom/tfidf_price algorithm
+      if (data.attributes.includes('price') && (data.algorithms.includes('custom') || data.algorithms.includes('tfidf_price'))) {
+        const margin = priceConfig.margin;
+        const marginDiff = priceConfig.margin_diff;
+        const systemPrice = parseFloat(p.price);
+        const marginAmount = systemPrice * (margin / 100);
+        const diffAmount = systemPrice * (marginDiff / 100);
+        const targetPrice = systemPrice + marginAmount;
+        const minPrice = targetPrice - diffAmount;
+        const maxPrice = targetPrice + diffAmount;
+        
+        infoHtml += `<div class="price-calc-row">
+          <strong>Price Calculation:</strong> System Price: <span class="price-value">$${systemPrice.toFixed(2)}</span> | 
+          Margin ${margin}%: <span class="price-value">+$${marginAmount.toFixed(2)}</span> = Target: <span class="price-value">$${targetPrice.toFixed(2)}</span> | 
+          Range (±${marginDiff}%): <span class="price-value">$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}</span>
+        </div>`;
+      }
+      
+      $('#productInfo').html(infoHtml);
+      
+      // Build dynamic table header based on selected attributes and algorithms
+      let mainRowHtml = '';
+      let headerHtml = '';
+      
+      if (data.attributes.includes('sku')) {
+        mainRowHtml += `<td><a href="${p.url}" target="_blank" class="url-link">${p.sku}</a></td>`;
+        headerHtml += '<th data-col="comp_sku">SKU</th>';
+      }
+      if (data.attributes.includes('url')) {
+        mainRowHtml += `<td class="url-cell" title="${p.url}">${p.url}</td>`;
+        headerHtml += '<th data-col="comp_url">URL</th>';
+      }
+      if (data.attributes.includes('price')) {
+        mainRowHtml += `<td>$${p.price}</td>`;
+        headerHtml += '<th data-col="comp_price">Price</th>';
+      }
+      
+      // Add algorithm columns for each attribute
+      data.attributes.forEach(attr => {
+        data.algorithms.forEach(algo => {
+          const algoName = algo === 'tfidf' ? 'TF-IDF' : algo === 'custom' ? 'CUSTOM' : algo.toUpperCase();
+          headerHtml += `<th data-col="${attr}_${algo}">${attr.toUpperCase()} ${algoName} %</th>`;
+          mainRowHtml += '<td>-</td>';
+        });
+      });
+      
+      mainRowHtml += '<td>-</td><td>-</td>';
+      headerHtml += '<th data-col="final_score">Final Score</th><th data-col="status">Status</th><th>Action</th>';
+      
+      $('#productMainRow').html(mainRowHtml);
+      $('#comparisonTableHead').html(headerHtml);
+      
+      const tbody = $('#comparisonTable tbody');
+      tbody.empty();
+      
+      // Sort by final_score descending by default
+      detailSort = { column: 'final_score', direction: 'desc' };
+      const sorted = [...data.comparisons].sort((a, b) => b.final_score - a.final_score);
+      
+      sorted.forEach(comp => {
+        const statusColor = comp.status === 'Matched' ? '#10b981' : comp.status === 'Review' ? '#f59e0b' : '#ef4444';
+        let rowHtml = `<tr`;
+        
+        // Add data attributes for sorting
+        if (data.attributes.includes('sku')) rowHtml += ` data-comp_sku="${comp.comp_sku}"`;
+        if (data.attributes.includes('url')) rowHtml += ` data-comp_url="${comp.comp_url}"`;
+        if (data.attributes.includes('price')) rowHtml += ` data-comp_price="${comp.comp_price}"`;
+        
+        data.attributes.forEach(attr => {
+          data.algorithms.forEach(algo => {
+            const scoreKey = `${attr}_${algo}`;
+            rowHtml += ` data-${scoreKey}="${comp[scoreKey] || 0}"`;
+          });
+        });
+        
+        rowHtml += ` data-final_score="${comp.final_score}" data-status="${comp.status}">`;
+        
+        // Add attribute columns
+        if (data.attributes.includes('sku')) {
+          rowHtml += `<td><a href="${comp.comp_url}" target="_blank" class="url-link">${comp.comp_sku}</a></td>`;
+        }
+        if (data.attributes.includes('url')) {
+          rowHtml += `<td class="url-cell" title="${comp.comp_url}">${comp.comp_url}</td>`;
+        }
+        if (data.attributes.includes('price')) {
+          rowHtml += `<td>$${comp.comp_price}</td>`;
+        }
+        
+        // Add algorithm score columns
+        data.attributes.forEach(attr => {
+          data.algorithms.forEach(algo => {
+            const scoreKey = `${attr}_${algo}`;
+            rowHtml += `<td>${comp[scoreKey] || 0}%</td>`;
+          });
+        });
+        
+        // Calculate average scores for each attribute
+        const skuScores = data.attributes.includes('sku') ? data.algorithms.map(algo => comp[`sku_${algo}`] || 0) : [];
+        const urlScores = data.attributes.includes('url') ? data.algorithms.map(algo => comp[`url_${algo}`] || 0) : [];
+        const priceScores = data.attributes.includes('price') ? data.algorithms.map(algo => comp[`price_${algo}`] || 0) : [];
+        
+        const avgSkuScore = skuScores.length > 0 ? (skuScores.reduce((a, b) => a + b, 0) / skuScores.length).toFixed(2) : null;
+        const avgUrlScore = urlScores.length > 0 ? (urlScores.reduce((a, b) => a + b, 0) / urlScores.length).toFixed(2) : null;
+        const avgPriceScore = priceScores.length > 0 ? (priceScores.reduce((a, b) => a + b, 0) / priceScores.length).toFixed(2) : null;
+        
+        // Determine dropdown color class based on review_status
+        let dropdownClass = 'action-dropdown';
+        if (comp.review_status === 1) {
+          dropdownClass += ' status-approve';
+        } else if (comp.review_status === 2) {
+          dropdownClass += ' status-reject';
+        } else {
+          dropdownClass += ' status-pending';
+        }
+        
+        // Determine selected option based on review_status
+        let selectedOption = '';
+        if (comp.review_status === 1) {
+          selectedOption = 'approve';
+        } else if (comp.review_status === 2) {
+          selectedOption = 'reject';
+        }
+        
+        rowHtml += `<td style="font-weight:600">${comp.final_score}%</td>
+          <td style="color:${statusColor};font-weight:600">${comp.status}</td>
+          <td><select class="${dropdownClass}" data-ref-id="${comp.competitor_ref_id}" data-internal-id="${p.internal_product_id}" data-score="${comp.final_score}" data-score-status="${comp.status}" data-sku-score="${avgSkuScore}" data-url-score="${avgUrlScore}" data-price-score="${avgPriceScore}">
+            <option value="" ${selectedOption === '' ? 'selected' : ''}>Pending</option>
+            <option value="approve" ${selectedOption === 'approve' ? 'selected' : ''}>Approve</option>
+            <option value="reject" ${selectedOption === 'reject' ? 'selected' : ''}>Reject</option>
+          </select></td>
+        </tr>`;
+        tbody.append(rowHtml);
+      });
+      
+      // Update sort indicator
+      $('#comparisonTable th').removeClass('sort-asc sort-desc');
+      $('#comparisonTable th[data-col="final_score"]').addClass('sort-desc');
+      
+      // Action dropdown handler
+      $('.action-dropdown').change(function(e) {
+        e.stopPropagation();
+        const action = $(this).val();
+        
+        const refId = $(this).data('ref-id');
+        const internalId = $(this).data('internal-id');
+        const score = $(this).data('score');
+        const status = $(this).data('score-status');
+        const skuScore = $(this).data('sku-score');
+        const urlScore = $(this).data('url-score');
+        const priceScore = $(this).data('price-score');
+        
+        updateMatchAction(refId, internalId, score, status, skuScore, urlScore, priceScore, action);
+      });
+      
+      $('#itemDetailsSection').removeClass('hidden');
+      $('#itemDetailsSection')[0].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+}
+
+function updateMatchAction(competitorRefId, internalProductId, score, status, skuScore, urlScore, priceScore, action) {
+  $.ajax({
+    url: '/item-match/api/update-action',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ 
+      competitor_ref_id: competitorRefId, 
+      internal_product_id: internalProductId, 
+      score: score, 
+      status: status,
+      sku_score: skuScore,
+      url_score: urlScore,
+      price_score: priceScore,
+      action: action
+    }),
+    success: function(response) {
+      if(response.success) {
+        alert(`Match ${action}d successfully!`);
+        const productId = $('#comparisonTable').data('product-id');
+        if (productId) {
+          showItemDetails(productId);
+        }
+      } else {
+        alert('Error: ' + (response.error || 'Failed to update'));
+      }
+    },
+    error: function() {
+      alert('Error updating match');
+    }
+  });
+}
+
+function closeDetailModal() {
+  $('#itemDetailsSection').addClass('hidden');
+}
+</script>
+{% endblock %}
