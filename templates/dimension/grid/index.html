@@ -20,7 +20,7 @@
     .page { padding: 16px; }
     .row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 12px;
       padding: 12px;
       border: 1px solid var(--line);
@@ -120,6 +120,7 @@
       column-gap: 8px;
       padding: 5px 2px;
       font-size: 13px;
+      border-radius: 4px;
     }
     .ms-opt input[type="checkbox"] {
       width: 16px;
@@ -132,6 +133,35 @@
     .ms-opt span {
       line-height: 1.3;
       word-break: break-word;
+    }
+    .ms-opt.analyzed-full {
+      background: #dbffed;
+    }
+    .ms-opt.analyzed-partial {
+      background: #ffefdd;
+    }
+    .ms-filter-wrap {
+      padding: 8px;
+      border-bottom: 1px solid #e5eaf5;
+      display: flex;
+      gap: 4px;
+    }
+    .ms-filter-btn {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 11px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #6b7280;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .ms-filter-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
     }
     .ms-empty {
       padding: 8px 4px;
@@ -365,6 +395,17 @@
           <div class="ms-menu hidden" id="statusMenu"></div>
         </div>
       </div>
+      <div>
+        <label>Skip Status (Optional)<span id="skipCount" class="label-count">(0 selected)</span></label>
+        <select id="skipFilter" class="select-hidden" multiple>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+        <div class="multi-select" id="skipDropdown">
+          <div class="ms-trigger" id="skipTrigger">Select Skip Status <span>▾</span></div>
+          <div class="ms-menu hidden" id="skipMenu"></div>
+        </div>
+      </div>
     </div>
 
     <div id="dataInfo" class="msg">Please select a product group to load filters.</div>
@@ -379,7 +420,7 @@
         </div>
       </div>
       <div>
-        <label>Category <span class="warn">*</span><span id="categoryCount" class="label-count">(0 selected)</span></label>
+        <label>Category (Optional)<span id="categoryCount" class="label-count">(0 selected)</span></label>
         <select id="categoryFilter" class="select-hidden" multiple></select>
         <div class="multi-select" id="categoryDropdown">
           <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
@@ -406,7 +447,8 @@
         <label style="margin:0;">Mass Action:</label>
         <select id="massActionSelect">
           <option value="">Select Action</option>
-          <option value="export">Export</option>
+          <option value="export">Export CSV</option>
+          <option value="export_xls">Export XLS</option>
         </select>
         <button id="massActionSubmit">Submit</button>
       </div>
@@ -426,6 +468,10 @@
       statusCount: document.getElementById("statusCount"),
       statusTrigger: document.getElementById("statusTrigger"),
       statusMenu: document.getElementById("statusMenu"),
+      skip: document.getElementById("skipFilter"),
+      skipCount: document.getElementById("skipCount"),
+      skipTrigger: document.getElementById("skipTrigger"),
+      skipMenu: document.getElementById("skipMenu"),
       dataInfo: document.getElementById("dataInfo"),
       brand: document.getElementById("brandFilter"),
       brandCount: document.getElementById("brandCount"),
@@ -464,20 +510,11 @@
         if (old.has(String(item.value))) opt.selected = true;
         selectEl.appendChild(opt);
       });
-
-      if (selectEl === els.brand) {
-        renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
-      }
-      if (selectEl === els.category) {
-        renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
-      }
-      if (selectEl === els.type) {
-        renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
-      }
     }
 
     function closeAllDropdownMenus() {
       els.statusMenu.classList.add("hidden");
+      els.skipMenu.classList.add("hidden");
       els.brandMenu.classList.add("hidden");
       els.categoryMenu.classList.add("hidden");
       els.typeMenu.classList.add("hidden");
@@ -489,7 +526,7 @@
       triggerEl.innerHTML = `${selectedCount > 0 ? `${selectedCount} selected` : placeholder} <span>▾</span>`;
     }
 
-    function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder) {
+    function renderMultiCheckboxDropdown(selectEl, menuEl, triggerEl, countEl, placeholder, analyzedStatus = {}) {
       const options = Array.from(selectEl.options).filter(opt => opt.value !== "");
       const selectedSet = new Set(selectedValues(selectEl));
 
@@ -512,6 +549,21 @@
       searchWrap.appendChild(searchInput);
       menuEl.appendChild(searchWrap);
 
+      const hasAnalyzedStatus = Object.keys(analyzedStatus).length > 0;
+      if (hasAnalyzedStatus) {
+        const filterWrap = document.createElement("div");
+        filterWrap.className = "ms-filter-wrap";
+        ['pending', 'partial', 'full'].forEach(filter => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = 'ms-filter-btn';
+          btn.dataset.filter = filter;
+          btn.textContent = filter.charAt(0).toUpperCase() + filter.slice(1);
+          filterWrap.appendChild(btn);
+        });
+        menuEl.appendChild(filterWrap);
+      }
+
       const selectAllBtn = document.createElement("button");
       selectAllBtn.type = "button";
       selectAllBtn.className = "ms-action-btn";
@@ -532,6 +584,17 @@
         const row = document.createElement("label");
         row.className = "ms-opt";
         row.dataset.filterText = String(opt.textContent || "").toLowerCase();
+        
+        if (hasAnalyzedStatus) {
+          const status = analyzedStatus[opt.value];
+          if (status) {
+            row.dataset.analyzedStatus = status;
+            if (status === 'full') row.classList.add('analyzed-full');
+            else if (status === 'partial') row.classList.add('analyzed-partial');
+          } else {
+            row.dataset.analyzedStatus = 'pending';
+          }
+        }
 
         const cb = document.createElement("input");
         cb.type = "checkbox";
@@ -552,17 +615,38 @@
 
       searchInput.addEventListener("input", () => {
         const q = searchInput.value.trim().toLowerCase();
+        const filterWrap = menuEl.querySelector('.ms-filter-wrap');
+        const activeFilters = filterWrap ? Array.from(filterWrap.querySelectorAll('.ms-filter-btn.active')).map(b => b.dataset.filter) : [];
         Array.from(optionsWrap.querySelectorAll(".ms-opt")).forEach(row => {
           const text = row.dataset.filterText || "";
-          row.style.display = !q || text.includes(q) ? "" : "none";
+          const matchesSearch = !q || text.includes(q);
+          const matchesFilter = !hasAnalyzedStatus || activeFilters.length === 0 || activeFilters.includes(row.dataset.analyzedStatus);
+          row.style.display = matchesSearch && matchesFilter ? "" : "none";
         });
       });
+
+      if (hasAnalyzedStatus) {
+        const filterWrap = menuEl.querySelector('.ms-filter-wrap');
+        filterWrap.querySelectorAll('.ms-filter-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            const activeFilters = Array.from(filterWrap.querySelectorAll('.ms-filter-btn.active')).map(b => b.dataset.filter);
+            const q = searchInput.value.trim().toLowerCase();
+            Array.from(optionsWrap.querySelectorAll(".ms-opt")).forEach(row => {
+              const text = row.dataset.filterText || "";
+              const matchesSearch = !q || text.includes(q);
+              const matchesFilter = activeFilters.length === 0 || activeFilters.includes(row.dataset.analyzedStatus);
+              row.style.display = matchesSearch && matchesFilter ? "" : "none";
+            });
+          });
+        });
+      }
 
       menuEl.appendChild(actions);
       menuEl.appendChild(optionsWrap);
 
       selectAllBtn.addEventListener("click", () => {
-        Array.from(menuEl.querySelectorAll('input[type="checkbox"]')).forEach(cb => { cb.checked = true; });
+        Array.from(menuEl.querySelectorAll('input[type="checkbox"]:not([style*="display: none"])')).forEach(cb => { cb.checked = true; });
         syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placeholder);
       });
 
@@ -595,8 +679,14 @@
         const opt = document.createElement("option");
         opt.value = g.value;
         opt.textContent = g.label;
+        if (data.default_group_id && g.value === data.default_group_id) {
+          opt.selected = true;
+        }
         els.group.appendChild(opt);
       });
+      if (data.default_group_id) {
+        els.group.dispatchEvent(new Event("change"));
+      }
     }
 
     function showLoader() {
@@ -652,6 +742,11 @@
       setSelectOptions(els.brand, data.brand_options, selectedValues(els.brand));
       setSelectOptions(els.category, data.category_options, selectedValues(els.category));
       setSelectOptions(els.type, data.type_options, selectedValues(els.type));
+      
+      const analyzedStatus = data.analyzed_status || {};
+      renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand', analyzedStatus.brands || {});
+      renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, 'Select Category', analyzedStatus.categories || {});
+      renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Product Type', analyzedStatus.types || {});
     }
 
     els.group.addEventListener("change", async () => {
@@ -682,14 +777,16 @@
     });
     
     els.brand.addEventListener("change", async () => {
-      // Reset category and type, show placeholder
-      const currentCategories = selectedValues(els.category);
-      const currentTypes = selectedValues(els.type);
-      
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
       
+      const currentBrands = selectedValues(els.brand);
       await loadOptions();
+      
+      // Restore brand selections and re-render with updated analyzed status
+      Array.from(els.brand.options).forEach(opt => {
+        opt.selected = currentBrands.includes(opt.value);
+      });
       
       // Clear category and type selections
       setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
@@ -697,11 +794,20 @@
     });
     
     els.category.addEventListener("change", async () => {
-      // Reset type, show placeholder
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
       
+      const currentBrands = selectedValues(els.brand);
+      const currentCategories = selectedValues(els.category);
       await loadOptions();
+      
+      // Restore brand and category selections
+      Array.from(els.brand.options).forEach(opt => {
+        opt.selected = currentBrands.includes(opt.value);
+      });
+      Array.from(els.category.options).forEach(opt => {
+        opt.selected = currentCategories.includes(opt.value);
+      });
       
       // Clear type selection
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
@@ -715,10 +821,6 @@
     document.getElementById("loadBtn").addEventListener("click", async () => {
       if (!els.group.value) {
         els.dataInfo.textContent = "Please select a product group.";
-        return;
-      }
-      if (selectedValues(els.category).length === 0) {
-        els.dataInfo.textContent = "Please select at least one category.";
         return;
       }
       currentPage = 1;
@@ -738,16 +840,14 @@
       }
       if (action === "export") {
         await exportGridData();
+      } else if (action === "export_xls") {
+        await exportGridDataXLS();
       }
     });
 
     async function exportGridData() {
       if (!els.group.value) {
         alert("Please load grid data first");
-        return;
-      }
-      if (selectedValues(els.category).length === 0) {
-        alert("Please select at least one category");
         return;
       }
       
@@ -757,7 +857,8 @@
         brands: selectedValues(els.brand),
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
-        final_status: selectedValues(els.status)
+        final_status: selectedValues(els.status),
+        skip_status: selectedValues(els.skip)
       };
       
       if (currentIteration !== null) {
@@ -786,6 +887,48 @@
       hideLoader();
     }
 
+    async function exportGridDataXLS() {
+      if (!els.group.value) {
+        alert("Please load grid data first");
+        return;
+      }
+      
+      showLoader();
+      const payload = {
+        group_id: parseInt(els.group.value),
+        brands: selectedValues(els.brand),
+        categories: selectedValues(els.category),
+        types: selectedValues(els.type),
+        final_status: selectedValues(els.status),
+        skip_status: selectedValues(els.skip)
+      };
+      
+      if (currentIteration !== null) {
+        payload.iteration = currentIteration;
+      }
+      
+      const res = await fetch("/grid/api/export-xls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `grid_export_${new Date().getTime()}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Export failed");
+      }
+      hideLoader();
+    }
+
     async function loadGridData() {
       showLoader();
       const payload = {
@@ -794,6 +937,7 @@
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
+        skip_status: selectedValues(els.skip),
         page: currentPage,
         per_page: itemsPerPage,
         sort_column: sortColumn,
@@ -878,6 +1022,7 @@
         { key: 'dbs_status', label: 'DBSCAN Status' },
         { key: 'final_status', label: 'Final Status' },
         { key: 'iteration_closed', label: 'Iteration' },
+        { key: 'outlier_mode', label: 'Manual Outlier' },
         { key: 'skip_status', label: 'Skip' }
       ];
 
@@ -943,6 +1088,16 @@
       loadGridData();
     }
 
+    els.skipTrigger.addEventListener("click", () => {
+      const willOpen = els.skipMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.skipMenu.classList.remove("hidden");
+        const input = els.skipMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
     els.statusTrigger.addEventListener("click", () => {
       const willOpen = els.statusMenu.classList.contains("hidden");
       closeAllDropdownMenus();
@@ -985,14 +1140,17 @@
 
     document.addEventListener("click", (e) => {
       const inStatus = e.target.closest("#statusDropdown");
+      const inSkip = e.target.closest("#skipDropdown");
       const inBrand = e.target.closest("#brandDropdown");
       const inCategory = e.target.closest("#categoryDropdown");
       const inType = e.target.closest("#typeDropdown");
-      if (!inStatus && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
     });
 
     (async function init() {
       renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
+      renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
+
       await loadProductGroups();
       
       // Check for URL parameters

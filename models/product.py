@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.mysql import TINYINT
 from models.base.base_model import BaseModel
@@ -6,6 +6,10 @@ from models.base.base_model import BaseModel
 
 class Product(BaseModel):
     __tablename__ = "product"
+
+    __table_args__ = (
+        Index('idx_product_system_product_id', 'system_product_id'),
+    )
 
     product_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     group_id = Column(Integer, ForeignKey("product_group.group_id"), nullable=False)
@@ -43,5 +47,7 @@ class Product(BaseModel):
     dimension_failed = Column(String(50), nullable=True, default=None)
 
     iteration_closed = Column(Integer, nullable=True, default=None)
+    outlier_mode = Column(TINYINT, nullable=True, default=None, comment="0=Autometic, 1=Manually")
 
     group = relationship("ProductGroup", back_populates="products")
+

@@ -38,28 +38,66 @@
       font-weight: 700;
       font-size: 15px;
       color: var(--brand);
+      min-width: 200px;
     }
     .links {
       display: flex;
-      gap: 10px;
+      gap: 20px;
+      align-items: center;
     }
-    .links a {
+    .links a, .dropdown-toggle {
       text-decoration: none;
-      color: #ffffff;
-      background: var(--brand);
-      border: 1px solid var(--brand);
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      padding-bottom: 4px;
     }
-    .links a:hover {
-      background: var(--brand-hover);
-      border-color: var(--brand-hover);
+    .links a:hover, .dropdown-toggle:hover {
+      border-bottom-color: var(--brand);
     }
-    .links a.active {
-      background: var(--active);
-      border-color: var(--active);
+    .links a.active, .dropdown-toggle.active {
+      border-bottom-color: var(--active);
+      color: var(--active);
+    }
+    .dropdown {
+      position: relative;
+    }
+    .dropdown-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      left: auto;
+      margin-top: 8px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 180px;
+      padding: 8px 0;
+    }
+    .dropdown-menu.show {
+      display: block;
+    }
+    .dropdown-menu a {
+      display: block;
+      padding: 8px 16px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 400;
+      border-bottom: none;
+    }
+    .dropdown-menu a:hover {
+      background: #f3f4f6;
+      border-bottom: none;
     }
     .page {
       padding: 18px 20px;
@@ -87,17 +125,107 @@
 </head>
 <body>
   <nav class="top-menu">
-    <div class="brand">1Stopbedroom</div>
+    <div class="brand" id="brandTitle">1Stopbedroom</div>
     <div class="links">
-      <a href="/" class="{% if active_page == 'home' %}active{% endif %}">Home</a>
-      <a href="/grid" class="{% if active_page == 'grid' %}active{% endif %}">Grid</a>
-      <a href="/dimension/analyzer" class="{% if active_page == 'analyzer' %}active{% endif %}">Analyzer</a>
-      <a href="/import" class="{% if active_page == 'import' %}active{% endif %}">Import</a>
+      <a href="/" class="{% if active_page == 'home' %}active{% endif %}" onclick="updateBrand('1Stopbedroom')">Home</a>
+      
+      <div class="dropdown">
+        <div class="dropdown-toggle {% if active_page in ['dimension_analyzer', 'dimension_report'] %}active{% endif %}" onclick="toggleDropdown(event, 'dimensionDropdown', 'dimensionArrow')">
+          Dimension
+        </div>
+        <div class="dropdown-menu" id="dimensionDropdown">
+          <a href="/dimension/analyzer" onclick="updateBrand('Dimension Analyzer')">Analyzer</a>
+          <a href="/dimension/report" onclick="updateBrand('Dimension Report')">Report</a>
+        </div>
+      </div>
+      
+      <div class="dropdown">
+        <div class="dropdown-toggle {% if active_page in ['item_match', 'matching_items'] %}active{% endif %}" onclick="toggleDropdown(event, 'priceMatchDropdown', 'priceMatchArrow')">
+          Price Match
+        </div>
+        <div class="dropdown-menu" id="priceMatchDropdown">
+          <a href="/item-match" onclick="updateBrand('Price Match Analyzer')">Analyzer</a>
+          <a href="/matching-items" onclick="updateBrand('Price Match Report')">Report</a>
+        </div>
+      </div>
+      
+      <div class="dropdown">
+        <div class="dropdown-toggle {% if active_page in ['import'] %}active{% endif %}" onclick="toggleDropdown(event, 'databaseDropdown', 'databaseArrow')">
+          Database
+        </div>
+        <div class="dropdown-menu" id="databaseDropdown">
+          <a href="/import" onclick="updateBrand('Database Import')">Import</a>
+        </div>
+      </div>
+      
+
     </div>
   </nav>
 
   <main class="page">
     {% block content %}{% endblock %}
   </main>
+  
+  <script>
+    function updateBrand(title) {
+      document.getElementById('brandTitle').textContent = title;
+    }
+    
+    function toggleDropdown(event, dropdownId, arrowId) {
+      event.stopPropagation();
+      const dropdown = document.getElementById(dropdownId);
+      const arrow = document.getElementById(arrowId);
+      
+      // Close all other dropdowns
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        if (menu.id !== dropdownId) {
+          menu.classList.remove('show');
+        }
+      });
+      document.querySelectorAll('.dropdown-menu').forEach((menu, index) => {
+        const arrows = ['dimensionArrow', 'priceMatchArrow', 'databaseArrow'];
+        arrows.forEach(arrowId => {
+          const arrowEl = document.getElementById(arrowId);
+          if (arrowEl && menu.id !== dropdownId) {
+            arrowEl.textContent = '';
+          }
+        });
+      });
+      
+      dropdown.classList.toggle('show');
+      arrow.textContent = dropdown.classList.contains('show') ? '' : '';
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      if (!event.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+          menu.classList.remove('show');
+        });
+        ['dimensionArrow', 'priceMatchArrow', 'databaseArrow'].forEach(arrowId => {
+          const arrow = document.getElementById(arrowId);
+          if (arrow) arrow.textContent = '';
+        });
+      }
+    });
+    
+    // Set initial brand title based on active page
+    document.addEventListener('DOMContentLoaded', function() {
+      const activePage = '{{ active_page }}';
+      const titleMap = {
+        'home': '1Stopbedroom',
+        'dimension_analyzer': 'Dimension Analyzer',
+        'dimension_report': 'Dimension Report',
+        'item_match': 'Price Match Analyzer',
+        'matching_items': 'Price Match Report',
+        'import': 'Database Import',
+        'carton_analyzer': 'Carton Analyzer',
+        'carton_report': 'Carton Report'
+      };
+      if (titleMap[activePage]) {
+        updateBrand(titleMap[activePage]);
+      }
+    });
+  </script>
 </body>
 </html>

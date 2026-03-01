@@ -1,0 +1,4 @@
+from repositories.dimension.product_iteration_repository import ProductIterationRepository
+from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
+
+__all__ = ['ProductIterationRepository', 'DimensionProductIterationItemRepository']

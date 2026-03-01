@@ -16,9 +16,12 @@ class ProductRepository(BaseRepository):
         )
 
     def get_brands_for_group(self, group_id: int):
-        """Get brands and their product counts for a specific product group"""
+        """Get brands and their product counts with analysis status for a specific product group"""
         query = """
-            SELECT brand, COUNT(*) as product_count
+            SELECT 
+                brand, 
+                COUNT(*) as product_count,
+                SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
             FROM product
             WHERE group_id = :group_id 
             AND brand IS NOT NULL
@@ -31,16 +34,19 @@ class ProductRepository(BaseRepository):
         result = self.fetch_all(query, {"group_id": group_id})
         
         if result:
-            df = pd.DataFrame(result, columns=['brand', 'product_count'])
+            df = pd.DataFrame(result, columns=['brand', 'product_count', 'analyzed_count'])
             return df
         return pd.DataFrame()
 
     def get_categories_for_group(self, group_id: int, brands: list = None):
-        """Get categories for a group, optionally filtered by brands"""
+        """Get categories for a group with analysis status, optionally filtered by brands"""
         if brands and len(brands) > 0:
             placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
             query = f"""
-                SELECT category, COUNT(*) as product_count
+                SELECT 
+                    category, 
+                    COUNT(*) as product_count,
+                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
                 FROM product
                 WHERE group_id = :group_id 
                 AND brand IN ({placeholders})
@@ -56,7 +62,10 @@ class ProductRepository(BaseRepository):
                 params[f'brand{i}'] = brand
         else:
             query = """
-                SELECT category, COUNT(*) as product_count
+                SELECT 
+                    category, 
+                    COUNT(*) as product_count,
+                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
                 FROM product
                 WHERE group_id = :group_id 
                 AND category IS NOT NULL
@@ -71,12 +80,12 @@ class ProductRepository(BaseRepository):
         result = self.fetch_all(query, params)
         
         if result:
-            df = pd.DataFrame(result, columns=['category', 'product_count'])
+            df = pd.DataFrame(result, columns=['category', 'product_count', 'analyzed_count'])
             return df
         return pd.DataFrame()
 
     def get_types_for_group(self, group_id: int, brands: list = None, category: str = None):
-        """Get product types for a group, optionally filtered by brands and category"""
+        """Get product types for a group with analysis status, optionally filtered by brands and category"""
         conditions = ["group_id = :group_id", "product_type IS NOT NULL", 
                       "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
         params = {'group_id': group_id}
@@ -93,7 +102,10 @@ class ProductRepository(BaseRepository):
         
         where_clause = " AND ".join(conditions)
         query = f"""
-            SELECT product_type, COUNT(*) as product_count
+            SELECT 
+                product_type, 
+                COUNT(*) as product_count,
+                SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
             FROM product
             WHERE {where_clause}
             GROUP BY product_type
@@ -103,7 +115,7 @@ class ProductRepository(BaseRepository):
         result = self.fetch_all(query, params)
         
         if result:
-            df = pd.DataFrame(result, columns=['product_type', 'product_count'])
+            df = pd.DataFrame(result, columns=['product_type', 'product_count', 'analyzed_count'])
             return df
         return pd.DataFrame()
 
@@ -144,7 +156,9 @@ class ProductRepository(BaseRepository):
                 depth,
                 weight,
                 base_image_url,
-                product_url
+                product_url,
+                outlier_mode,
+                system_product_id
             FROM product
             WHERE {where_clause}
             ORDER BY product_id
@@ -155,7 +169,7 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url'
+                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -269,7 +283,9 @@ class ProductRepository(BaseRepository):
                 depth,
                 weight,
                 base_image_url,
-                product_url
+                product_url,
+                outlier_mode,
+                system_product_id
             FROM product
             WHERE {where_clause}
             ORDER BY product_id
@@ -280,7 +296,7 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url'
+                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -309,83 +325,72 @@ class ProductRepository(BaseRepository):
                 # Update final status
                 product.final_status = update.get('final_status')
                 
+                # Set outlier_mode: 0 for automatic outliers, preserve 1 for manual, None for normal
+                if update.get('final_status') == 0 and product.outlier_mode != 1:
+                    product.outlier_mode = 0
+                elif update.get('final_status') == 1:
+                    product.outlier_mode = None
+                
                 product.analyzed_date = datetime.now()
         self.db.commit()
 
     def get_iteration_history(self, group_id: int, brands: list, category: str, types: list):
-        """Get iteration history for a category"""
-        conditions = ["group_id = :group_id", "category = :category"]
-        params = {'group_id': group_id, 'category': category}
+        """Get iteration history for a category from product_iteration table"""
+        from sqlalchemy import func, and_, case
+        from models.product_iteration import ProductIteration
         
-        if brands and len(brands) > 0:
-            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
-            conditions.append(f"brand IN ({placeholders})")
-            for i, brand in enumerate(brands):
-                params[f'brand{i}'] = brand
+        # Build brand filter
+        brand_str = ', '.join(brands) if brands and len(brands) > 0 else None
         
-        if types and len(types) > 0:
-            placeholders = ','.join([f':type{i}' for i in range(len(types))])
-            conditions.append(f"product_type IN ({placeholders})")
-            for i, ptype in enumerate(types):
-                params[f'type{i}'] = ptype
+        # Query product_iteration table
+        query = self.db.query(
+            ProductIteration.iteration_number,
+            func.count(func.distinct(ProductIteration.system_product_id)).label('total'),
+            func.sum(case((ProductIteration.status == 1, 1), else_=0)).label('normal_count'),
+            func.sum(case((and_(ProductIteration.status == 0, ProductIteration.outlier_mode == 0), 1), else_=0)).label('outlier_count'),
+            func.sum(case((and_(ProductIteration.status == 0, ProductIteration.outlier_mode == 1), 1), else_=0)).label('manual_outlier_count')
+        ).filter(
+            ProductIteration.category == category
+        )
         
-        where_clause = " AND ".join(conditions)
+        if brand_str:
+            query = query.filter(ProductIteration.brand == brand_str)
         
-        # Get max iteration
-        max_iter_query = f"""
-            SELECT MAX(iteration_closed) as max_iter
-            FROM product
-            WHERE {where_clause} AND iteration_closed IS NOT NULL
-        """
-        max_result = self.fetch_all(max_iter_query, params)
-        if not max_result or not max_result[0][0]:
+        query = query.group_by(ProductIteration.iteration_number).order_by(ProductIteration.iteration_number)
+        
+        results = query.all()
+        
+        if not results:
             return []
         
-        max_iteration = max_result[0][0]
         history = []
-        
-        # For each iteration, calculate totals based on the logic:
-        # Total = products with iteration_closed >= current_iteration
-        # Outlier = products with iteration_closed = current_iteration AND final_status = 0
-        # Normal = Total - Outlier
-        for iteration in range(1, max_iteration + 1):
-            # Get total: all products with iteration >= current iteration
-            total_query = f"""
-                SELECT COUNT(*) as total
-                FROM product
-                WHERE {where_clause}
-                AND iteration_closed >= :iteration
-            """
-            params['iteration'] = iteration
-            total_result = self.fetch_all(total_query, params)
-            total = total_result[0][0] if total_result and total_result[0][0] else 0
-            
-            # Get outlier: products with iteration = current AND final_status = 0
-            outlier_query = f"""
-                SELECT COUNT(*) as outlier
-                FROM product
-                WHERE {where_clause}
-                AND iteration_closed = :iteration
-                AND final_status = 0
-            """
-            outlier_result = self.fetch_all(outlier_query, params)
-            outlier = outlier_result[0][0] if outlier_result and outlier_result[0][0] else 0
-            
-            # Normal = Total - Outlier
-            normal = total - outlier
+        for r in results:
+            # Calculate normal as total - outlier - manual_outlier
+            outlier = r.outlier_count or 0
+            manual_outlier = r.manual_outlier_count or 0
+            total = r.total or 0
+            normal = total - outlier - manual_outlier
             
             history.append({
-                'iteration': iteration,
+                'iteration': r.iteration_number,
                 'total': total,
                 'normal': normal,
-                'outlier': outlier
+                'outlier': outlier,
+                'manual_outlier': manual_outlier
             })
         
         return history
 
     def reset_iterations(self, group_id: int, brands: list, category: str, types: list):
-        """Reset iterations for a category"""
+        """Reset iterations for a category in both product and product_iteration tables"""
         from sqlalchemy import text
+        from repositories.product_iteration_repository import ProductIterationRepository
+        
+        # Delete from product_iteration table
+        iteration_repo = ProductIterationRepository(self.db)
+        iteration_repo.delete_iterations_by_brand_category(brands, category)
+        
+        # Reset product table
         conditions = ["group_id = :group_id", "category = :category"]
         params = {'group_id': group_id, 'category': category}
         
@@ -411,6 +416,7 @@ class ProductRepository(BaseRepository):
                 iqr_depth_status = NULL,
                 dbs_status = NULL,
                 final_status = NULL,
+                outlier_mode = NULL,
                 analyzed_date = NULL
             WHERE {where_clause}
         """
@@ -464,7 +470,9 @@ class ProductRepository(BaseRepository):
                 iqr_height_status,
                 iqr_width_status,
                 iqr_depth_status,
-                dbs_status
+                dbs_status,
+                outlier_mode,
+                iteration_closed
             FROM product
             WHERE {where_clause}
             ORDER BY product_id
@@ -476,7 +484,286 @@ class ProductRepository(BaseRepository):
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
                 'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url',
-                'iqr_status', 'iqr_height_status', 'iqr_width_status', 'iqr_depth_status', 'dbs_status'
+                'iqr_status', 'iqr_height_status', 'iqr_width_status', 'iqr_depth_status', 'dbs_status', 'outlier_mode', 'iteration_closed'
             ])
             return df
         return pd.DataFrame()
+
+    def update_products_final_status(self, skus: list, final_status: int, iteration: int = None):
+        """Update final_status, outlier_mode, and iteration_closed for multiple products by SKU"""
+        from sqlalchemy import text
+        from datetime import datetime
+        
+        if not skus:
+            return
+        
+        placeholders = ','.join([f':sku{i}' for i in range(len(skus))])
+        params = {'final_status': final_status, 'outlier_mode': 1 if final_status == 0 else None}
+        for i, sku in enumerate(skus):
+            params[f'sku{i}'] = sku
+        
+        if iteration is not None:
+            params['iteration_closed'] = iteration
+            query = f"""
+                UPDATE product
+                SET final_status = :final_status,
+                    outlier_mode = :outlier_mode,
+                    iteration_closed = :iteration_closed,
+                    analyzed_date = NOW()
+                WHERE qb_code IN ({placeholders})
+            """
+        else:
+            query = f"""
+                UPDATE product
+                SET final_status = :final_status,
+                    outlier_mode = :outlier_mode,
+                    analyzed_date = NOW()
+                WHERE qb_code IN ({placeholders})
+            """
+        
+        self.db.execute(text(query), params)
+        self.db.commit()
+
+    def update_products_aggregated(self, product_updates: list):
+        """Update products with aggregated results from all iterations including outlier_mode"""
+        from sqlalchemy import text
+        
+        if not product_updates:
+            return
+        
+        for update in product_updates:
+            system_product_id = update.get('system_product_id')
+            if not system_product_id:
+                continue
+            
+            set_clauses = []
+            params = {'system_product_id': system_product_id}
+            
+            if 'iqr_status' in update:
+                set_clauses.append('iqr_status = :iqr_status')
+                params['iqr_status'] = update['iqr_status']
+            
+            if 'dbs_status' in update:
+                set_clauses.append('dbs_status = :dbs_status')
+                params['dbs_status'] = update['dbs_status']
+            
+            if 'final_status' in update:
+                set_clauses.append('final_status = :final_status')
+                params['final_status'] = update['final_status']
+            
+            if 'outlier_mode' in update:
+                set_clauses.append('outlier_mode = :outlier_mode')
+                params['outlier_mode'] = update['outlier_mode']
+            
+            if set_clauses:
+                set_clauses.append('analyzed_date = NOW()')
+                query = f"""
+                    UPDATE product
+                    SET {', '.join(set_clauses)}
+                    WHERE system_product_id = :system_product_id
+                """
+                self.db.execute(text(query), params)
+        
+        self.db.commit()
+
+    def get_global_aggregate_data(self, group_id: int, brands: list, category: str, types: list, algorithms: list):
+        """Get global aggregate data from product table for all saved iterations"""
+        conditions = ["group_id = :group_id", "category = :category", 
+                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        params = {'group_id': group_id, 'category': category}
+        
+        if brands and len(brands) > 0:
+            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
+            conditions.append(f"brand IN ({placeholders})")
+            for i, brand in enumerate(brands):
+                params[f'brand{i}'] = brand
+        
+        if types and len(types) > 0:
+            placeholders = ','.join([f':type{i}' for i in range(len(types))])
+            conditions.append(f"product_type IN ({placeholders})")
+            for i, ptype in enumerate(types):
+                params[f'type{i}'] = ptype
+        
+        where_clause = " AND ".join(conditions)
+        query = f"""
+            SELECT 
+                product_id,
+                qb_code,
+                brand,
+                category,
+                product_type,
+                name,
+                height,
+                width,
+                depth,
+                weight,
+                base_image_url,
+                product_url,
+                iqr_status,
+                dbs_status,
+                final_status,
+                outlier_mode,
+                system_product_id
+            FROM product
+            WHERE {where_clause}
+            ORDER BY product_id
+        """
+        
+        result = self.fetch_all(query, params)
+        
+        if result:
+            df = pd.DataFrame(result, columns=[
+                'product_id', 'qb_code', 'brand', 'category', 'product_type', 
+                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url',
+                'iqr_status', 'dbs_status', 'final_status', 'outlier_mode', 'system_product_id'
+            ])
+            return df
+        return pd.DataFrame()
+
+    def get_basic_groups(self, group_id: int, brands: list = None, category: str = None, types: list = None):
+        """Get all basic groups (Brand + Category + Product_Type combinations) with counts"""
+        conditions = ["group_id = :group_id", 
+                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        params = {'group_id': group_id}
+        
+        if brands and len(brands) > 0:
+            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
+            conditions.append(f"brand IN ({placeholders})")
+            for i, brand in enumerate(brands):
+                params[f'brand{i}'] = brand
+        
+        if category:
+            conditions.append("category = :category")
+            params['category'] = category
+        
+        if types and len(types) > 0:
+            placeholders = ','.join([f':type{i}' for i in range(len(types))])
+            conditions.append(f"product_type IN ({placeholders})")
+            for i, ptype in enumerate(types):
+                params[f'type{i}'] = ptype
+        
+        where_clause = " AND ".join(conditions)
+        query = f"""
+            SELECT 
+                brand,
+                category,
+                product_type,
+                COUNT(*) as total_count
+            FROM product
+            WHERE {where_clause}
+            GROUP BY brand, category, product_type
+            ORDER BY brand, category, product_type
+        """
+        
+        result = self.fetch_all(query, params)
+        
+        if result:
+            return [{
+                'brand': r[0],
+                'category': r[1],
+                'product_type': r[2],
+                'total_count': r[3]
+            } for r in result]
+        return []
+
+    def reset_analysis_fields(self, group_id: int, brands: list = None, category: str = None, types: list = None):
+        """Reset all analysis-related fields in product table"""
+        from sqlalchemy import text
+        
+        conditions = ["group_id = :group_id"]
+        params = {'group_id': group_id}
+        
+        if brands and len(brands) > 0:
+            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
+            conditions.append(f"brand IN ({placeholders})")
+            for i, brand in enumerate(brands):
+                params[f'brand{i}'] = brand
+        
+        if category:
+            conditions.append("category = :category")
+            params['category'] = category
+        
+        if types and len(types) > 0:
+            placeholders = ','.join([f':type{i}' for i in range(len(types))])
+            conditions.append(f"product_type IN ({placeholders})")
+            for i, ptype in enumerate(types):
+                params[f'type{i}'] = ptype
+        
+        where_clause = " AND ".join(conditions)
+        query = f"""
+            UPDATE product
+            SET iqr_status = NULL,
+                iqr_height_status = NULL,
+                iqr_width_status = NULL,
+                iqr_depth_status = NULL,
+                dbs_status = NULL,
+                final_status = NULL,
+                outlier_mode = NULL,
+                iteration_closed = NULL,
+                analyzed_date = NULL
+            WHERE {where_clause}
+        """
+        
+        self.db.execute(text(query), params)
+        self.db.commit()
+
+
+    def load_products_by_ids(self, system_product_ids):
+        """Load products by system_product_ids"""
+        from models.product import Product
+        
+        try:
+            products = self.db.query(Product).filter(
+                Product.system_product_id.in_(system_product_ids)
+            ).all()
+            
+            data = []
+            for p in products:
+                data.append({
+                    'system_product_id': p.system_product_id,
+                    'qb_code': p.qb_code,
+                    'brand': p.brand,
+                    'category': p.category,
+                    'product_type': p.product_type,
+                    'name': p.name,
+                    'height': p.height,
+                    'width': p.width,
+                    'depth': p.depth,
+                    'base_image_url': p.base_image_url,
+                    'product_url': p.product_url
+                })
+            
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error loading products by IDs: {e}")
+            return pd.DataFrame()
+
+    def update_products_iqr_fields(self, iqr_updates: list):
+        """Update products with IQR status fields only"""
+        from sqlalchemy import text
+        
+        if not iqr_updates:
+            return
+        
+        for update in iqr_updates:
+            system_product_id = update.get('system_product_id')
+            if not system_product_id:
+                continue
+            
+            params = {'system_product_id': system_product_id}
+            set_clauses = []
+            
+            for field in ['iqr_status', 'iqr_height_status', 'iqr_width_status', 'iqr_depth_status']:
+                if field in update:
+                    set_clauses.append(f'{field} = :{field}')
+                    params[field] = update[field]
+            
+            if set_clauses:
+                query = f"""
+                    UPDATE product
+                    SET {', '.join(set_clauses)}
+                    WHERE system_product_id = :system_product_id
+                """
+                self.db.execute(text(query), params)
+        
+        self.db.commit()

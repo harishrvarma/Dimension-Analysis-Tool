@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+{% block title %}CSV Import - 1Stopbedroom{% endblock %}
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+  .select2-container { width: 100% !important; }
+  .select2-container--default .select2-selection--single { height: 42px; border: 1px solid #d7dfec; border-radius: 6px; padding: 8px; }
+  .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 24px; }
+  .select2-container--default .select2-selection--single .select2-selection__arrow { height: 40px; }
+  .select2-container--default .select2-selection--multiple { border: 1px solid #d7dfec; border-radius: 6px; min-height: 100px; }
+  .select2-dropdown { border: 1px solid #d7dfec; border-radius: 6px; }
+  .select2-container--open { z-index: 9999; }
+  .csv-col-select { width: 100%; padding: 0.5vw; border: 1px solid #d7dfec; border-radius: 6px; font-size: clamp(12px, 1vw, 14px); }
+  .import-container { max-width: 90vw; margin: 0 auto; padding: 1vw; }
+  .section { background: #fff; padding: 1.5vw; border-radius: 8px; margin-bottom: 1.5vw; border: 1px solid #d7dfec; }
+  .section h2 { margin: 0 0 1vw; font-size: clamp(16px, 1.3vw, 18px); }
+  .upload-area { border: 2px dashed #d7dfec; padding: 2vw; text-align: center; border-radius: 8px; cursor: pointer; }
+  .upload-area:hover { border-color: #1d4ed8; background: #f9fafb; }
+  .upload-area p { font-size: clamp(14px, 1vw, 16px); margin: 0; }
+  .file-info { margin-top: 1vw; padding: 1vw; background: #f0f9ff; border-radius: 6px; font-size: clamp(12px, 0.9vw, 14px); }
+  .file-info div { margin: 0.3vw 0; }
+  select { width: 100%; padding: 0.7vw; border: 1px solid #d7dfec; border-radius: 6px; font-size: clamp(12px, 1vw, 14px); }
+  .grid { margin-top: 1vw; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: clamp(12px, 0.9vw, 14px); }
+  th, td { padding: 0.7vw; text-align: left; border-bottom: 1px solid #d7dfec; }
+  th { background: #f9fafb; font-weight: 600; font-size: clamp(11px, 0.85vw, 13px); }
+  td { font-size: clamp(12px, 0.9vw, 14px); }
+  .matched-yes { color: #059669; font-weight: 600; }
+  .matched-no { color: #dc2626; font-weight: 600; }
+  .btn { padding: 0.8vw 1.5vw; border: none; border-radius: 6px; font-size: clamp(12px, 1vw, 14px); font-weight: 600; cursor: pointer; }
+  .btn-primary { background: #1d4ed8; color: #fff; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+  .error { color: #dc2626; margin-top: 0.7vw; font-size: clamp(12px, 0.9vw, 14px); }
+  .success { color: #059669; margin-top: 0.7vw; font-size: clamp(12px, 0.9vw, 14px); }
+  .hidden { display: none; }
+  body { overflow-x: hidden; }
+  h1 { font-size: clamp(20px, 2vw, 28px); margin-bottom: 1.5vw; }
+  label { display: block; margin-bottom: 0.4vw; font-weight: 600; font-size: clamp(12px, 0.9vw, 14px); }
+  small { color: #6b7280; display: block; margin-top: 0.3vw; font-size: clamp(11px, 0.8vw, 13px); }
+</style>
+
+<div class="import-container">
+  <h1 style="margin-bottom: 20px;">CSV Import</h1>
+
+  <div class="section">
+    <h2>1. Upload CSV File</h2>
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('csvFile').click()">
+      <input type="file" id="csvFile" accept=".csv" style="display: none;">
+      <p>Click or drag and drop to upload csv file</p>
+    </div>
+    <div id="fileInfo" class="file-info hidden"></div>
+  </div>
+
+  <div class="section">
+    <h2>2. Select Database Table</h2>
+    <div id="dbName" style="margin-bottom: 10px; padding: 8px; background: #f0f9ff; border-radius: 6px; font-size: 13px; color: #1e40af; display: none;">
+      <strong>Database:</strong> <span id="dbNameValue"></span>
+    </div>
+    <select id="tableSelect" disabled>
+      <option value="">-- Select a table --</option>
+    </select>
+  </div>
+
+  <div class="section hidden" id="mappingSection">
+    <h2>3. Map Columns</h2>
+    <div style="margin-bottom: 10px; padding: 10px; background: #f9fafb; border-radius: 6px; display: flex; gap: 20px;">
+      <div><strong>Table Columns:</strong> <span id="tableColCount">0</span></div>
+      <div><strong>CSV Columns:</strong> <span id="csvColCount">0</span></div>
+      <div><strong>Mapped Columns:</strong> <span id="mappedColCount">0</span></div>
+    </div>
+    <div class="grid">
+      <table>
+        <thead>
+          <tr>
+            <th>Table Column</th>
+            <th>CSV Column</th>
+            <th>Matched</th>
+            <th>Select</th>
+          </tr>
+        </thead>
+        <tbody id="mappingGrid"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section hidden" id="importOptionsSection">
+    <h2>4. Import Options</h2>
+    <div>
+      <label style="display: block; margin-bottom: 5px; font-weight: 600;">Import Mode</label>
+      <select id="importModeSelect" class="dash-select">
+        <option value="">-- Select import mode --</option>
+        <option value="insert_direct">Insert</option>
+        <option value="insert_with_identity">Insert with identity columns</option>
+        <option value="update">Update</option>
+        <option value="insert_update">Insert Or Update</option>
+      </select>
+      <div id="importModeDescription" style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 6px; font-size: 13px; color: #1e40af; display: none;"></div>
+    </div>
+    <div style="margin-top: 15px; display: none;" id="identitySection">
+      <label style="display: block; margin-bottom: 5px; font-weight: 600;">Identity Columns</label>
+      <select id="identitySelect" multiple>
+      </select>
+      <small style="color: #6b7280; display: block; margin-top: 5px;">Select one or more identity columns</small>
+    </div>
+  </div>
+
+  <div class="section">
+    <button id="saveBtn" class="btn btn-primary" disabled>Save</button>
+    <div id="message"></div>
+    <div id="report" class="hidden" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 6px;">
+      <h3 style="margin: 0 0 10px; font-size: 16px;">Import Report</h3>
+      <div><strong>Total Items:</strong> <span id="reportTotal">0</span></div>
+      <div><strong>Inserted Items:</strong> <span id="reportInserted">0</span></div>
+      <div><strong>Updated Items:</strong> <span id="reportUpdated">0</span></div>
+      <div><strong>Error Items:</strong> <span id="reportErrors">0</span></div>
+      <div id="errorDetails" style="margin-top: 10px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let csvHeaders = [];
+let csvRowCount = 0;
+let csvRawData = '';
+let tableColumns = [];
+let requiredColumns = [];
+let selectedTable = '';
+
+const uploadArea = document.getElementById('uploadArea');
+const csvFileInput = document.getElementById('csvFile');
+
+uploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadArea.style.borderColor = '#1d4ed8';
+  uploadArea.style.background = '#f9fafb';
+});
+
+uploadArea.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  uploadArea.style.borderColor = '#d7dfec';
+  uploadArea.style.background = '';
+});
+
+uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadArea.style.borderColor = '#d7dfec';
+  uploadArea.style.background = '';
+
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    csvFileInput.files = files;
+    csvFileInput.dispatchEvent(new Event('change'));
+  }
+});
+
+document.getElementById('csvFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/import/parse-csv', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(data.error, 'error');
+      return;
+    }
+
+    csvHeaders = data.headers;
+    csvRowCount = data.rowCount;
+    csvRawData = await file.text();
+
+    document.getElementById('fileInfo').innerHTML = `
+      <div><strong>File:</strong> ${file.name}</div>
+      <div><strong>Headers:</strong> ${csvHeaders.join(', ')}</div>
+      <div><strong>Rows:</strong> ${csvRowCount}</div>
+    `;
+    document.getElementById('fileInfo').classList.remove('hidden');
+    document.getElementById('tableSelect').disabled = false;
+
+    loadTables();
+    showMessage('', '');
+  } catch (err) {
+    showMessage('Failed to parse CSV', 'error');
+  } finally {
+    e.target.value = '';
+  }
+});
+
+async function loadTables() {
+  const res = await fetch('/api/import/tables');
+  const data = await res.json();
+
+  if (data.database) {
+    document.getElementById('dbNameValue').textContent = data.database;
+    document.getElementById('dbName').style.display = 'block';
+  }
+
+  const select = document.getElementById('tableSelect');
+  select.innerHTML = '<option value="">-- Select a table --</option>';
+  data.tables.forEach(table => {
+    const opt = document.createElement('option');
+    opt.value = table;
+    opt.textContent = table;
+    select.appendChild(opt);
+  });
+
+  $('#tableSelect').select2({ placeholder: '-- Select a table --', allowClear: true });
+}
+
+$('#tableSelect').on('change', async (e) => {
+  selectedTable = e.target.value;
+  if (!selectedTable) {
+    document.getElementById('mappingSection').classList.add('hidden');
+    return;
+  }
+
+  const res = await fetch(`/api/import/columns/${selectedTable}`);
+  const data = await res.json();
+  tableColumns = data.columns;
+  requiredColumns = data.requiredColumns || [];
+
+  renderMappingGrid();
+  document.getElementById('mappingSection').classList.remove('hidden');
+  document.getElementById('importOptionsSection').classList.remove('hidden');
+  validateRequiredColumns();
+  updateIdentityDropdown();
+
+  $('#identitySelect').select2({ placeholder: 'Select identity columns', closeOnSelect: false, dropdownParent: $('#importOptionsSection') });
+  $('#importModeSelect').select2({ placeholder: '-- Select import mode --', allowClear: true, dropdownParent: $('#importOptionsSection') });
+
+  $('#identitySelect').on('change', updateImportModeDescription);
+  $('#importModeSelect').on('change', function() {
+    updateIdentityVisibility();
+    updateImportModeDescription();
+  });
+});
+
+function renderMappingGrid() {
+  const grid = document.getElementById('mappingGrid');
+  grid.innerHTML = '';
+
+  tableColumns.forEach(tableCol => {
+    const csvCol = csvHeaders.find(h => h.toLowerCase() === tableCol.toLowerCase()) || '';
+    const matched = csvCol !== '';
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${tableCol}</td>
+      <td>
+        <select class="csv-col-select" data-table-col="${tableCol}">
+          <option value="">-- Select CSV column --</option>
+          ${csvHeaders.map(h => `<option value="${h}" ${h === csvCol ? 'selected' : ''}>${h}</option>`).join('')}
+        </select>
+      </td>
+      <td class="match-status ${matched ? 'matched-yes' : 'matched-no'}">${matched ? 'Yes' : 'No'}</td>
+      <td><input type="checkbox" class="mapping-checkbox" data-table-col="${tableCol}" ${matched ? 'checked' : ''} onchange="updateIdentityDropdown(); updateMappedCount();"></td>
+    `;
+    grid.appendChild(row);
+  });
+
+  updateCounts();
+
+  $('.csv-col-select').select2({ placeholder: '-- Select CSV column --', allowClear: true, width: '100%', dropdownParent: $('#mappingSection') });
+  $('.csv-col-select').on('change', function() { handleCsvColChange(this); });
+}
+
+function handleCsvColChange(selectElement) {
+  const tableCol = $(selectElement).data('tableCol');
+  const checkbox = document.querySelector(`.mapping-checkbox[data-table-col="${tableCol}"]`);
+  const matchStatus = $(selectElement).closest('tr').find('.match-status')[0];
+
+  if ($(selectElement).val()) {
+    checkbox.checked = true;
+    matchStatus.textContent = 'Yes';
+    matchStatus.className = 'match-status matched-yes';
+  } else {
+    checkbox.checked = false;
+    matchStatus.textContent = 'No';
+    matchStatus.className = 'match-status matched-no';
+  }
+
+  updateIdentityDropdown();
+  updateMappedCount();
+  validateRequiredColumns();
+}
+
+function updateIdentityVisibility() {
+  const importMode = $('#importModeSelect').val();
+  const identitySection = document.getElementById('identitySection');
+
+  if (!importMode || importMode === 'insert_direct') {
+    identitySection.style.display = 'none';
+  } else {
+    identitySection.style.display = 'block';
+  }
+}
+
+function updateImportModeDescription() {
+  const importMode = $('#importModeSelect').val();
+  const identityColumns = $('#identitySelect').val() || [];
+  const descDiv = document.getElementById('importModeDescription');
+
+  let description = '';
+
+  if (importMode === 'insert_direct') {
+    description = 'Insert CSV data for selected columns directly into the table.';
+  } else if (importMode === 'insert_with_identity') {
+    if (identityColumns.length > 0) {
+      description = `Insert CSV data only if the selected identity column${identityColumns.length > 1 ? 's' : ''} (${identityColumns.join(', ')}) do${identityColumns.length === 1 ? 'es' : ''} not already exist in the table.`;
+    } else {
+      description = 'Insert CSV data only if selected identity column values do not already exist in the table.';
+    }
+  } else if (importMode === 'update') {
+    if (identityColumns.length > 0) {
+      description = `Update existing records where identity column${identityColumns.length > 1 ? 's' : ''} (${identityColumns.join(', ')}) match${identityColumns.length === 1 ? 'es' : ''}.`;
+    } else {
+      description = 'Update existing records where identity columns match.';
+    }
+  } else if (importMode === 'insert_update') {
+    if (identityColumns.length > 0) {
+      description = `Insert new records or update existing ones based on identity column${identityColumns.length > 1 ? 's' : ''} (${identityColumns.join(', ')}).`;
+    } else {
+      description = 'Insert new records or update existing ones based on identity columns.';
+    }
+  }
+
+  if (description) {
+    descDiv.textContent = description;
+    descDiv.style.display = 'block';
+  } else {
+    descDiv.style.display = 'none';
+  }
+}
+
+function updateCounts() {
+  document.getElementById('tableColCount').textContent = tableColumns.length;
+  document.getElementById('csvColCount').textContent = csvHeaders.length;
+  updateMappedCount();
+}
+
+function updateMappedCount() {
+  const mappedCount = document.querySelectorAll('.mapping-checkbox:checked').length;
+  document.getElementById('mappedColCount').textContent = mappedCount;
+}
+
+function validateRequiredColumns() {
+  const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+  const mappedColumns = Array.from(checkboxes).map(cb => cb.dataset.tableCol);
+  const missingRequired = requiredColumns.filter(col => !mappedColumns.includes(col));
+
+  if (missingRequired.length > 0) {
+    showMessage(`Missing table's required columns in csv file: ${missingRequired.join(', ')}`, 'error');
+    document.getElementById('saveBtn').disabled = true;
+  } else {
+    showMessage('', '');
+    document.getElementById('saveBtn').disabled = false;
+  }
+}
+
+function updateIdentityDropdown() {
+  const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+  const identitySelect = document.getElementById('identitySelect');
+  const currentSelections = $('#identitySelect').val() || [];
+
+  $(identitySelect).empty();
+
+  checkboxes.forEach(cb => {
+    const tableCol = cb.dataset.tableCol;
+    const csvCol = $(`.csv-col-select[data-table-col="${tableCol}"]`).val();
+
+    if (csvCol) {
+      const opt = document.createElement('option');
+      opt.value = csvCol;
+      opt.textContent = csvCol;
+      if (currentSelections.includes(csvCol)) {
+        opt.selected = true;
+      }
+      identitySelect.appendChild(opt);
+    }
+  });
+
+  $('#identitySelect').trigger('change');
+}
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+
+  if (checkboxes.length === 0) {
+    showMessage('At least one mapping must be selected', 'error');
+    return;
+  }
+
+  const importMode = $('#importModeSelect').val();
+  if (!importMode) {
+    showMessage('Import mode must be selected', 'error');
+    return;
+  }
+
+  const identityColumns = $('#identitySelect').val() || [];
+
+  if (importMode !== 'insert_direct' && identityColumns.length === 0) {
+    showMessage('At least one identity column must be selected', 'error');
+    return;
+  }
+
+  const mappings = Array.from(checkboxes).map(cb => {
+    const tableCol = cb.dataset.tableCol;
+    const csvCol = $(`.csv-col-select[data-table-col="${tableCol}"]`).val();
+    return { tableColumn: tableCol, csvColumn: csvCol };
+  });
+
+  const payload = {
+    csvData: csvRawData,
+    table: selectedTable,
+    mappings,
+    identityColumns,
+    importMode
+  };
+
+  document.getElementById('saveBtn').disabled = true;
+  showMessage('Processing import...', 'success');
+
+  try {
+    const res = await fetch('/api/import/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(data.error, 'error');
+      document.getElementById('saveBtn').disabled = false;
+    } else {
+      showMessage('Import completed successfully!', 'success');
+      displayReport(data.report);
+      document.getElementById('saveBtn').disabled = false;
+    }
+  } catch (err) {
+    showMessage('Failed to process import', 'error');
+    document.getElementById('saveBtn').disabled = false;
+  }
+});
+
+function displayReport(report) {
+  document.getElementById('reportTotal').textContent = report.total;
+  document.getElementById('reportInserted').textContent = report.inserted;
+  document.getElementById('reportUpdated').textContent = report.updated;
+  document.getElementById('reportErrors').textContent = report.errors;
+
+  const errorDetails = document.getElementById('errorDetails');
+  if (report.errorMessages && report.errorMessages.length > 0) {
+    errorDetails.innerHTML = '<div style="margin-top: 10px; padding: 10px; background: #fee; border-radius: 4px;"><strong>Error Details:</strong><ul style="margin: 5px 0; padding-left: 20px;">' +
+      report.errorMessages.map(msg => `<li style="font-size: 13px; color: #dc2626;">${msg}</li>`).join('') +
+      '</ul></div>';
+  } else {
+    errorDetails.innerHTML = '';
+  }
+
+  document.getElementById('report').classList.remove('hidden');
+}
+
+function showMessage(msg, type) {
+  const msgDiv = document.getElementById('message');
+  msgDiv.textContent = msg;
+  msgDiv.className = type;
+}
+</script>
+{% endblock %}

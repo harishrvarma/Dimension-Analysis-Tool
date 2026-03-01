@@ -15,9 +15,9 @@ def analyzer_page():
 
 @analyzer_bp.get("/api/product-groups")
 def api_product_groups():
-    """Get all product groups"""
-    groups = analyzer.get_product_groups()
-    return jsonify({"groups": groups})
+    """Get all product groups with default selection"""
+    groups, default_group_id = analyzer.get_product_groups()
+    return jsonify({"groups": groups, "default_group_id": default_group_id})
 
 
 @analyzer_bp.post("/api/brands")
@@ -100,23 +100,19 @@ def api_analyze():
     d_mult = float(payload.get("d_mult", 1.5))
     dbscan_eps = float(payload.get("dbscan_eps", 1.0))
     dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
-    iteration = int(payload.get("iteration", 1))
-    is_next = payload.get("is_next", False)
-    load_all = payload.get("load_all", False)
+    analysis_mode = payload.get("analysis_mode", "all")
+    save_to_db = payload.get("save_to_db", False)
     
     if not group_id or not category or not algorithms:
         return jsonify({"ok": False, "message": "Missing required fields"})
     
-    result, error = analyzer.analyze_products(
-        group_id, brands if brands else None, category, types if types else None,
-        algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples,
-        iteration, is_next, load_all
+    result = analyzer.analyze_and_save(
+        group_id, brands, category, types, algorithms,
+        h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples,
+        analysis_mode, save_to_db
     )
     
-    if error:
-        return jsonify({"ok": False, "message": error})
-    
-    return jsonify({"ok": True, **result})
+    return jsonify(result)
 
 
 @analyzer_bp.post("/api/iteration-history")
@@ -144,8 +140,8 @@ def api_reset_iterations():
     category = payload.get("category")
     types = payload.get("types") or []
     
-    if not group_id or not category:
-        return jsonify({"ok": False, "message": "Missing required fields"})
+    if not group_id:
+        return jsonify({"ok": False, "message": "Product Group is required"})
     
     success = analyzer.reset_iterations(group_id, brands, category, types)
     return jsonify({"ok": success})
@@ -167,6 +163,23 @@ def api_get_all_outliers():
     
     outliers = analyzer.get_all_previous_outliers(group_id, brands, category, types, current_iteration, algorithms)
     return jsonify({"ok": True, "outliers": outliers})
+
+
+@analyzer_bp.post("/api/get-global-aggregate")
+def api_get_global_aggregate():
+    """Get global aggregate data from product table"""
+    payload = request.get_json(silent=True) or {}
+    group_id = payload.get("group_id")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    types = payload.get("types") or []
+    algorithms = payload.get("algorithms") or []
+    
+    if not group_id or not category:
+        return jsonify({"ok": False, "data": []})
+    
+    data = analyzer.get_global_aggregate_data(group_id, brands, category, types, algorithms)
+    return jsonify({"ok": True, "data": data})
 
 
 @analyzer_bp.post("/api/export")
@@ -216,3 +229,127 @@ def api_export():
     output.headers["Content-Disposition"] = f"attachment; filename=analyzer_export_{export_type}.csv"
     output.headers["Content-type"] = "text/csv"
     return output
+
+
+@analyzer_bp.post("/api/set-cluster-outlier")
+def api_set_cluster_outlier():
+    """Mark all products in a cluster as outliers"""
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get("skus") or []
+    iteration = payload.get("iteration")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    
+    if not skus or not iteration:
+        return jsonify({"ok": False, "message": "SKUs and iteration are required"})
+    
+    success, error = analyzer.set_cluster_as_outlier(
+        skus, iteration, brands, category
+    )
+    
+    if success:
+        return jsonify({"ok": True, "message": f"Updated {len(skus)} products"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to update products"})
+
+
+@analyzer_bp.post("/api/remove-cluster-outlier")
+def api_remove_cluster_outlier():
+    """Remove outlier status from all products in a cluster"""
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get("skus") or []
+    iteration = payload.get("iteration")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    
+    if not skus or not iteration:
+        return jsonify({"ok": False, "message": "SKUs and iteration are required"})
+    
+    success, error = analyzer.remove_cluster_outlier(
+        skus, iteration, brands, category
+    )
+    
+    if success:
+        return jsonify({"ok": True, "message": f"Updated {len(skus)} products"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to update products"})
+
+
+@analyzer_bp.post("/api/analyze-multiple")
+def api_analyze_multiple():
+    """Analyze multiple combinations based on filter hierarchy"""
+    payload = request.get_json(silent=True) or {}
+    
+    group_id = payload.get("group_id")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    types = payload.get("types") or []
+    algorithms = payload.get("algorithms") or []
+    h_mult = float(payload.get("h_mult", 1.5))
+    w_mult = float(payload.get("w_mult", 1.5))
+    d_mult = float(payload.get("d_mult", 1.5))
+    dbscan_eps = float(payload.get("dbscan_eps", 1.0))
+    dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
+    save_to_db = payload.get("save_to_db", False)
+    
+    if not group_id or not algorithms:
+        return jsonify({"ok": False, "message": "Missing required fields"})
+    
+    result = analyzer.analyze_multiple_combinations(
+        group_id, brands, category, types, algorithms,
+        h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db
+    )
+    
+    return jsonify(result)
+
+
+@analyzer_bp.post("/api/process-combination")
+def api_process_combination():
+    """Process a single combination"""
+    payload = request.get_json(silent=True) or {}
+    
+    group_id = payload.get("group_id")
+    combination = payload.get("combination")
+    algorithms = payload.get("algorithms") or []
+    h_mult = float(payload.get("h_mult", 1.5))
+    w_mult = float(payload.get("w_mult", 1.5))
+    d_mult = float(payload.get("d_mult", 1.5))
+    dbscan_eps = float(payload.get("dbscan_eps", 1.0))
+    dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
+    save_to_db = payload.get("save_to_db", False)
+    
+    if not group_id or not combination or not algorithms:
+        return jsonify({"ok": False, "message": "Missing required fields"})
+    
+    result = analyzer.process_single_combination_v2(
+        group_id, combination, algorithms,
+        h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db
+    )
+    
+    return jsonify(result)
+
+
+@analyzer_bp.post("/api/load-iteration")
+def api_load_iteration():
+    """Load saved iteration and return filters and analysis result"""
+    payload = request.get_json(silent=True) or {}
+    iteration_id = payload.get("iteration_id")
+    
+    if not iteration_id:
+        return jsonify({"ok": False, "message": "Iteration ID required"})
+    
+    result = analyzer.load_saved_iteration(iteration_id)
+    return jsonify(result)
+
+
+@analyzer_bp.post("/api/delete-iteration")
+def api_delete_iteration():
+    """Delete iteration and recalculate aggregate data"""
+    payload = request.get_json(silent=True) or {}
+    iteration_id = payload.get("iteration_id")
+    
+    if not iteration_id:
+        return jsonify({"ok": False, "message": "Iteration ID required"})
+    
+    success, message = analyzer.delete_iteration(iteration_id)
+    return jsonify({"ok": success, "message": message})

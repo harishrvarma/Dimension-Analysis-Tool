@@ -11,14 +11,14 @@ class ProductGroupRepository(BaseRepository):
     def get_all_groups(self):
         """Get all product groups ordered by name"""
         query = """
-            SELECT group_id, name, product_count 
+            SELECT group_id, name, product_count, default_selected
             FROM product_group 
             ORDER BY name
         """
         result = self.fetch_all(query)
         
         if result:
-            df = pd.DataFrame(result, columns=['group_id', 'name', 'product_count'])
+            df = pd.DataFrame(result, columns=['group_id', 'name', 'product_count', 'default_selected'])
             return df
         return pd.DataFrame()
 

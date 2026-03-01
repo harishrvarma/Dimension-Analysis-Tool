@@ -4,17 +4,27 @@ from repositories.product_group_repository import ProductGroupRepository
 
 
 def get_product_groups():
-    """Get all product groups for dropdown"""
+    """Get all product groups for dropdown with default_selected"""
     db = SessionLocal()
     try:
         repo = ProductGroupRepository(db)
         df = repo.get_all_groups()
         if df.empty:
-            return []
-        return [
-            {"label": f"{row['name']} ({row['product_count']})", "value": int(row['group_id'])}
+            return [], None
+
+        groups = [
+            {
+                "label": f"{row['name']} ({row['product_count']})",
+                "value": int(row['group_id']),
+                "default_selected": bool(row.get('default_selected', 0))
+            }
             for _, row in df.iterrows()
         ]
+
+        # Find default selected group
+        default_group = next((g for g in groups if g['default_selected']), None)
+
+        return groups, default_group['value'] if default_group else None
     finally:
         db.close()
 
@@ -180,7 +190,104 @@ def get_types_with_counts(group_id, brands=None, categories=None, final_status=N
         db.close()
 
 
-def load_grid_data(group_id, brands=None, categories=None, types=None, final_status=None, iteration=None, page=1, per_page=50, sort_column=None, sort_direction='asc'):
+def get_analyzed_status(group_id, brands=None, categories=None):
+    """Get analyzed status for brands, categories, and types"""
+    db = SessionLocal()
+    try:
+        repo = ProductRepository(db)
+        
+        result = {
+            'brands': {},
+            'categories': {},
+            'types': {}
+        }
+        
+        # Get brand analyzed status
+        brand_query = f"""
+            SELECT brand,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed
+            FROM product
+            WHERE group_id = :group_id AND brand IS NOT NULL
+                  AND height IS NOT NULL AND width IS NOT NULL AND depth IS NOT NULL
+            GROUP BY brand
+        """
+        brand_result = repo.fetch_all(brand_query, {'group_id': group_id})
+        for row in brand_result:
+            brand, total, analyzed = row[0], int(row[1]), int(row[2])
+            if analyzed == total:
+                result['brands'][brand] = 'full'
+            elif analyzed > 0:
+                result['brands'][brand] = 'partial'
+        
+        # Get category analyzed status
+        cat_conditions = ["group_id = :group_id", "category IS NOT NULL",
+                         "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        cat_params = {'group_id': group_id}
+        
+        if brands and len(brands) > 0:
+            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
+            cat_conditions.append(f"brand IN ({placeholders})")
+            for i, brand in enumerate(brands):
+                cat_params[f'brand{i}'] = brand
+        
+        cat_where = " AND ".join(cat_conditions)
+        cat_query = f"""
+            SELECT category,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed
+            FROM product
+            WHERE {cat_where}
+            GROUP BY category
+        """
+        cat_result = repo.fetch_all(cat_query, cat_params)
+        for row in cat_result:
+            category, total, analyzed = row[0], int(row[1]), int(row[2])
+            if analyzed == total:
+                result['categories'][category] = 'full'
+            elif analyzed > 0:
+                result['categories'][category] = 'partial'
+        
+        # Get type analyzed status
+        type_conditions = ["group_id = :group_id", "product_type IS NOT NULL",
+                          "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        type_params = {'group_id': group_id}
+        
+        if brands and len(brands) > 0:
+            placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
+            type_conditions.append(f"brand IN ({placeholders})")
+            for i, brand in enumerate(brands):
+                type_params[f'brand{i}'] = brand
+        
+        if categories and len(categories) > 0:
+            placeholders = ','.join([f':cat{i}' for i in range(len(categories))])
+            type_conditions.append(f"category IN ({placeholders})")
+            for i, cat in enumerate(categories):
+                type_params[f'cat{i}'] = cat
+        
+        type_where = " AND ".join(type_conditions)
+        type_query = f"""
+            SELECT product_type,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed
+            FROM product
+            WHERE {type_where}
+            GROUP BY product_type
+        """
+        type_result = repo.fetch_all(type_query, type_params)
+        for row in type_result:
+            ptype, total, analyzed = row[0], int(row[1]), int(row[2])
+            if analyzed == total:
+                result['types'][ptype] = 'full'
+            elif analyzed > 0:
+                result['types'][ptype] = 'partial'
+        
+        return result
+    finally:
+        db.close()
+
+
+def load_grid_data(group_id, brands=None, categories=None, types=None, final_status=None, skip_status=None, iteration=None, page=1, per_page=50, sort_column=None, sort_direction='asc'):
     """Load product data for grid display with pagination and sorting"""
     db = SessionLocal()
     try:
@@ -229,6 +336,14 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 for i, status in enumerate(status_values):
                     params[f'status{i}'] = status
         
+        if skip_status and len(skip_status) > 0:
+            skip_values = [1 if s == 'Yes' else 0 for s in skip_status]
+            if len(skip_values) == 1:
+                if skip_values[0] == 1:
+                    conditions.append("skip_status = 1")
+                else:
+                    conditions.append("(skip_status = 0 OR skip_status IS NULL)")
+
         where_clause = " AND ".join(conditions)
         
         # Get total count
@@ -253,6 +368,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             'dbs_status': 'dbs_status',
             'final_status': 'final_status',
             'iteration_closed': 'iteration_closed',
+            'outlier_mode': 'outlier_mode',
             'skip_status': 'skip_status'
         }
         
@@ -288,7 +404,8 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 skip_status,
                 product_id,
                 base_image_url,
-                iteration_closed
+                iteration_closed,
+                outlier_mode
             FROM product
             WHERE {where_clause}
             ORDER BY {order_by}
@@ -320,7 +437,8 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                     "skip_status": row[16] or "",
                     "product_id": row[17],
                     "base_image_url" : row[18] or "",
-                    "iteration_closed": row[19] or ""
+                    "iteration_closed": row[19] or "",
+                    "outlier_mode": "Yes" if row[20] == 1 else "No" if row[20] == 0 else "-"
                 })
         
         return data, total_count

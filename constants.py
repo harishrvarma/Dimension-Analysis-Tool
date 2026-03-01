@@ -1,0 +1,3 @@
+# Algorithm IDs
+ALGO_IQR = "IQR"
+ALGO_DBSCAN = "DBSCAN"

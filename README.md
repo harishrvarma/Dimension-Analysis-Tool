@@ -1,105 +1,78 @@
-# Dimension-Analysis-Tool
+# Product Dimension Analysis System
 
-A Flask-based web application for analyzing product dimensions and detecting outliers in furniture product data using statistical methods (IQR) and machine learning (DBSCAN clustering).
+A Flask-based web application for analyzing product dimensions and detecting outliers using statistical methods and machine learning algorithms.
 
 ## Features
 
-- **Product Dimension Analysis**: Analyze furniture product dimensions (Height, Width, Depth) to identify anomalies
-- **Multiple Detection Algorithms**: 
-  - IQR (Interquartile Range) method with configurable multipliers
-  - DBSCAN (Density-Based Spatial Clustering) for outlier detection
-- **Iterative Analysis**: Support for multiple analysis iterations with history tracking
-- **Dynamic Filtering**: Filter products by brand, category, and product type
-- **Data Visualization**: Interactive charts and grids for analysis results
-- **Database Integration**: SQLAlchemy ORM with Alembic migrations
-- **Excel Import**: Import product data from Excel files
+- Product dimension analysis using IQR and DBSCAN algorithms
+- Interactive data visualization with charts and grids
+- Outlier detection and classification
+- Product matching system
+- CSV data import functionality
+- Iteration-based analysis workflow
+- Database-backed product management
 
 ## Tech Stack
 
 - **Backend**: Flask (Python)
 - **Database**: SQLAlchemy ORM with Alembic migrations
-- **Data Analysis**: Pandas, NumPy, Scikit-learn
+- **Analysis**: Pandas, NumPy, Scikit-learn
 - **Frontend**: HTML templates with Jinja2
 
 ## Project Structure
 
 ```
-1stop/
 ├── models/              # Database models
 ├── repositories/        # Data access layer
-├── routes/              # API endpoints
+├── routes/              # Flask route handlers
 ├── services/            # Business logic
 ├── templates/           # HTML templates
 ├── migrations/          # Database migrations
-├── logs/                # Analysis logs and results
-├── app.py               # Application entry point
-└── config.py            # Configuration loader
+└── logs/                # Analysis logs and results
 ```
 
 ## Installation
 
-1. Clone the repository:
+1. Install dependencies:
 ```bash
-git clone <repository-url>
-cd dimension
+pip install flask sqlalchemy alembic pandas numpy scikit-learn python-dotenv
 ```
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+2. Configure environment variables in `.env`:
 ```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Create a `.env` file with the following variables:
-```env
+APP_NAME=your_app_name
 APP_HOST=localhost
 APP_PORT=5000
+SECRET_KEY=your_secret_key
 DATABASE_URL=your_database_url
 ```
 
-5. Run database migrations:
+3. Run database migrations:
 ```bash
 alembic upgrade head
 ```
 
-## Usage
-
-1. Start the application:
+4. Start the application:
 ```bash
 python app.py
 ```
 
-2. Access the web interface at `http://localhost:5000`
+## Usage
 
-3. Import product data via the import interface or use existing data
+Access the application at `http://localhost:5000`
 
-4. Select product groups, brands, categories, and types to analyze
+### Main Features:
 
-5. Configure analysis parameters:
-   - IQR multipliers for H, W, D dimensions
-   - DBSCAN epsilon and minimum samples
+- **Dimension Analysis**: Analyze product dimensions using configurable algorithms
+- **Outlier Detection**: Identify products with unusual dimensions
+- **Data Import**: Import product data from CSV files
+- **Item Matching**: Match products across different systems
 
-6. Run analysis and review outlier detection results
+## Algorithms
 
-## Analysis Methods
-
-### IQR (Interquartile Range)
-Detects outliers based on statistical quartiles with configurable multipliers for each dimension.
-
-### DBSCAN Clustering
-Uses density-based clustering to identify products with unusual dimension combinations.
-
-## Database Schema
-
-- **products**: Product information with dimensions
-- **product_groups**: Product grouping and categorization
-- **Analysis tracking**: Iteration history and outlier status
+- **IQR (Interquartile Range)**: Statistical method for outlier detection
+- **DBSCAN**: Density-based clustering algorithm for identifying outliers
 
 ## License
 
-Proprietary - All rights reserved
+Proprietary

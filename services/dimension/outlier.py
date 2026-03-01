@@ -96,6 +96,8 @@ def detect_outliers_iqr(df_subset, iqr_stats):
     is_outlier = outlier_flags['H'] | outlier_flags['W'] | outlier_flags['D']
     return is_outlier, outlier_flags
 
+
+
 def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4):
     df_dbscan = filtered_df.copy()
     X = df_dbscan[['H', 'W', 'D']].values
@@ -167,6 +169,7 @@ def analyze_and_export(df, brands, categories, selected_algorithms, filename):
         filtered_df['dbscan_cluster'] = -999
         filtered_df['dbscan_status'] = 'No'
     
+    
     filtered_df['final_status'] = 'No'
     
     for category in categories:
@@ -216,13 +219,13 @@ def analyze_and_export(df, brands, categories, selected_algorithms, filename):
             num_clusters = len([c for c in set(clusters) if c != -1])
             logger.info(f"DBSCAN Results: Normal={normal_count}, Outliers={outlier_count} ({outlier_count/len(subset_data)*100:.2f}%)")
             logger.info(f"Clusters Found: {num_clusters}")
-    
+
     status_columns = []
     if 'IQR' in selected_algorithms:
         status_columns.append('iqr_status')
     if 'DBSCAN' in selected_algorithms:
         status_columns.append('dbscan_status')
-    
+
     if status_columns:
         filtered_df['final_status'] = filtered_df[status_columns].apply(
             lambda row: 'Yes' if any(row == 'Yes') else 'No', axis=1

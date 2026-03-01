@@ -13,9 +13,9 @@ def grid_page():
 
 @grid_bp.get("/api/product-groups")
 def api_product_groups():
-    """Get all product groups"""
-    groups = grid.get_product_groups()
-    return jsonify({"groups": groups, "default_group": None})
+    """Get all product groups with default selection"""
+    groups, default_group_id = grid.get_product_groups()
+    return jsonify({"groups": groups, "default_group_id": default_group_id})
 
 
 @grid_bp.post("/api/options")
@@ -33,18 +33,21 @@ def api_options():
             "message": "No product group selected.",
             "brand_options": [],
             "category_options": [],
-            "type_options": []
+            "type_options": [],
+            "analyzed_status": {}
         })
     
     brand_options = grid.get_brands_with_counts(group_id, final_status if final_status else None)
     category_options = grid.get_categories_with_counts(group_id, brands if brands else None, final_status if final_status else None)
     type_options = grid.get_types_with_counts(group_id, brands if brands else None, categories if categories else None, final_status if final_status else None)
+    analyzed_status = grid.get_analyzed_status(group_id, brands if brands else None, categories if categories else None)
     
     return jsonify({
         "ok": True,
         "brand_options": brand_options,
         "category_options": category_options,
         "type_options": type_options,
+        "analyzed_status": analyzed_status,
         "message": f"Loaded options for group {group_id}"
     })
 
@@ -58,6 +61,7 @@ def api_grid_data():
     categories = payload.get("categories") or []
     types = payload.get("types") or []
     final_status = payload.get("final_status") or []
+    skip_status = payload.get("skip_status") or []
     iteration = payload.get("iteration")
     page = payload.get("page", 1)
     per_page = payload.get("per_page", 50)
@@ -67,10 +71,7 @@ def api_grid_data():
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected.", "data": [], "total": 0})
     
-    if not categories or len(categories) == 0:
-        return jsonify({"ok": False, "message": "Please select at least one category.", "data": [], "total": 0})
-    
-    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, iteration, page, per_page, sort_column, sort_direction)
+    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, skip_status if skip_status else None, iteration, page, per_page, sort_column, sort_direction)
     
     return jsonify({
         "ok": True,
@@ -120,14 +121,11 @@ def api_export_data():
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected."}), 400
     
-    if not categories or len(categories) == 0:
-        return jsonify({"ok": False, "message": "Please select at least one category."}), 400
-    
     import csv
     from io import StringIO
     from flask import make_response
     
-    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, iteration, 1, 999999, None, 'asc')
+    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, None, iteration, 1, 999999, None, 'asc')
     
     si = StringIO()
     writer = csv.writer(si)
@@ -148,6 +146,67 @@ def api_export_data():
     output.headers["Content-Disposition"] = "attachment; filename=grid_export.csv"
     output.headers["Content-type"] = "text/csv"
     return output
+
+
+@grid_bp.post("/api/export-xls")
+def api_export_xls():
+    """Export grid data to XLS with red background for outlier dimensions"""
+    payload = request.get_json(silent=True) or {}
+    group_id = payload.get("group_id")
+    brands = payload.get("brands") or []
+    categories = payload.get("categories") or []
+    types = payload.get("types") or []
+    final_status = payload.get("final_status") or []
+    iteration = payload.get("iteration")
+    
+    if not group_id:
+        return jsonify({"ok": False, "message": "No product group selected."}), 400
+    
+    from io import BytesIO
+    from flask import make_response
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill
+    except ImportError:
+        return jsonify({"ok": False, "message": "openpyxl not installed"}), 500
+    
+    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, None, iteration, 1, 999999, None, 'asc')
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Grid Export"
+    
+    headers = ['Product ID', 'QB Code', 'Brand', 'Category', 'Type', 'Name', 'Product URL', 'Image URL', 'Height', 'Width', 'Depth', 
+               'DBSCAN Status', 'Final Status', 'Skip Status']
+    ws.append(headers)
+    
+    red_fill = PatternFill(start_color="FFCCCB", end_color="FFCCCB", fill_type="solid")
+    
+    for row in data:
+        row_data = [
+            row['sku'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
+            row.get('product_url', ''), row.get('base_image_url', ''),
+            row['height'], row['width'], row['depth'], row['dbs_status'], row['final_status'],
+            'Ignored' if row['skip_status'] == 1 else 'Not Ignored' if row['skip_status'] == 0 else ''
+        ]
+        ws.append(row_data)
+        
+        current_row = ws.max_row
+        if row['iqr_height_status'] == 'Outlier':
+            ws.cell(row=current_row, column=9).fill = red_fill
+        if row['iqr_width_status'] == 'Outlier':
+            ws.cell(row=current_row, column=10).fill = red_fill
+        if row['iqr_depth_status'] == 'Outlier':
+            ws.cell(row=current_row, column=11).fill = red_fill
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    response = make_response(output.getvalue())
+    response.headers["Content-Disposition"] = "attachment; filename=grid_export.xlsx"
+    response.headers["Content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return response
 
 
 @grid_bp.post("/api/save-skip-status")
