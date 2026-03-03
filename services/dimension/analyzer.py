@@ -1,6 +1,6 @@
 from models.base.base import SessionLocal
-from repositories.product_repository import ProductRepository
-from repositories.product_group_repository import ProductGroupRepository
+from repositories.dimension.product_repository import ProductRepository
+from repositories.dimension.product_group_repository import ProductGroupRepository
 from repositories.dimension.product_iteration_repository import ProductIterationRepository
 from constants import ALGO_IQR, ALGO_DBSCAN
 import pandas as pd
@@ -269,7 +269,7 @@ def get_iteration_history(group_id, brands, category, types):
 def reset_iterations(group_id, brands, category, types):
     """Reset all iterations for a category"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.product_repository import ProductRepository
+    from repositories.dimension.product_repository import ProductRepository
     from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     
     db = SessionLocal()
@@ -450,7 +450,7 @@ def load_saved_iteration(iteration_id):
     """Load saved iteration filters and data with outlier_mode"""
     from models.dimension.product_iteration import ProductIteration
     from models.dimension.product_iteration_item import DimensionProductIterationItem
-    from models.product import Product
+    from models.dimension.product import Product
     
     db = SessionLocal()
     try:

@@ -124,7 +124,7 @@ class ProductIterationRepository:
     def get_products_for_iteration(self, brands, category, iteration_number, analysis_mode='all'):
         """Get products for a specific iteration based on analysis mode"""
         from sqlalchemy import func
-        from models.product import Product
+        from models.dimension.product import Product
         
         try:
             # Build brand filter
@@ -237,7 +237,7 @@ class ProductIterationRepository:
 
     def delete_by_filters(self, group_id, brands=None, category=None, types=None):
         """Delete iteration records based on filters"""
-        from models.product import Product
+        from models.dimension.product import Product
         
         try:
             # Get system_product_ids matching filters

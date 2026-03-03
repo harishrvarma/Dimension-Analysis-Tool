@@ -93,6 +93,7 @@ class DimensionProductIterationItemRepository:
         """Get iteration summary for brand and category"""
         from sqlalchemy import func
         from models.dimension.product_iteration import ProductIteration
+        from models.dimension.product import Product
         
         try:
             results = self.db.query(
@@ -117,25 +118,41 @@ class DimensionProductIterationItemRepository:
             for row in results:
                 iter_id = row.iteration_id
                 
-                # Get counts for this iteration
-                total = self.db.query(func.count(DimensionProductIterationItem.id)).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id
-                ).scalar() or 0
-                
-                normal = self.db.query(func.count(DimensionProductIterationItem.id)).filter(
+                # Get counts for this iteration, excluding skipped products
+                total = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
                     DimensionProductIterationItem.iteration_id == iter_id,
-                    DimensionProductIterationItem.status == 1
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
-                outlier = self.db.query(func.count(DimensionProductIterationItem.id)).filter(
+                normal = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
                     DimensionProductIterationItem.iteration_id == iter_id,
-                    DimensionProductIterationItem.status == 0
+                    DimensionProductIterationItem.status == 1,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
-                manual = self.db.query(func.count(DimensionProductIterationItem.id)).filter(
+                outlier = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    DimensionProductIterationItem.status == 0,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                manual = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
                     DimensionProductIterationItem.iteration_id == iter_id,
                     DimensionProductIterationItem.outlier_mode == 1,
-                    DimensionProductIterationItem.status == 0
+                    DimensionProductIterationItem.status == 0,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
                 summary.append({

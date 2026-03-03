@@ -1,5 +1,5 @@
 from models.base.base import SessionLocal
-from repositories.product_repository import ProductRepository
+from repositories.dimension.product_repository import ProductRepository
 import pandas as pd
 import numpy as np
 from sqlalchemy import text
@@ -258,7 +258,7 @@ class ItemMatchServiceRefactored:
         
         query = text(f"""SELECT {', '.join(select_cols)}
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     WHERE {where_clause}""")
         
         result = conn.execute(query, params) if params else conn.execute(query)

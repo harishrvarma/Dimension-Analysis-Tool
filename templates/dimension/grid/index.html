@@ -45,7 +45,7 @@
     .filters {
       margin-top: 12px;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       gap: 12px;
     }
     .select-hidden { display: none; }
@@ -273,6 +273,7 @@
     tr:hover { background: #f8fafc; }
     td a { color: var(--blue); text-decoration: none; }
     td a:hover { text-decoration: underline; }
+    .bg-red { background-color: #ffcccc !important; }
     .status-normal { color: #0f766e; font-weight: 600; }
     .status-outlier { color: var(--red); font-weight: 600; }
     .skip-icon {
@@ -368,8 +369,37 @@
       position: relative;
       cursor: pointer;
     }
+    .item-count-tooltip {
+      position: relative;
+      cursor: help;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+    }
+    .item-count-tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      bottom: 100%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      white-space: pre-line;
+      z-index: 1000;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      width: max-content;
+      max-width: 400px;
+      line-height: 1.6;
+      text-align: left;
+    }
     @media (max-width: 980px) {
       .row { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
       .filters { grid-template-columns: 1fr; }
     }
   </style>
@@ -435,6 +465,14 @@
           <div class="ms-menu hidden" id="typeMenu"></div>
         </div>
       </div>
+      <div>
+        <label>Configuration (Optional)<span id="configCount" class="label-count">(0 selected)</span></label>
+        <select id="configFilter" class="select-hidden" multiple></select>
+        <div class="multi-select" id="configDropdown">
+          <div class="ms-trigger" id="configTrigger">Select Configuration <span>▾</span></div>
+          <div class="ms-menu hidden" id="configMenu"></div>
+        </div>
+      </div>
     </div>
 
     <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:10px;">
@@ -449,6 +487,12 @@
           <option value="">Select Action</option>
           <option value="export">Export CSV</option>
           <option value="export_xls">Export XLS</option>
+          <option value="update_skip">Update Skip Status</option>
+        </select>
+        <select id="skipStatusSelect" class="hidden" style="width:150px;">
+          <option value="">Select Status</option>
+          <option value="1">Yes</option>
+          <option value="0">No</option>
         </select>
         <button id="massActionSubmit">Submit</button>
       </div>
@@ -485,6 +529,10 @@
       typeCount: document.getElementById("typeCount"),
       typeTrigger: document.getElementById("typeTrigger"),
       typeMenu: document.getElementById("typeMenu"),
+      config: document.getElementById("configFilter"),
+      configCount: document.getElementById("configCount"),
+      configTrigger: document.getElementById("configTrigger"),
+      configMenu: document.getElementById("configMenu"),
       gridContainer: document.getElementById("gridContainer"),
     };
 
@@ -495,6 +543,7 @@
     let currentPage = 1;
     let itemsPerPage = 50;
     let currentIteration = null;
+    let selectedProductIds = new Set();
 
     function selectedValues(selectEl) {
       return Array.from(selectEl.selectedOptions).map(o => o.value);
@@ -518,6 +567,7 @@
       els.brandMenu.classList.add("hidden");
       els.categoryMenu.classList.add("hidden");
       els.typeMenu.classList.add("hidden");
+      els.configMenu.classList.add("hidden");
     }
 
     function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
@@ -720,7 +770,9 @@
         group_id: parseInt(els.group.value),
         brands: selectedValues(els.brand),
         categories: selectedValues(els.category),
-        final_status: selectedValues(els.status)
+        types: selectedValues(els.type),
+        final_status: selectedValues(els.status),
+        skip_status: selectedValues(els.skip)
       };
       const res = await fetch("/grid/api/options", {
         method: "POST",
@@ -742,11 +794,13 @@
       setSelectOptions(els.brand, data.brand_options, selectedValues(els.brand));
       setSelectOptions(els.category, data.category_options, selectedValues(els.category));
       setSelectOptions(els.type, data.type_options, selectedValues(els.type));
+      setSelectOptions(els.config, data.configuration_options || [], selectedValues(els.config));
       
       const analyzedStatus = data.analyzed_status || {};
       renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand', analyzedStatus.brands || {});
       renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, 'Select Category', analyzedStatus.categories || {});
       renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Product Type', analyzedStatus.types || {});
+      renderMultiCheckboxDropdown(els.config, els.configMenu, els.configTrigger, els.configCount, 'Select Configuration');
     }
 
     els.group.addEventListener("change", async () => {
@@ -754,6 +808,7 @@
       setSelectOptions(els.brand, []);
       setSelectOptions(els.category, []);
       setSelectOptions(els.type, []);
+      setSelectOptions(els.config, []);
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
       await loadOptions();
@@ -791,6 +846,7 @@
       // Clear category and type selections
       setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
+      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
     
     els.category.addEventListener("change", async () => {
@@ -811,12 +867,16 @@
       
       // Clear type selection
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
+      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
     
     els.type.addEventListener("change", async () => {
       // Show placeholder when type changes
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
+
+      await loadOptions();
+      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
     document.getElementById("loadBtn").addEventListener("click", async () => {
       if (!els.group.value) {
@@ -829,7 +889,22 @@
 
     document.getElementById("massActionsBtn").addEventListener("click", () => {
       const panel = document.getElementById("massActionsPanel");
-      panel.classList.toggle("show");
+      const isShowing = panel.classList.toggle("show");
+      if (isShowing) {
+        selectedProductIds.clear();
+        renderGrid();
+      } else {
+        renderGrid();
+      }
+    });
+
+    document.getElementById("massActionSelect").addEventListener("change", (e) => {
+      const skipSelect = document.getElementById("skipStatusSelect");
+      if (e.target.value === "update_skip") {
+        skipSelect.classList.remove("hidden");
+      } else {
+        skipSelect.classList.add("hidden");
+      }
     });
 
     document.getElementById("massActionSubmit").addEventListener("click", async () => {
@@ -842,6 +917,8 @@
         await exportGridData();
       } else if (action === "export_xls") {
         await exportGridDataXLS();
+      } else if (action === "update_skip") {
+        await updateSkipStatusBulk();
       }
     });
 
@@ -858,7 +935,8 @@
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip)
+        skip_status: selectedValues(els.skip),
+        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null
       };
       
       if (currentIteration !== null) {
@@ -900,7 +978,8 @@
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip)
+        skip_status: selectedValues(els.skip),
+        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null
       };
       
       if (currentIteration !== null) {
@@ -938,6 +1017,7 @@
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
         skip_status: selectedValues(els.skip),
+        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null,
         page: currentPage,
         per_page: itemsPerPage,
         sort_column: sortColumn,
@@ -1005,8 +1085,15 @@
       const startIdx = (currentPage - 1) * itemsPerPage + 1;
       const endIdx = Math.min(startIdx + gridData.length - 1, totalRecords);
 
-      const columns = [
-        { key: 'product_id', label: 'Produc Id' },
+      const isAggregated = gridData.length > 0 && gridData[0].aggregated;
+      const showCheckboxes = document.getElementById("massActionsPanel").classList.contains("show");
+
+      let columns = [];
+      if (showCheckboxes) {
+        columns.push({ key: 'checkbox', label: '<input type="checkbox" id="selectAllCheckbox" onchange="toggleAllCheckboxes(this.checked)">' });
+      }
+      columns.push(
+        { key: 'system_product_id', label: 'Product Id' },
         { key: 'qb_code', label: 'QB Code' },
         { key: 'brand', label: 'Brand' },
         { key: 'category', label: 'Category' },
@@ -1015,16 +1102,13 @@
         { key: 'height', label: 'Height' },
         { key: 'width', label: 'Width' },
         { key: 'depth', label: 'Depth' },
-        { key: 'iqr_height_status', label: 'IQR Height' },
-        { key: 'iqr_width_status', label: 'IQR Width' },
-        { key: 'iqr_depth_status', label: 'IQR Depth' },
-        { key: 'iqr_status', label: 'IQR Status' },
-        { key: 'dbs_status', label: 'DBSCAN Status' },
         { key: 'final_status', label: 'Final Status' },
-        { key: 'iteration_closed', label: 'Iteration' },
-        { key: 'outlier_mode', label: 'Manual Outlier' },
+        { key: 'iterations', label: 'Iterations' },
+        { key: 'outlier_percentage', label: 'Outlier %' },
+        { key: 'product_type_count', label: 'Iteration Product Type' },
+        { key: 'manual_outlier', label: 'Manual Outlier' },
         { key: 'skip_status', label: 'Skip' }
-      ];
+      );
 
       let html = '<div class="pagination">';
       html += `<div class="pagination-left">📊 Showing ${startIdx}-${endIdx} of ${totalRecords} products</div>`;
@@ -1039,8 +1123,12 @@
       html += '</select></div></div>';
       html += '<table><thead><tr>';
       columns.forEach(col => {
-        const sortIcon = sortColumn === col.key ? (sortDirection === 'asc' ? '▲' : '▼') : '⇅';
-        html += `<th onclick="sortGrid('${col.key}')">${col.label} <span class="sort-icon">${sortIcon}</span></th>`;
+        if (col.key === 'checkbox') {
+          html += `<th style="width:40px;text-align:center;">${col.label}</th>`;
+        } else {
+          const sortIcon = sortColumn === col.key ? (sortDirection === 'asc' ? '▲' : '▼') : '⇅';
+          html += `<th onclick="sortGrid('${col.key}')">${col.label} <span class="sort-icon">${sortIcon}</span></th>`;
+        }
       });
       html += '</tr></thead><tbody>';
 
@@ -1050,7 +1138,10 @@
           let value = row[col.key] || '';
           let cellClass = '';
           
-          if (col.key === 'skip_status') {
+          if (col.key === 'checkbox') {
+            const isChecked = selectedProductIds.has(row.product_id);
+            value = `<input type="checkbox" class="product-checkbox" value="${row.product_id}" ${isChecked ? 'checked' : ''} onchange="toggleProductCheckbox(${row.product_id}, this.checked)">`;
+          } else if (col.key === 'skip_status') {
             const isActive = (row.skip_status === 1 || row.skip_status === '1');
             const iconClass = isActive ? 'active' : 'inactive';
             value = `<span class="skip-icon ${iconClass}" onclick="toggleSkipStatus(${row.product_id}, ${isActive ? 1 : 0})" title="${isActive ? 'Click to unignore' : 'Click to ignore'}">✓</span>`;
@@ -1058,10 +1149,32 @@
             const imageUrl = row.base_image_url || '';
             const escapedUrl = imageUrl.replace(/'/g, "&apos;");
             value = `<span class="qb-code-cell" onmouseenter="showImageTooltip(event, '${escapedUrl}')" onmouseleave="hideImageTooltip()"><a href="${row.product_url}" target="_blank">${value}</a></span>`;
-          } else if (col.key === 'height' || col.key === 'width' || col.key === 'depth') {
+          } else if (col.key === 'height') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
-          } else if (col.key === 'iqr_status' || col.key === 'dbs_status' || col.key === 'final_status') {
+            if (row.iqr_height_status === 0) cellClass = 'bg-red';
+          } else if (col.key === 'width') {
+            value = typeof value === 'number' ? value.toFixed(2) : value;
+            if (row.iqr_width_status === 0) cellClass = 'bg-red';
+          } else if (col.key === 'depth') {
+            value = typeof value === 'number' ? value.toFixed(2) : value;
+            if (row.iqr_depth_status === 0) cellClass = 'bg-red';
+          } else if (col.key === 'final_status') {
             cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';
+          } else if (col.key === 'outlier_percentage') {
+            value = typeof value === 'number' ? value.toFixed(2) + '%' : value;
+          } else if (col.key === 'iterations' && row.config_info) {
+            const lines = row.config_info.split('\n');
+            const formatted = lines.map((line, i) => `${i + 1}. ${line}`).join('\n');
+            const tooltip = formatted.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+            value = `<span class="item-count-tooltip" data-tooltip="${tooltip}">${value}</span>`;
+          } else if (col.key === 'product_type_count' && row.iteration_product_type && row.iteration_product_type !== '-') {
+            const types = row.iteration_product_type.split('|');
+            const tooltip = types.join('\n').replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+            value = `<span class="item-count-tooltip" data-tooltip="${tooltip}">${value}</span>`;
+          } else if (col.key === 'manual_outlier' && row.manual_outlier === 'Yes' && row.manual_outlier_count > 0) {
+            const count = row.manual_outlier_count;
+            const tooltip = `${count} ${count === 1 ? 'Outlier' : 'Outliers'}`;
+            value = `<span class="item-count-tooltip" data-tooltip="${tooltip}">${value}</span>`;
           }
           
           html += `<td class="${cellClass}" style="text-align:${col.key === 'skip' ? 'center' : 'left'}">${value}</td>`;
@@ -1072,6 +1185,13 @@
       html += '</tbody></table>';
       els.gridContainer.innerHTML = html;
       els.gridContainer.classList.remove("hidden");
+      
+      // Update select all checkbox state
+      const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+      if (selectAllCheckbox && gridData.length > 0) {
+        const allSelected = gridData.every(row => selectedProductIds.has(row.product_id));
+        selectAllCheckbox.checked = allSelected;
+      }
     }
 
     function changePage(page) {
@@ -1138,18 +1258,30 @@
       }
     });
 
+    els.configTrigger.addEventListener("click", () => {
+      const willOpen = els.configMenu.classList.contains("hidden");
+      closeAllDropdownMenus();
+      if (willOpen) {
+        els.configMenu.classList.remove("hidden");
+        const input = els.configMenu.querySelector(".ms-search");
+        if (input) input.focus();
+      }
+    });
+
     document.addEventListener("click", (e) => {
       const inStatus = e.target.closest("#statusDropdown");
       const inSkip = e.target.closest("#skipDropdown");
       const inBrand = e.target.closest("#brandDropdown");
       const inCategory = e.target.closest("#categoryDropdown");
       const inType = e.target.closest("#typeDropdown");
-      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+      const inConfig = e.target.closest("#configDropdown");
+      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType && !inConfig) closeAllDropdownMenus();
     });
 
     (async function init() {
       renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
       renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
+      renderMultiCheckboxDropdown(els.config, els.configMenu, els.configTrigger, els.configCount, "Select Configuration");
 
       await loadProductGroups();
       
@@ -1160,6 +1292,7 @@
       const brands = urlParams.getAll('brands');
       const types = urlParams.getAll('types');
       const finalStatus = urlParams.get('final_status');
+      const skipStatus = urlParams.get('skip_status');
       const iteration = urlParams.get('iteration');
       
       // Store iteration if provided
@@ -1181,6 +1314,18 @@
               opt.selected = opt.value === statusValue;
             });
             renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
+          }
+        }
+
+        // Set skip status if provided
+        if (skipStatus !== null) {
+          const skipMap = {'0': 'No', '1': 'Yes'};
+          const skipValue = skipMap[skipStatus];
+          if (skipValue) {
+            Array.from(els.skip.options).forEach(opt => {
+              opt.selected = opt.value === skipValue;
+            });
+            renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
           }
         }
         
@@ -1217,6 +1362,60 @@
         }
       }
     })();
+
+    async function updateSkipStatusBulk() {
+      const skipStatus = document.getElementById("skipStatusSelect").value;
+      if (!skipStatus) {
+        alert("Please select a skip status");
+        return;
+      }
+      if (selectedProductIds.size === 0) {
+        alert("Please select at least one product");
+        return;
+      }
+      
+      showLoader();
+      const skipItems = Array.from(selectedProductIds).map(id => ({
+        product_id: id,
+        skip_status: parseInt(skipStatus)
+      }));
+      
+      const res = await fetch('/grid/api/save-skip-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skip_items: skipItems })
+      });
+      const data = await res.json();
+      hideLoader();
+      
+      if (data.ok) {
+        alert(data.message);
+        selectedProductIds.clear();
+        document.getElementById("massActionSelect").value = "";
+        document.getElementById("skipStatusSelect").value = "";
+        document.getElementById("skipStatusSelect").classList.add("hidden");
+        await loadGridData();
+      } else {
+        alert(data.message);
+      }
+    }
+
+    window.toggleProductCheckbox = function(productId, checked) {
+      if (checked) {
+        selectedProductIds.add(productId);
+      } else {
+        selectedProductIds.delete(productId);
+      }
+    };
+
+    window.toggleAllCheckboxes = function(checked) {
+      if (checked) {
+        gridData.forEach(row => selectedProductIds.add(row.product_id));
+      } else {
+        selectedProductIds.clear();
+      }
+      renderGrid();
+    };
 
     window.sortGrid = sortGrid;
     window.toggleSkipStatus = toggleSkipStatus;
