@@ -13,8 +13,8 @@ from sqlalchemy import engine_from_config, pool
 
 # Import models so metadata is loaded
 from models.base.base import Base
-from models.product import Product
-from models.product_group import ProductGroup
+from models.dimension.product import Product
+from models.dimension.product_group import ProductGroup
 from models.matching.matching_system_product import MatchingSystemProduct
 from models.matching.matching_competitor_product import MatchingCompetitorProduct
 from models.dimension.product_iteration import ProductIteration

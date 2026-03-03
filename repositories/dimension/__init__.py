@@ -1,4 +1,6 @@
+from repositories.dimension.product_repository import ProductRepository
+from repositories.dimension.product_group_repository import ProductGroupRepository
 from repositories.dimension.product_iteration_repository import ProductIterationRepository
 from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
 
-__all__ = ['ProductIterationRepository', 'DimensionProductIterationItemRepository']
+__all__ = ['ProductRepository', 'ProductGroupRepository', 'ProductIterationRepository', 'DimensionProductIterationItemRepository']

@@ -3,10 +3,10 @@ from models.base.base_model import BaseModel
 
 
 class ProductIteration(BaseModel):
-    __tablename__ = "product_iteration"
+    __tablename__ = "dimension_product_iteration"
 
     iteration_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
-    product_group_id = Column(Integer, ForeignKey("product_group.group_id"), nullable=False)
+    product_group_id = Column(Integer, ForeignKey("dimension_product_group.group_id"), nullable=False)
     algorithm = Column(String(50), nullable=False)
     brand = Column(String(255), nullable=True)
     category = Column(String(255), nullable=True)

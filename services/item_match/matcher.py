@@ -1,5 +1,5 @@
 from models.base.base import SessionLocal
-from repositories.product_repository import ProductRepository
+from repositories.dimension.product_repository import ProductRepository
 import pandas as pd
 import numpy as np
 from sqlalchemy import text
@@ -168,7 +168,7 @@ class ItemMatchService:
                 COUNT(DISTINCT msp.product_id) as total_count,
                 COUNT(DISTINCT CASE WHEN ms.total_score IS NOT NULL THEN msp.product_id END) as scored_count
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                 LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                 WHERE p.brand IS NOT NULL AND p.brand != '' 
@@ -186,7 +186,7 @@ class ItemMatchService:
                     COUNT(DISTINCT msp.product_id) as total_count,
                     COUNT(DISTINCT CASE WHEN ms.total_score IS NOT NULL THEN msp.product_id END) as scored_count
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                     LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                     WHERE p.brand IN ({placeholders}) AND p.category IS NOT NULL AND p.category != '' 
@@ -197,7 +197,7 @@ class ItemMatchService:
                     COUNT(DISTINCT msp.product_id) as total_count,
                     COUNT(DISTINCT CASE WHEN ms.total_score IS NOT NULL THEN msp.product_id END) as scored_count
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                     LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                     WHERE p.category IS NOT NULL AND p.category != '' 
@@ -228,7 +228,7 @@ class ItemMatchService:
                     COUNT(DISTINCT msp.product_id) as total_count,
                     COUNT(DISTINCT CASE WHEN ms.total_score IS NOT NULL THEN msp.product_id END) as scored_count
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                     LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                     WHERE {type_where} AND p.product_type IS NOT NULL AND p.product_type != '' 
@@ -239,7 +239,7 @@ class ItemMatchService:
                     COUNT(DISTINCT msp.product_id) as total_count,
                     COUNT(DISTINCT CASE WHEN ms.total_score IS NOT NULL THEN msp.product_id END) as scored_count
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                     LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                     WHERE p.product_type IS NOT NULL AND p.product_type != '' 
@@ -286,7 +286,7 @@ class ItemMatchService:
             where_clause = " AND ".join(conditions) if conditions else "1=1"
             count_query = text(f"""SELECT COUNT(DISTINCT msp.product_id) 
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                 WHERE {where_clause}""")
             
@@ -350,7 +350,7 @@ class ItemMatchService:
         for attr in attributes:
             prod_cols.append(f"msp.{attr}")
         
-        query = text(f"SELECT {', '.join(prod_cols)} FROM matching_system_product msp JOIN product p ON msp.system_product_id = p.system_product_id WHERE msp.system_product_id = :pid")
+        query = text(f"SELECT {', '.join(prod_cols)} FROM matching_system_product msp JOIN dimension_product p ON msp.system_product_id = p.system_product_id WHERE msp.system_product_id = :pid")
         result = conn.execute(query, {'pid': product_id})
         row = result.fetchone()
         
@@ -486,7 +486,7 @@ class ItemMatchService:
         
         query = text(f"""SELECT {', '.join(select_cols)}
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     WHERE {where_clause}""")
         
         result = conn.execute(query, params) if params else conn.execute(query)
@@ -675,7 +675,7 @@ class ItemMatchService:
             
             where_clause = " AND ".join(conditions) if conditions else "1=1"
             query = text(f"""SELECT COUNT(*) FROM matching_system_product msp
-                    JOIN product p ON msp.system_product_id = p.system_product_id
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                     WHERE {where_clause}""")
             
             with self.session.connection() as conn:
@@ -719,7 +719,7 @@ class ItemMatchService:
                     (SELECT ms3.score_status FROM matching_scores ms3 WHERE ms3.system_product_id = msp.product_id ORDER BY ms3.total_score DESC LIMIT 1) as top_status,
                     (SELECT ms4.competitor_product_id FROM matching_scores ms4 WHERE ms4.system_product_id = msp.product_id ORDER BY ms4.total_score DESC LIMIT 1) as top_competitor_id
                     FROM matching_system_product msp
-                    JOIN product p ON msp.system_product_id = p.system_product_id
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                     WHERE {where_clause}
                     ORDER BY msp.product_id DESC
                     LIMIT :limit OFFSET :offset""")
@@ -795,7 +795,7 @@ class ItemMatchService:
                     (SELECT ms3.score_status FROM matching_scores ms3 WHERE ms3.system_product_id = msp.product_id ORDER BY ms3.total_score DESC LIMIT 1) as top_status,
                     (SELECT ms4.competitor_product_id FROM matching_scores ms4 WHERE ms4.system_product_id = msp.product_id ORDER BY ms4.total_score DESC LIMIT 1) as top_competitor_id
                     FROM matching_system_product msp
-                    JOIN product p ON msp.system_product_id = p.system_product_id
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                     WHERE {where_clause}
                     ORDER BY msp.product_id DESC""")
             
@@ -871,7 +871,7 @@ class ItemMatchService:
                 
                 system_query = text(f"""SELECT {', '.join(prod_cols)}
                     FROM matching_system_product msp
-                    JOIN product p ON msp.system_product_id = p.system_product_id
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                     WHERE msp.product_id = :pid""")
                 system_result = conn.execute(system_query, {'pid': product_id})
                 system_row = system_result.fetchone()
@@ -959,7 +959,7 @@ class ItemMatchService:
             # Get all brands with products that have competitors
             brand_query = text("""SELECT DISTINCT p.brand 
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                 WHERE p.brand IS NOT NULL AND p.brand != '' 
                 ORDER BY p.brand""")
@@ -972,7 +972,7 @@ class ItemMatchService:
             # Count total products
             count_query = text("""SELECT COUNT(DISTINCT msp.product_id) 
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id""")
             total_result = conn.execute(count_query)
             total_products = total_result.fetchone()[0]
@@ -987,7 +987,7 @@ class ItemMatchService:
                 # Get categories for this brand
                 cat_query = text("""SELECT DISTINCT p.category 
                     FROM matching_system_product msp 
-                    JOIN product p ON msp.system_product_id = p.system_product_id 
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                     JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                     WHERE p.brand = :brand AND p.category IS NOT NULL AND p.category != '' 
                     ORDER BY p.category""")
@@ -1048,7 +1048,7 @@ class ItemMatchService:
             
             query = text(f"""SELECT DISTINCT p.brand, p.category
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id 
                 WHERE {where_clause}
                 ORDER BY p.brand, p.category""")
@@ -1111,7 +1111,7 @@ class ItemMatchService:
                     COUNT(DISTINCT CASE WHEN ms.score_status = 'Review' THEN msp.product_id END) as review,
                     COUNT(DISTINCT CASE WHEN ms.score_status = 'Not Matched' THEN msp.product_id END) as not_matched
                     FROM matching_system_product msp
-                    JOIN product p ON msp.system_product_id = p.system_product_id
+                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                     LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                     WHERE p.brand = :brand
                     GROUP BY p.category
@@ -1148,7 +1148,7 @@ class ItemMatchService:
             conn = self.session.connection()
             count_query = text("""SELECT COUNT(DISTINCT msp.product_id) 
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id""")
             result = conn.execute(count_query)
             total = result.fetchone()[0]
@@ -1183,7 +1183,7 @@ class ItemMatchService:
             conn = self.session.connection()
             product_query = text("""SELECT DISTINCT msp.product_id
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 JOIN matching_competitor_product mcp ON msp.system_product_id = mcp.system_product_id
                 ORDER BY msp.product_id
                 LIMIT :limit OFFSET :offset""")
@@ -1211,7 +1211,7 @@ class ItemMatchService:
             
             products_query = text(f"""SELECT {', '.join(prod_select)}
                 FROM matching_system_product msp 
-                JOIN product p ON msp.system_product_id = p.system_product_id 
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
                 WHERE msp.product_id IN :ids""")
             products_result = conn.execute(products_query, {'ids': tuple(product_ids)})
             products_df = pd.DataFrame(products_result.fetchall(), columns=prod_cols)
@@ -1276,7 +1276,7 @@ class ItemMatchService:
                 COUNT(DISTINCT CASE WHEN ms.score_status = 'Review' THEN msp.product_id END) as review,
                 COUNT(DISTINCT CASE WHEN ms.score_status = 'Not Matched' THEN msp.product_id END) as not_matched
                 FROM matching_system_product msp
-                JOIN product p ON msp.system_product_id = p.system_product_id
+                JOIN dimension_product p ON msp.system_product_id = p.system_product_id
                 LEFT JOIN matching_scores ms ON msp.product_id = ms.system_product_id
                 WHERE p.brand IN ({brand_placeholders}) AND p.category IN ({cat_placeholders})
                 GROUP BY p.brand, p.category

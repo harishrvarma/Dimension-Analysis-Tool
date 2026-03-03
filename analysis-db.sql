@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: mysql8.0volume:3306
--- Generation Time: Mar 01, 2026 at 08:20 AM
+-- Generation Time: Mar 03, 2026 at 01:13 PM
 -- Server version: 8.0.27
 -- PHP Version: 8.0.15
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `1stopbedroom_analysis`
+-- Database: `analysis-db`
 --
 
 -- --------------------------------------------------------

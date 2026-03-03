@@ -2671,6 +2671,7 @@ function openGridPage() {
     types.forEach(t => params.append('types', t));
   }
   params.append('final_status', '0');
+  params.append('skip_status', '0');
   // if (dataScope === 'individual') {
   //   params.append('iteration', currentIteration);
   // }
@@ -2700,6 +2701,7 @@ function openGridPageAll() {
   if (types.length > 0) {
     types.forEach(t => params.append('types', t));
   }
+  params.append('skip_status', '0');
   // if (dataScope === 'individual') {
   //   params.append('iteration', currentIteration);
   // }
@@ -2730,6 +2732,7 @@ function openGridPageNormal() {
     types.forEach(t => params.append('types', t));
   }
   params.append('final_status', '1');
+  params.append('skip_status', '0');
   // if (dataScope === 'individual') {
   //   params.append('iteration', currentIteration);
   // }
@@ -2759,6 +2762,7 @@ function openGridPageBrand(brand, category, finalStatus) {
   if (finalStatus !== '') {
     params.append('final_status', finalStatus);
   }
+  params.append('skip_status', '0');
   if (dataScope === 'individual') {
     params.append('iteration', currentIteration);
   }
@@ -2948,9 +2952,9 @@ async function processNextCombination(finalGroups, index, config, totals) {
       const category = encodeURIComponent(combination.category);
       const typesParam = productTypes.map(t => `types=${encodeURIComponent(t)}`).join('&');
       
-      const allUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}`;
-      const normalUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=1`;
-      const outlierUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=0`;
+      const allUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&skip_status=0`;
+      const normalUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=1&skip_status=0`;
+      const outlierUrl = `/grid?group_id=${groupId}&brands=${brand}&category=${category}&${typesParam}&final_status=0&skip_status=0`;
       
       // Update row with results and grid icons
       document.getElementById(`total-${index}`).innerHTML = `
