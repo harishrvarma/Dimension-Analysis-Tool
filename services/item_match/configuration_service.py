@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 
 class ConfigurationService:
-    """Service to manage configuration groups"""
+    """Service to manage algorithm configurations"""
     
     def __init__(self, session=None):
         self.session = session or SessionLocal()
@@ -14,77 +14,53 @@ class ConfigurationService:
         if self._should_close and hasattr(self, 'session'):
             self.session.close()
     
-    def get_or_create_config_group(self, weights, thresholds, price_config):
+    def update_configuration(self, algorithm_id, weights, thresholds, price_config=None):
         """
-        Get existing or create new configuration group
-        Returns group_id
+        Update configuration for an algorithm (update existing or insert new)
+        
+        Args:
+            algorithm_id: algorithm identifier (e.g., 'tfidf', 'custom')
+            weights: dict {attribute_name: weight_value}
+            thresholds: dict {threshold_name: threshold_value}
+            price_config: dict {price_param_name: value}
         """
-        import time
-        import random
-        from sqlalchemy.exc import IntegrityError
+        conn = self.session.connection()
         
-        # Build attribute mapping
-        all_configs = {}
-        for attr_name, weight_val in weights.items():
+        # Get attribute IDs for all attributes being updated
+        attr_map = {}
+        all_attrs = list(weights.keys()) + list(thresholds.keys())
+        if price_config:
+            all_attrs.extend(price_config.keys())
+        
+        for attr_name in all_attrs:
             attr_query = text("SELECT attribute_id FROM matching_attribute WHERE attribute_name = :name")
-            result = self.session.execute(attr_query, {'name': attr_name})
+            result = conn.execute(attr_query, {'name': attr_name})
             row = result.fetchone()
             if row:
-                all_configs[row[0]] = str(weight_val)
+                attr_map[attr_name] = row[0]
         
-        for attr_name, threshold_val in thresholds.items():
-            attr_query = text("SELECT attribute_id FROM matching_attribute WHERE attribute_name = :name")
-            result = self.session.execute(attr_query, {'name': attr_name})
-            row = result.fetchone()
-            if row:
-                all_configs[row[0]] = str(threshold_val)
+        # Update or insert configuration for each attribute
+        all_config = {**weights, **thresholds}
+        if price_config:
+            all_config.update(price_config)
         
-        for attr_name, price_val in price_config.items():
-            attr_query = text("SELECT attribute_id FROM matching_attribute WHERE attribute_name = :name")
-            result = self.session.execute(attr_query, {'name': attr_name})
-            row = result.fetchone()
-            if row:
-                all_configs[row[0]] = str(price_val)
-        
-        # Check if exact configuration already exists
-        if all_configs:
-            # Get all distinct group_ids
-            groups_query = text("SELECT DISTINCT group_id FROM matching_configuration_group")
-            result = self.session.execute(groups_query)
-            existing_groups = [r[0] for r in result.fetchall()]
-            
-            # Check each group
-            for group_id in existing_groups:
-                # Get all configs for this group
-                group_query = text(
-                    "SELECT matching_attribute_id, attribute_value FROM matching_configuration_group WHERE group_id = :gid"
-                )
-                result = self.session.execute(group_query, {'gid': group_id})
-                group_configs = {r[0]: r[1] for r in result.fetchall()}
+        for attr_name, value in all_config.items():
+            if attr_name in attr_map:
+                attr_id = attr_map[attr_name]
                 
-                # Compare
-                if group_configs == all_configs:
-                    return group_id
-        
-        # Create new group_id with timestamp + random 6 digits
-        for _ in range(5):  # Try up to 5 times
-            new_group_id = f"{int(time.time())}{random.randint(100000, 999999)}"
-            
-            try:
-                for attr_id, attr_val in all_configs.items():
-                    new_config = MatchingConfigurationGroup(
-                        matching_attribute_id=attr_id,
-                        attribute_value=attr_val,
-                        group_id=new_group_id
-                    )
-                    self.session.add(new_config)
+                # Check if exists
+                check_query = text("SELECT 1 FROM matching_configuration_group WHERE algorithm_id = :algo_id AND attribute_id = :attr_id")
+                exists = conn.execute(check_query, {'algo_id': algorithm_id, 'attr_id': attr_id}).fetchone()
                 
-                self.session.commit()
-                return new_group_id
-            except IntegrityError:
-                self.session.rollback()
-                time.sleep(0.01)  # Small delay before retry
-                continue
+                if exists:
+                    # Update existing
+                    update_query = text("UPDATE matching_configuration_group SET attribute_value = :value WHERE algorithm_id = :algo_id AND attribute_id = :attr_id")
+                    conn.execute(update_query, {'value': float(value), 'algo_id': algorithm_id, 'attr_id': attr_id})
+                else:
+                    # Insert new
+                    insert_query = text("""INSERT INTO matching_configuration_group 
+                        (algorithm_id, attribute_id, attribute_value) 
+                        VALUES (:algo_id, :attr_id, :value)""")
+                    conn.execute(insert_query, {'algo_id': algorithm_id, 'attr_id': attr_id, 'value': float(value)})
         
-        # If all retries fail, raise error
-        raise Exception("Failed to create unique configuration group after 5 attempts")
+        self.session.commit()

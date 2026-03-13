@@ -1,11 +1,13 @@
 from flask import Blueprint, render_template, request, jsonify
 from services.item_match.matcher import ItemMatchService
 from services.item_match.attribute_service import AttributeService
+from services.item_match.bulk_analyzer import bulk_analyze
 import threading
 import uuid
 
 # Global dictionary to store job progress
 job_progress = {}
+job_results = {}
 
 item_match_bp = Blueprint('item_match', __name__, url_prefix='/item-match')
 
@@ -17,29 +19,33 @@ def index():
 def get_attributes():
     attr_service = AttributeService()
     
-    # Get scoring attributes (type='default')
-    scoring_attrs = attr_service.get_attributes_by_type('default')
+    # Get ALL attributes grouped by type
+    all_attrs = attr_service.get_all_attributes()
     
-    # Get price config (type='price')
-    price_attrs = attr_service.get_attributes_by_type('price')
-    price_config = {attr.attribute_name: attr.default_weightage for attr in price_attrs}
+    # Group attributes by type
+    attrs_by_type = {}
+    for attr in all_attrs:
+        attr_type = attr.attribute_type
+        if attr_type not in attrs_by_type:
+            attrs_by_type[attr_type] = []
+        attrs_by_type[attr_type].append({
+            'value': attr.attribute_name,
+            'label': attr.attribute_name.upper(),
+            'default_weight': attr.default_weightage,
+            'competitor_attribute': attr.competitor_attribute,
+            'data_type': attr.data_type
+        })
     
-    # Get status config (type='status')
-    status_attrs = attr_service.get_attributes_by_type('status')
-    status_config = {attr.attribute_name: attr.default_weightage for attr in status_attrs}
+    # Debug: Print all attributes to console
+    print(f"[DEBUG] Found attributes by type: {list(attrs_by_type.keys())}")
+    for attr_type, attrs in attrs_by_type.items():
+        print(f"  {attr_type}: {[a['value'] for a in attrs]}")
     
     return jsonify({
-        'attributes': [
-            {
-                'value': attr.attribute_name,
-                'label': attr.attribute_name.upper(),
-                'default_weight': attr.default_weightage,
-                'type': attr.attribute_type
-            }
-            for attr in scoring_attrs
-        ],
-        'price_config': price_config,
-        'status_config': status_config
+        'attributes_by_type': attrs_by_type,
+        'attributes': attrs_by_type.get('default', []),  # Keep backward compatibility
+        'price_config': {attr['value']: attr['default_weight'] for attr in attrs_by_type.get('price', [])},
+        'status_config': {attr['value']: attr['default_weight'] for attr in attrs_by_type.get('status', [])}
     })
 
 @item_match_bp.route('/api/filters', methods=['POST'])
@@ -65,18 +71,31 @@ def get_counts():
 def analyze():
     data = request.json
     service = ItemMatchService()
-    return jsonify(service.run_analysis(
-        brands=data.get('brands'),
-        categories=data.get('categories'),
-        types=data.get('types'),
-        algorithms=data.get('algorithms', ['tfidf']),
-        attributes=data.get('attributes', ['sku', 'url', 'price']),
-        weights=data.get('weights', {'sku': 35, 'price': 25, 'url': 40}),
-        thresholds=data.get('thresholds', {'matched': 85, 'review': 70}),
-        price_config=data.get('price_config', {'margin': 25, 'margin_diff': 10}),
-        save_score=data.get('save_score', False),
-        save_top_most=data.get('save_top_most', False)
-    ))
+    try:
+        result = service.run_analysis(
+            brands=data.get('brands'),
+            categories=data.get('categories'),
+            types=data.get('types'),
+            algorithms=data.get('algorithms', ['tfidf']),
+            attributes=data.get('attributes', ['sku', 'url', 'price']),
+            weights=data.get('weights', {'sku': 35, 'price': 25, 'url': 40}),
+            thresholds=data.get('thresholds', {'matched': 85, 'review': 70}),
+            price_config=data.get('price_config', {'margin': 25, 'margin_diff': 10}),
+            save_score=data.get('save_score', False),
+            save_top_most=data.get('save_top_most', False),
+            hard_refresh=data.get('hard_refresh', False),
+            product_ids=data.get('product_ids')
+        )
+        print(f"[ANALYZE ENDPOINT] Returning {len(result.get('summary', []))} results")
+        if result.get('summary'):
+            sample_scores = [item.get('max_score', 0) for item in result['summary'][:5]]
+            print(f"[ANALYZE ENDPOINT] Sample max_scores: {sample_scores}")
+        return jsonify(result)
+    except Exception as e:
+        print(f"[ANALYZE ENDPOINT] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)})
 
 @item_match_bp.route('/api/item-details/<product_id>', methods=['POST'])
 def get_item_details(product_id):
@@ -123,45 +142,76 @@ def update_action():
     result = service.update_match_action(competitor_ref_id, internal_product_id, score, status, sku_score, url_score, price_score, action)
     return jsonify(result)
 
-@item_match_bp.route('/api/analyze-multiple', methods=['POST'])
-def analyze_multiple():
+@item_match_bp.route('/api/recalculate-scores', methods=['POST'])
+def recalculate_scores():
     data = request.json
+    attributes = data.get('attributes', [])
+    weights = data.get('weights', {})
+    thresholds = data.get('thresholds', {'matched': 85, 'review': 70})
+    price_config = data.get('price_config', {})
+    algorithm = data.get('algorithm')
+    product_ids = data.get('product_ids', [])
     brands = data.get('brands', [])
     categories = data.get('categories', [])
     types = data.get('types', [])
-    algorithms = data.get('algorithms', ['tfidf'])
-    attributes = data.get('attributes', ['sku', 'url', 'price'])
-    weights = data.get('weights', {'sku': 35, 'price': 25, 'url': 40})
-    thresholds = data.get('thresholds', {'matched': 85, 'review': 70})
-    price_config = data.get('price_config', {'margin': 25, 'margin_diff': 10})
     
     service = ItemMatchService()
-    result = service.get_brand_category_list(
-        brands=brands if brands else None,
-        categories=categories if categories else None,
-        types=types if types else None
-    )
+    result = service.recalculate_scores(attributes, weights, thresholds, algorithm, brands, categories, types, product_ids, price_config)
     return jsonify(result)
 
-@item_match_bp.route('/api/analyze-brand-category', methods=['POST'])
-def analyze_brand_category():
+@item_match_bp.route('/api/bulk-analyze', methods=['POST'])
+def run_bulk_analyze():
+    data = request.json or {}
+    brands = data.get('brands')
+    categories = data.get('categories')
+    types = data.get('types')
+    algorithm_id = data.get('algorithm_id', 'tfidf')
+    
+    job_id = str(uuid.uuid4())
+    job_progress[job_id] = {'status': 'running', 'message': 'Starting...'}
+    
+    def run_job():
+        try:
+            result = bulk_analyze(brands, categories, types, algorithm_id)
+            job_progress[job_id] = {'status': 'completed', 'message': 'Completed'}
+            job_results[job_id] = result
+        except Exception as e:
+            job_progress[job_id] = {'status': 'failed', 'message': str(e)}
+            job_results[job_id] = {'success': False, 'error': str(e)}
+    
+    thread = threading.Thread(target=run_job)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'success': True, 'job_id': job_id})
+
+@item_match_bp.route('/api/bulk-analyze-status/<job_id>', methods=['GET'])
+def get_bulk_analyze_status(job_id):
+    if job_id not in job_progress:
+        return jsonify({'status': 'not_found'})
+    
+    progress = job_progress[job_id]
+    response = {'status': progress['status'], 'message': progress['message']}
+    
+    if progress['status'] == 'completed' and job_id in job_results:
+        response['result'] = job_results[job_id]
+        del job_progress[job_id]
+        del job_results[job_id]
+    elif progress['status'] == 'failed' and job_id in job_results:
+        response['result'] = job_results[job_id]
+        del job_progress[job_id]
+        del job_results[job_id]
+    
+    return jsonify(response)
+
+@item_match_bp.route('/api/score-distribution', methods=['POST'])
+def get_score_distribution():
     data = request.json
-    brand = data.get('brand')
-    category = data.get('category')
-    algorithms = data.get('algorithms', ['tfidf'])
-    attributes = data.get('attributes', ['sku', 'url', 'price'])
-    weights = data.get('weights', {'sku': 35, 'price': 25, 'url': 40})
-    thresholds = data.get('thresholds', {'matched': 85, 'review': 70})
-    price_config = data.get('price_config', {'margin': 25, 'margin_diff': 10})
-    reset_scores = data.get('reset_scores', False)
-    
     service = ItemMatchService()
-    result = service.analyze_brand_category(brand, category, algorithms, attributes, weights, thresholds, price_config, reset_scores)
-    
-    if result.get('success'):
-        stats = service.get_analysis_stats()
-        result['stats'] = stats
-        # Get progress for this brand
-        result['brand_category_progress'] = service.get_brand_progress(brand)
-    
-    return jsonify(result)
+    return jsonify(service.get_score_distribution(
+        brands=data.get('brands'),
+        categories=data.get('categories'),
+        types=data.get('types'),
+        status_filter=data.get('status_filter'),
+        product_ids=data.get('product_ids')
+    ))

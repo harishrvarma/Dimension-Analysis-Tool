@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index, Numeric
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.mysql import TINYINT
+from sqlalchemy.dialects.mysql import TINYINT, DECIMAL, INTEGER
 from models.base.base_model import BaseModel
 
 
@@ -37,6 +37,9 @@ class Product(BaseModel):
     iqr_width_status = Column(TINYINT, nullable=True, default=None)
     iqr_depth_status = Column(TINYINT, nullable=True, default=None)
 
+    eps = Column(DECIMAL(10, 2, unsigned=True), nullable=True, default=None)
+    sample = Column(INTEGER(unsigned=True), nullable=True, default=None)
+
     final_status = Column(TINYINT, nullable=True, default=None)
     skip_status = Column(TINYINT, nullable=True, default=None)
 
@@ -50,4 +53,6 @@ class Product(BaseModel):
     outlier_mode = Column(TINYINT, nullable=True, default=None, comment="0=Autometic, 1=Manually")
 
     group = relationship("ProductGroup", back_populates="products")
+    eps = Column(Numeric(10, 2), nullable=True)
+    sample = Column(Integer, nullable=True)
 

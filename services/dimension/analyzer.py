@@ -2,6 +2,7 @@ from models.base.base import SessionLocal
 from repositories.dimension.product_repository import ProductRepository
 from repositories.dimension.product_group_repository import ProductGroupRepository
 from repositories.dimension.product_iteration_repository import ProductIterationRepository
+from models.dimension.product import Product
 from constants import ALGO_IQR, ALGO_DBSCAN
 import pandas as pd
 import numpy as np
@@ -231,114 +232,279 @@ def calculate_dynamic_iqr(filtered_df, multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5
     return df_enriched
 
 
-def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4):
-    """Detect outliers using DBSCAN"""
+
+# def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4):
+#     """Detect outliers using DBSCAN"""
+#     df_dbscan = filtered_df.copy()
+    
+#     X = df_dbscan[['H', 'W', 'D']].values
+    
+#     scaler = StandardScaler()
+#     X_scaled = scaler.fit_transform(X)
+    
+#     dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean')
+#     clusters = dbscan.fit_predict(X_scaled)
+    
+#     is_outlier_dbscan = pd.Series((clusters == -1), index=df_dbscan.index)
+    
+#     df_dbscan['dbscan_cluster'] = clusters
+#     df_dbscan['dbscan_is_outlier'] = is_outlier_dbscan
+    
+#     return is_outlier_dbscan, df_dbscan
+
+# def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4):
+#     """Detect outliers using DBSCAN"""
+
+#     df_dbscan = filtered_df.copy()
+
+#     # Ensure required columns exist
+#     required_cols = ['H', 'W', 'D']
+#     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
+#     if missing_cols:
+#         raise ValueError(f"Missing required columns: {missing_cols}")
+
+#     # Remove rows with NaN values
+#     df_dbscan = df_dbscan.dropna(subset=required_cols)
+
+#     # Create ratio features (better shape detection)
+#     df_dbscan['H_W'] = df_dbscan['H'] / df_dbscan['W']
+#     df_dbscan['H_D'] = df_dbscan['H'] / df_dbscan['D']
+#     df_dbscan['W_D'] = df_dbscan['W'] / df_dbscan['D']
+
+#     # Final feature set
+#     #features = ['H', 'W', 'D', 'H_W', 'H_D', 'W_D']
+#     features = ['H_W', 'H_D', 'W_D']
+#     X = df_dbscan[features].values
+
+#     # Scale features
+#     scaler = StandardScaler()
+#     X_scaled = scaler.fit_transform(X)
+
+#     # Run DBSCAN
+#     dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean')
+#     clusters = dbscan.fit_predict(X_scaled)
+
+#     # Identify outliers
+#     is_outlier_dbscan = pd.Series((clusters == -1), index=df_dbscan.index)
+
+#     # Store results
+#     df_dbscan['dbscan_cluster'] = clusters
+#     df_dbscan['dbscan_is_outlier'] = is_outlier_dbscan
+
+#     return is_outlier_dbscan, df_dbscan
+
+def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settings=None):
+    print(f"Running DBSCAN with eps={eps}, min_samples={min_samples}, settings={algorithm_settings}")
+    """Detect outliers using DBSCAN.
+
+    algorithm_settings controls which feature groups are used:
+    - shape: ratios (H/W, W/D, H/D)
+    - size: raw dimensions (H, W, D)
+    - volume: H*W*D
+
+    If algorithm_settings is missing/empty/invalid, defaults to all.
+    """
+
     df_dbscan = filtered_df.copy()
-    
-    X = df_dbscan[['H', 'W', 'D']].values
-    
+
+    # Ensure required columns exist
+    required_cols = ['H', 'W', 'D']
+    missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Remove rows with NaN values
+    df_dbscan = df_dbscan.dropna(subset=required_cols)
+
+    # Remove non-positive dimensions (avoid divide-by-zero and invalid volume)
+    df_dbscan = df_dbscan[(df_dbscan[['H', 'W', 'D']] > 0).all(axis=1)]
+
+    # Normalize settings
+    valid_settings = {'shape', 'size', 'volume'}
+    settings = {
+        str(s).strip().lower()
+        for s in (algorithm_settings or [])
+        if str(s).strip()
+    }
+    settings = settings & valid_settings
+    if not settings:
+        settings = set(valid_settings)
+
+    # Small constant to avoid division errors
+    eps_val = 1e-6
+
+    features = []
+
+    if 'size' in settings:
+        features.extend(['H', 'W', 'D'])
+
+    if 'shape' in settings:
+        df_dbscan['H_W'] = df_dbscan['H'] / (df_dbscan['W'] + eps_val)
+        df_dbscan['W_D'] = df_dbscan['W'] / (df_dbscan['D'] + eps_val)
+        df_dbscan['H_D'] = df_dbscan['H'] / (df_dbscan['D'] + eps_val)
+        features.extend(['H_W', 'W_D', 'H_D'])
+
+    if 'volume' in settings:
+        df_dbscan['Volume'] = df_dbscan['H'] * df_dbscan['W'] * df_dbscan['D']
+        features.append('Volume')
+
+    # De-duplicate (preserve order)
+    seen = set()
+    features = [f for f in features if not (f in seen or seen.add(f))]
+    print(f"DBSCAN using features: {features}")
+    X = df_dbscan[features].values
+
+    # Scale features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    
+
+    # Run DBSCAN
     dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean')
     clusters = dbscan.fit_predict(X_scaled)
-    
+
+    # Identify outliers
     is_outlier_dbscan = pd.Series((clusters == -1), index=df_dbscan.index)
-    
+
+    # Store results
     df_dbscan['dbscan_cluster'] = clusters
     df_dbscan['dbscan_is_outlier'] = is_outlier_dbscan
-    
+
     return is_outlier_dbscan, df_dbscan
 
-
-
-def get_iteration_history(group_id, brands, category, types):
-    """Get iteration history from database"""
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    
-    db = SessionLocal()
-    try:
-        if brands and len(brands) == 1:
-            item_repo = DimensionProductIterationItemRepository(db)
-            return item_repo.get_iteration_summary(brands[0], category)
-        return []
-    finally:
-        db.close()
-
-
-def reset_iterations(group_id, brands, category, types):
-    """Reset all iterations for a category"""
+def get_iteration_history(group_id, category):
+    """Get iteration history from database - only by group_id and category"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_repository import ProductRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     
     db = SessionLocal()
     try:
         iter_repo = ProductIterationRepository(db)
-        product_repo = ProductRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        return iter_repo.get_iteration_summary_by_group_category(group_id, category)
+    finally:
+        db.close()
+
+
+def reset_iterations(group_id, category):
+    """Reset all iterations for a category and product group"""
+    from repositories.dimension.product_iteration_repository import ProductIterationRepository
+    from models.dimension.product_iteration import ProductIteration
+    from models.dimension.product_iteration_item import DimensionProductIterationItem
+    from models.dimension.product import Product
+    
+    db = SessionLocal()
+    try:
+        # Get all system_product_ids from iterations to be deleted
+        system_product_ids = db.query(DimensionProductIterationItem.system_product_id).filter(
+            DimensionProductIterationItem.iteration_id.in_(
+                db.query(ProductIteration.iteration_id).filter(
+                    ProductIteration.product_group_id == group_id,
+                    ProductIteration.category == category
+                )
+            )
+        ).distinct().all()
         
-        # Get filter values
-        brand = brands[0] if brands and len(brands) > 0 else None
-        product_types = types if types and len(types) > 0 else None
+        system_product_ids = [row[0] for row in system_product_ids]
         
-        # Delete from dimension tables
-        iter_repo.delete_by_filters(
-            product_group_id=group_id,
-            brand=brand,
-            category=category,
-            product_types=product_types,
-            eps=None,
-            sample=None,
-            algorithm=None
-        )
+        # Delete all iteration items for this group_id and category
+        db.query(DimensionProductIterationItem).filter(
+            DimensionProductIterationItem.iteration_id.in_(
+                db.query(ProductIteration.iteration_id).filter(
+                    ProductIteration.product_group_id == group_id,
+                    ProductIteration.category == category
+                )
+            )
+        ).delete(synchronize_session=False)
         
-        # Get system_product_ids for selected filters
-        df = product_repo.load_products_filtered(group_id, brands, category, types)
-        if not df.empty:
-            system_product_ids = df['system_product_id'].tolist()
-            
-            # Recalculate aggregated data for these products
-            aggregated = item_repo.get_aggregated_status_by_product(system_product_ids)
-            
-            product_updates = []
-            for sys_id in system_product_ids:
-                if sys_id in aggregated:
-                    agg_data = aggregated[sys_id]
-                    product_updates.append({
-                        'system_product_id': sys_id,
-                        'dbs_status': agg_data['dbs_status'],
-                        'final_status': agg_data['final_status'],
-                        'outlier_mode': agg_data['outlier_mode']
-                    })
-                else:
-                    # No iteration data, reset to None
-                    product_updates.append({
-                        'system_product_id': sys_id,
-                        'dbs_status': None,
-                        'iqr_status': None,
-                        'final_status': None,
-                        'outlier_mode': None
-                    })
-            
-            if product_updates:
-                product_repo.update_products_aggregated(product_updates)
+        # Delete all iterations for this group_id and category
+        db.query(ProductIteration).filter(
+            ProductIteration.product_group_id == group_id,
+            ProductIteration.category == category
+        ).delete(synchronize_session=False)
+        
+        # Reset dimension_product fields for matching products
+        if system_product_ids:
+            db.query(Product).filter(
+                Product.system_product_id.in_(system_product_ids)
+            ).update({
+                'final_status': None,
+                'dbs_status': None,
+                'analyzed_date': None,
+                'eps': None,
+                'sample': None
+            }, synchronize_session=False)
         
         db.commit()
         return True
     except Exception as e:
         db.rollback()
         print(f"Error resetting iterations: {e}")
+        import traceback
+        traceback.print_exc()
         return False
     finally:
         db.close()
 
 
-def set_cluster_as_outlier(skus, iteration_id, brands, category):
+def set_cluster_as_normal(skus, iteration_id, brands, category, eps, sample, group_id):
+    """Mark cluster products as normal in dimension tables and update product table"""
+    from repositories.dimension.product_iteration_repository import ProductIterationRepository
+    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
+    from models.dimension.product_iteration import ProductIteration
+    from models.dimension.product import Product
+    
+    db = SessionLocal()
+    try:
+        repo = ProductRepository(db)
+        iter_repo = ProductIterationRepository(db)
+        item_repo = DimensionProductIterationItemRepository(db)
+        
+        iteration = db.query(ProductIteration).filter(
+            ProductIteration.iteration_id == iteration_id
+        ).first()
+        
+        if not iteration:
+            return False, "Iteration not found."
+        
+        # Bulk fetch system_product_ids
+        system_product_ids = db.query(Product.system_product_id).filter(
+            Product.qb_code.in_(skus)
+        ).all()
+        system_product_ids = [row[0] for row in system_product_ids]
+        
+        if not system_product_ids:
+            return False, "No products found"
+        
+        # Update final_status and analyzed_date in dimension_product_iteration_item table
+        item_repo.update_items_final_status(iteration_id, system_product_ids, final_status=1)
+        
+        # Update product table for selected group
+        product_updates = []
+        for sys_id in system_product_ids:
+            product_updates.append({
+                'system_product_id': sys_id,
+                'final_status': 1,
+                'eps': eps,
+                'sample': sample
+            })
+        
+        if product_updates:
+            repo.update_products_with_eps_sample(product_updates, group_id)
+        
+        db.commit()
+        return True, None
+    except Exception as e:
+        db.rollback()
+        print(f"Error setting cluster as normal: {e}")
+        return False, str(e)
+    finally:
+        db.close()
+
+
+def set_cluster_as_outlier(skus, iteration_id, brands, category, eps, sample, group_id):
     """Mark cluster products as outliers in dimension tables"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
     from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     from models.dimension.product_iteration import ProductIteration
+    from models.dimension.product import Product
     
     db = SessionLocal()
     try:
@@ -354,33 +520,30 @@ def set_cluster_as_outlier(skus, iteration_id, brands, category):
         if not iteration:
             return False, "Iteration not found. Please save the iteration first."
         
-        # Get system_product_ids from SKUs
-        system_product_ids = []
-        for sku in skus:
-            product = repo.get_by_qb_code(sku)
-            if product:
-                system_product_ids.append(product.system_product_id)
+        # Bulk fetch system_product_ids
+        system_product_ids = db.query(Product.system_product_id).filter(
+            Product.qb_code.in_(skus)
+        ).all()
+        system_product_ids = [row[0] for row in system_product_ids]
         
         if not system_product_ids:
             return False, "No products found"
         
-        # Update items in dimension_product_iteration_item table
-        item_repo.update_items_status(iteration_id, system_product_ids, status=0, outlier_mode=1)
+        # Update final_status and analyzed_date in dimension_product_iteration_item table
+        item_repo.update_items_final_status(iteration_id, system_product_ids, final_status=0)
         
-        # Recalculate aggregated status for these products
-        aggregated = item_repo.get_aggregated_status_by_product(system_product_ids)
-        
+        # Update product table for selected group
         product_updates = []
-        for sys_id, agg_data in aggregated.items():
+        for sys_id in system_product_ids:
             product_updates.append({
                 'system_product_id': sys_id,
-                'dbs_status': agg_data['dbs_status'],
-                'final_status': agg_data['final_status'],
-                'outlier_mode': agg_data['outlier_mode']
+                'final_status': 0,
+                'eps': eps,
+                'sample': sample
             })
         
         if product_updates:
-            repo.update_products_aggregated(product_updates)
+            repo.update_products_with_eps_sample(product_updates, group_id)
         
         db.commit()
         return True, None
@@ -392,11 +555,12 @@ def set_cluster_as_outlier(skus, iteration_id, brands, category):
         db.close()
 
 
-def remove_cluster_outlier(skus, iteration_id, brands, category):
+def remove_cluster_outlier(skus, iteration_id, brands, category, group_id):
     """Remove outlier status from cluster products in dimension tables"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
     from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     from models.dimension.product_iteration import ProductIteration
+    from models.dimension.product import Product
     
     db = SessionLocal()
     try:
@@ -411,30 +575,30 @@ def remove_cluster_outlier(skus, iteration_id, brands, category):
         if not iteration:
             return False, "Iteration not found."
         
-        system_product_ids = []
-        for sku in skus:
-            product = repo.get_by_qb_code(sku)
-            if product:
-                system_product_ids.append(product.system_product_id)
+        # Bulk fetch system_product_ids
+        system_product_ids = db.query(Product.system_product_id).filter(
+            Product.qb_code.in_(skus)
+        ).all()
+        system_product_ids = [row[0] for row in system_product_ids]
         
         if not system_product_ids:
             return False, "No products found"
         
-        item_repo.update_items_status(iteration_id, system_product_ids, status=1, outlier_mode=None)
+        # Update final_status to NULL in iteration_item table
+        item_repo.update_items_final_status(iteration_id, system_product_ids, final_status=None)
         
-        aggregated = item_repo.get_aggregated_status_by_product(system_product_ids)
-        
+        # Update product table for selected group
         product_updates = []
-        for sys_id, agg_data in aggregated.items():
+        for sys_id in system_product_ids:
             product_updates.append({
                 'system_product_id': sys_id,
-                'dbs_status': agg_data['dbs_status'],
-                'final_status': agg_data['final_status'],
-                'outlier_mode': agg_data['outlier_mode']
+                'final_status': None,
+                'eps': iteration.eps,
+                'sample': iteration.sample
             })
         
         if product_updates:
-            repo.update_products_aggregated(product_updates)
+            repo.update_products_with_eps_sample(product_updates, group_id)
         
         db.commit()
         return True, None
@@ -446,14 +610,75 @@ def remove_cluster_outlier(skus, iteration_id, brands, category):
         db.close()
 
 
-def load_saved_iteration(iteration_id):
-    """Load saved iteration filters and data with outlier_mode"""
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product_iteration_item import DimensionProductIterationItem
+def update_item_status(sku, final_status, iteration_id, group_id, category, eps, sample):
+    """Update final_status for a specific iteration item"""
+    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     from models.dimension.product import Product
+    from datetime import datetime
     
     db = SessionLocal()
     try:
+        repo = ProductRepository(db)
+        item_repo = DimensionProductIterationItemRepository(db)
+        
+        # Get system_product_id from qb_code
+        product = db.query(Product).filter(Product.qb_code == sku).first()
+        if not product:
+            return False, "Product not found"
+        
+        system_product_id = product.system_product_id
+        
+        # Update dimension_product_iteration_item table
+        item_repo.update_items_final_status(
+            iteration_id, 
+            [system_product_id], 
+            final_status=final_status
+        )
+        
+        # Update dimension_product table
+        if final_status is None:
+            # Reset to null
+            product_update = {
+                'system_product_id': system_product_id,
+                'final_status': None,
+                'dbs_status': None,
+                'analyzed_date': None,
+                'eps': None,
+                'sample': None
+            }
+        else:
+            # Set to specific status
+            product_update = {
+                'system_product_id': system_product_id,
+                'final_status': final_status,
+                'dbs_status': final_status,
+                'analyzed_date': datetime.now(),
+                'eps': eps,
+                'sample': sample
+            }
+        
+        repo.update_products_with_eps_sample([product_update], group_id)
+        
+        db.commit()
+        return True, None
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating item status: {e}")
+        return False, str(e)
+    finally:
+        db.close()
+
+
+def load_saved_iteration(iteration_id):
+    """Load saved iteration filters and complete data for display - optimized"""
+    from models.dimension.product_iteration import ProductIteration
+    from models.dimension.product_iteration_item import DimensionProductIterationItem
+    from models.dimension.product import Product
+    from sqlalchemy import text
+    
+    db = SessionLocal()
+    try:
+        # Single query to get iteration with basic data
         iteration = db.query(ProductIteration).filter(
             ProductIteration.iteration_id == iteration_id
         ).first()
@@ -463,38 +688,81 @@ def load_saved_iteration(iteration_id):
         
         product_types = iteration.product_type.split('|') if iteration.product_type else []
         
-        # Load minimal data needed for cluster summary
-        items = db.query(
-            DimensionProductIterationItem.system_product_id,
-            DimensionProductIterationItem.status,
-            DimensionProductIterationItem.outlier_mode,
-            DimensionProductIterationItem.cluster,
-            Product.qb_code
-        ).join(
-            Product,
-            DimensionProductIterationItem.system_product_id == Product.system_product_id
-        ).filter(
-            DimensionProductIterationItem.iteration_id == iteration_id
-        ).all()
+        # Optimized single query to get all required data
+        query = text("""
+            SELECT 
+                dpii.system_product_id,
+                dpii.status,
+                dpii.final_status,
+                dpii.outlier_mode,
+                dpii.cluster,
+                p.qb_code,
+                p.brand,
+                p.category,
+                p.product_type,
+                p.name,
+                p.height,
+                p.width,
+                p.depth,
+                p.base_image_url,
+                p.product_url
+            FROM dimension_product_iteration_item dpii
+            INNER JOIN dimension_product p ON dpii.system_product_id = p.system_product_id
+            WHERE dpii.iteration_id = :iteration_id
+        """)
+        
+        items = db.execute(query, {'iteration_id': iteration_id}).fetchall()
         
         data = []
+        normals = 0
+        outliers = 0
+        
         for item in items:
             cluster_num = -1
-            if item.cluster:
-                if 'Cluster' in item.cluster:
-                    cluster_num = int(item.cluster.replace('Cluster ', ''))
+            if item.cluster and 'Cluster' in str(item.cluster):
+                try:
+                    cluster_num = int(str(item.cluster).replace('Cluster ', ''))
+                except:
+                    cluster_num = -1
+            
+            # Determine is_outlier_combined using merged logic
+            is_outlier = (item.final_status == 0) or (item.final_status is None and item.status == 0)
+            
+            # Count based on final_status only for stats display
+            if item.final_status == 0:
+                outliers += 1
+            elif item.final_status == 1:
+                normals += 1
+            # If final_status is None, don't count in either category for stats
             
             data.append({
                 'SKU': item.qb_code,
-                'is_outlier_combined': item.status == 0,
+                'Brand': item.brand,
+                'Category': item.category,
+                'Type': item.product_type,
+                'Name': item.name,
+                'H': float(item.height) if item.height else None,
+                'W': float(item.width) if item.width else None,
+                'D': float(item.depth) if item.depth else None,
+                'imageUrl': item.base_image_url,
+                'url_key': item.product_url,
+                'system_product_id': item.system_product_id,
+                'is_outlier_combined': is_outlier,
                 'outlier_mode': item.outlier_mode,
+                'final_status': item.final_status,
                 'dbscan_cluster': cluster_num
             })
+        
+        total = len(data)
         
         return {
             "ok": True,
             "iteration_data": data,
+            "total": total,
+            "normals": normals,
+            "outliers": outliers,
             "filters": {
+                "group_id": iteration.product_group_id,
                 "brand": iteration.brand,
                 "category": iteration.category,
                 "product_types": product_types,
@@ -511,27 +779,13 @@ def load_saved_iteration(iteration_id):
 
 
 def delete_iteration(iteration_id):
-    """Delete iteration and recalculate aggregate data"""
+    """Delete iteration and its items"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     from models.dimension.product_iteration import ProductIteration
     from models.dimension.product_iteration_item import DimensionProductIterationItem
     
     db = SessionLocal()
     try:
-        product_repo = ProductRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
-        
-        # Get system_product_ids for this iteration
-        items = db.query(DimensionProductIterationItem).filter(
-            DimensionProductIterationItem.iteration_id == iteration_id
-        ).all()
-        
-        if not items:
-            return False, "No items found for this iteration"
-        
-        system_product_ids = [item.system_product_id for item in items]
-        
         # Delete iteration items
         db.query(DimensionProductIterationItem).filter(
             DimensionProductIterationItem.iteration_id == iteration_id
@@ -541,32 +795,6 @@ def delete_iteration(iteration_id):
         db.query(ProductIteration).filter(
             ProductIteration.iteration_id == iteration_id
         ).delete(synchronize_session=False)
-        
-        # Recalculate aggregated data
-        aggregated = item_repo.get_aggregated_status_by_product(system_product_ids)
-        
-        product_updates = []
-        for sys_id in system_product_ids:
-            if sys_id in aggregated:
-                agg_data = aggregated[sys_id]
-                product_updates.append({
-                    'system_product_id': sys_id,
-                    'dbs_status': agg_data['dbs_status'],
-                    'final_status': agg_data['final_status'],
-                    'outlier_mode': agg_data['outlier_mode']
-                })
-            else:
-                # No iteration data, reset to None
-                product_updates.append({
-                    'system_product_id': sys_id,
-                    'dbs_status': None,
-                    'iqr_status': None,
-                    'final_status': None,
-                    'outlier_mode': None
-                })
-        
-        if product_updates:
-            product_repo.update_products_aggregated(product_updates)
         
         db.commit()
         return True, "Iteration deleted successfully"
@@ -664,7 +892,7 @@ def get_all_previous_outliers(group_id, brands, category, types, current_iterati
         db.close()
 
 
-def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, iteration=1, analysis_mode='all'):
+def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, algorithm_settings=None, iteration=1, analysis_mode='all'):
     """Main analysis function with iteration support"""
     db = SessionLocal()
     try:
@@ -705,7 +933,7 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
             df = df.dropna(subset=['H', 'W', 'D'])
         
         if df.empty or len(df) < 4:
-            return None, "Insufficient data"
+            return None, "Seems less than 4 products available."
         
         multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
         df_combined = df.copy()
@@ -760,7 +988,7 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
         
         # DBSCAN Analysis
         if 'DBSCAN' in algorithms:
-            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples)
+            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples, algorithm_settings=algorithm_settings)
             
             if 'IQR' in algorithms:
                 df_combined['is_outlier_combined'] = df_combined['is_outlier_combined'] & is_outlier_dbscan
@@ -1138,7 +1366,7 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
         df = repo.load_products_filtered(group_id, [combination['brand']], combination['category'], product_types)
         
         if df.empty or len(df) < 4:
-            return {'ok': False, 'message': 'Insufficient data'}
+            return {'ok': False, 'message': 'Seems less than 4 products available'}
         
         # Rename columns to match analysis function expectations
         df = df.rename(columns={
@@ -1387,7 +1615,12 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
         
         # DBSCAN Analysis (only DBSCAN for now as per requirements)
         if ALGO_DBSCAN in algorithms:
-            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples)
+            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(
+                df_combined.copy(),
+                eps=dbscan_eps,
+                min_samples=dbscan_min_samples,
+                algorithm_settings=algorithm_settings
+            )
             df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['cluster'] = df_dbscan['dbscan_cluster'].apply(
                 lambda x: f"Cluster {x}" if x != -1 else "Noise/Outlier"
@@ -1483,11 +1716,15 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
         db.close()
 
 
-def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, analysis_mode, save_to_db):
+def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, analysis_mode, save_to_db, selected_iteration_id=None, algorithm_settings=None):
     """Analyze products and save to dimension tables"""
     from repositories.dimension.product_iteration_repository import ProductIterationRepository
     from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
     from models.dimension.product_iteration_item import DimensionProductIterationItem
+    from models.dimension.product import Product
+    from models.dimension.product_iteration import ProductIteration
+    import time
+    import uuid
     
     db = SessionLocal()
     try:
@@ -1499,49 +1736,19 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         product_types = types if types and len(types) > 0 else None
         algorithm = algorithms[0] if algorithms and len(algorithms) > 0 else ALGO_DBSCAN
         
-        # Fetch most recent iteration based on whether product_types is selected
-        if product_types:
-            # Product type selected: match with product_type
-            existing_iter = iter_repo.find_existing_iteration(
-                brand, category, product_types,
-                dbscan_eps, dbscan_min_samples, algorithm, group_id
-            )
-        else:
-            # Product type NOT selected: match without product_type (NULL)
-            from models.dimension.product_iteration import ProductIteration
-            existing_iter = db.query(ProductIteration).filter(
-                ProductIteration.brand == brand,
-                ProductIteration.category == category,
-                ProductIteration.eps == dbscan_eps,
-                ProductIteration.sample == dbscan_min_samples,
-                ProductIteration.algorithm == algorithm,
-                ProductIteration.product_group_id == group_id
-            ).order_by(ProductIteration.timestamp.desc()).first()
-        
-        # Delete existing iteration if found and save_to_db is True and analysis_mode is 'all'
-        if analysis_mode == 'all' and existing_iter and save_to_db:
-            iter_repo.delete_iteration_with_items(existing_iter.iteration_id)
-        
         # Load products based on analysis mode
         if analysis_mode == 'all':
-            # Load all products
             df = repo.load_products_filtered(group_id, brands, category, types)
-        else:
-            # Load only normal products from existing iteration
-            if not existing_iter:
-                return {'ok': False, 'message': 'No previous iteration found for normal analysis'}
+        elif analysis_mode == 'pending' and selected_iteration_id:
+            # Get products from selected iteration where final_status is null
+            system_product_ids = item_repo.get_system_product_ids_by_final_status(selected_iteration_id, None)
             
-            # Get normal products from existing iteration
-            normal_ids = db.query(DimensionProductIterationItem.system_product_id).filter(
-                DimensionProductIterationItem.iteration_id == existing_iter.iteration_id,
-                DimensionProductIterationItem.status == 1
-            ).all()
+            if not system_product_ids:
+                return {'ok': False, 'message': 'No pending products found in selected iteration'}
             
-            if not normal_ids:
-                return {'ok': False, 'message': 'No normal products found'}
-            
-            system_product_ids = [r[0] for r in normal_ids]
             df = repo.load_products_by_ids(system_product_ids)
+        else:
+            return {'ok': False, 'message': 'Invalid analysis mode or missing iteration'}
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data'}
@@ -1567,8 +1774,8 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         df_combined['is_outlier_combined'] = False
         df_combined['cluster'] = None
         
-        # Calculate and save IQR status only if save_to_db is True
-        if save_to_db:
+        # Calculate and save IQR status only if save_to_db is True AND analysis_mode is 'all'
+        if save_to_db and analysis_mode == 'all':
             multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
             df_iqr = calculate_dynamic_iqr(df_combined.copy(), multipliers=multipliers)
             df_iqr['iqr_is_outlier'] = False
@@ -1631,11 +1838,14 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                     'iqr_depth_status': 0 if row.get('D_is_outlier', False) else 1
                 })
             
-            if iqr_updates:
-                repo.update_products_iqr_fields(iqr_updates)
         
         if ALGO_DBSCAN in algorithms:
-            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples)
+            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(
+                df_combined.copy(),
+                eps=dbscan_eps,
+                min_samples=dbscan_min_samples,
+                algorithm_settings=algorithm_settings
+            )
             df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['dbscan_cluster'] = df_dbscan['dbscan_cluster']
             df_combined['cluster'] = df_dbscan['dbscan_cluster'].apply(
@@ -1647,52 +1857,220 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         outliers = df_combined['is_outlier_combined'].sum()
         normals = total - outliers
         
-        # Save to DB if requested
+        # Save to DB based on analysis mode
         if save_to_db:
-            # Save new iteration
-            iteration_id = iter_repo.save_iteration(
-                brand, category, product_types,
-                group_id, algorithm, dbscan_eps, dbscan_min_samples
-            )
-            
-            if iteration_id:
-                # Prepare items data
-                items_data = []
-                for _, row in df_combined.iterrows():
-                    is_outlier = row['is_outlier_combined']
-                    items_data.append({
+            if analysis_mode == 'all':
+                # For 'all' mode: Create NEW iteration with all products
+                unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
+                
+                # Get counts from dimension_product table (same as analyze_all_export)
+                # Total items: all products matching filters
+                total_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    total_items_query = total_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    total_items_query = total_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    total_items_query = total_items_query.filter(Product.product_type.in_(types))
+                total_items_count = total_items_query.count()
+                
+                # Analyzed items: products with final_status != NULL
+                analyzed_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.final_status.isnot(None),
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    analyzed_items_query = analyzed_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    analyzed_items_query = analyzed_items_query.filter(Product.product_type.in_(types))
+                analyzed_items_count = analyzed_items_query.count()
+                
+                # Pending items: products with final_status = NULL
+                pending_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.final_status.is_(None),
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    pending_items_query = pending_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    pending_items_query = pending_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    pending_items_query = pending_items_query.filter(Product.product_type.in_(types))
+                pending_items_count = pending_items_query.count()
+                
+                # Outlier items: from current analysis
+                outlier_items = int(df_combined['is_outlier_combined'].sum())
+                
+                # Save new iteration
+                iteration_id = iter_repo.save_iteration(
+                    None, category, None,
+                    group_id, algorithm, dbscan_eps, dbscan_min_samples,
+                    unique_number=unique_number,
+                    total_items=total_items_count,
+                    analyzed_items=analyzed_items_count,
+                    pending_items=pending_items_count,
+                    outlier_items=outlier_items
+                )
+                
+                if iteration_id:
+                    # Calculate cluster statistics
+                    cluster_stats = {}
+                    total_items_in_iteration = len(df_combined)
+                    for _, row in df_combined.iterrows():
+                        cluster = row['cluster']
+                        if cluster not in cluster_stats:
+                            cluster_stats[cluster] = 0
+                        cluster_stats[cluster] += 1
+                    
+                    # Prepare items data
+                    items_data = []
+                    for _, row in df_combined.iterrows():
+                        is_outlier = row['is_outlier_combined']
+                        cluster = row['cluster']
+                        cluster_items = cluster_stats.get(cluster, 0)
+                        cluster_items_per = (cluster_items / total_items_in_iteration * 100) if total_items_in_iteration > 0 else 0
+                        
+                        items_data.append({
+                            'iteration_id': iteration_id,
+                            'system_product_id': row['system_product_id'],
+                            'brand': row['Brand'],
+                            'category': row['Category'],
+                            'product_type': row['Type'],
+                            'cluster': cluster,
+                            'cluster_items': cluster_items,
+                            'cluster_items_per': cluster_items_per,
+                            'outlier_mode': 0 if is_outlier else None,
+                            'status': 0 if is_outlier else 1
+                        })
+                    
+                    item_repo.save_items(items_data)
+                    db.commit()
+                    
+                    return_data = {
                         'iteration_id': iteration_id,
-                        'system_product_id': row['system_product_id'],
-                        'brand': row['Brand'],
-                        'category': row['Category'],
-                        'product_type': row['Type'],
-                        'cluster': row['cluster'],
-                        'outlier_mode': 0 if is_outlier else None,
-                        'status': 0 if is_outlier else 1
-                    })
+                        'unique_number': unique_number
+                    }
+            elif analysis_mode == 'pending':
+                # For 'pending' mode: Create NEW iteration with only pending products
+                unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
                 
-                # Save items
-                item_repo.save_items(items_data)
+                # Get counts from dimension_product table
+                # Total items: all products matching filters
+                total_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    total_items_query = total_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    total_items_query = total_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    total_items_query = total_items_query.filter(Product.product_type.in_(types))
+                total_items_count = total_items_query.count()
                 
-                # Get aggregated status and update product table
-                system_product_ids = df_combined['system_product_id'].tolist()
-                aggregated = item_repo.get_aggregated_status_by_product(system_product_ids)
+                # Analyzed items: products with final_status != NULL
+                analyzed_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.final_status.isnot(None),
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    analyzed_items_query = analyzed_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    analyzed_items_query = analyzed_items_query.filter(Product.product_type.in_(types))
+                analyzed_items_count = analyzed_items_query.count()
                 
-                product_updates = []
-                for sys_id, agg_data in aggregated.items():
-                    product_updates.append({
-                        'system_product_id': sys_id,
-                        'dbs_status': agg_data['dbs_status'],
-                        'final_status': agg_data['final_status'],
-                        'outlier_mode': agg_data['outlier_mode']
-                    })
+                # Pending items: products with final_status = NULL
+                pending_items_query = db.query(Product).filter(
+                    Product.group_id == group_id,
+                    Product.final_status.is_(None),
+                    Product.height.isnot(None),
+                    Product.width.isnot(None),
+                    Product.depth.isnot(None)
+                )
+                if brands and len(brands) > 0:
+                    pending_items_query = pending_items_query.filter(Product.brand.in_(brands))
+                if category:
+                    pending_items_query = pending_items_query.filter(Product.category == category)
+                if types and len(types) > 0:
+                    pending_items_query = pending_items_query.filter(Product.product_type.in_(types))
+                pending_items_count = pending_items_query.count()
                 
-                if product_updates:
-                    repo.update_products_aggregated(product_updates)
+                # Outlier items: from current analysis
+                outlier_items = int(df_combined['is_outlier_combined'].sum())
                 
-                db.commit()
+                # Save new iteration
+                iteration_id = iter_repo.save_iteration(
+                    None, category, None,
+                    group_id, algorithm, dbscan_eps, dbscan_min_samples,
+                    unique_number=unique_number,
+                    total_items=total_items_count,
+                    analyzed_items=analyzed_items_count,
+                    pending_items=pending_items_count,
+                    outlier_items=outlier_items
+                )
+                
+                if iteration_id:
+                    # Calculate cluster statistics
+                    cluster_stats = {}
+                    total_items_in_iteration = len(df_combined)
+                    for _, row in df_combined.iterrows():
+                        cluster = row['cluster']
+                        if cluster not in cluster_stats:
+                            cluster_stats[cluster] = 0
+                        cluster_stats[cluster] += 1
+                    
+                    # Prepare items data
+                    items_data = []
+                    for _, row in df_combined.iterrows():
+                        is_outlier = row['is_outlier_combined']
+                        cluster = row['cluster']
+                        cluster_items = cluster_stats.get(cluster, 0)
+                        cluster_items_per = (cluster_items / total_items_in_iteration * 100) if total_items_in_iteration > 0 else 0
+                        
+                        items_data.append({
+                            'iteration_id': iteration_id,
+                            'system_product_id': row['system_product_id'],
+                            'brand': row['Brand'],
+                            'category': row['Category'],
+                            'product_type': row['Type'],
+                            'cluster': cluster,
+                            'cluster_items': cluster_items,
+                            'cluster_items_per': cluster_items_per,
+                            'outlier_mode': 0 if is_outlier else None,
+                            'status': 0 if is_outlier else 1
+                        })
+                    
+                    item_repo.save_items(items_data)
+                    db.commit()
+                    
+                    return_data = {
+                        'iteration_id': iteration_id,
+                        'unique_number': unique_number
+                    }
+        else:
+            return_data = {}
         
-        return {
+        return_data.update({
             'ok': True,
             'data': df_combined.replace({pd.NA: None, np.nan: None}).to_dict('records'),
             'total': int(total),
@@ -1704,10 +2082,15 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
             'manual_outlier_count': 0,
             'eps': dbscan_eps,
             'sample': dbscan_min_samples
-        }
+        })
+        
+        return return_data
     except Exception as e:
         db.rollback()
         print(f"Error in analyze_and_save: {e}")
         return {'ok': False, 'message': str(e)}
     finally:
         db.close()
+
+
+

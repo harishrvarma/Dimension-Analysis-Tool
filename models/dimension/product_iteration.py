@@ -14,3 +14,9 @@ class ProductIteration(BaseModel):
     eps = Column(Numeric(10, 1), nullable=True)
     sample = Column(Integer, nullable=True)
     timestamp = Column(DateTime, nullable=False)
+    unique_number = Column(String(50), nullable=True)
+    total_items = Column(Integer, nullable=True)
+    analyzed_items = Column(Integer, nullable=True)
+    pending_items = Column(Integer, nullable=True)
+    outlier_items = Column(Integer, nullable=True)
+
