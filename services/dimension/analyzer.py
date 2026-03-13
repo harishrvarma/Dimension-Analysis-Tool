@@ -669,6 +669,104 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         db.close()
 
 
+def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension):
+    """Swap dimension values for filtered products"""
+    from models.dimension.product import Product
+    
+    db = SessionLocal()
+    try:
+        # Build query with filters
+        query = db.query(Product).filter(Product.group_id == group_id)
+        
+        if brands:
+            query = query.filter(Product.brand.in_(brands))
+        if category:
+            query = query.filter(Product.category == category)
+        if types:
+            query = query.filter(Product.product_type.in_(types))
+        
+        products = query.all()
+        
+        if not products:
+            return False, 0, "No products found with the specified filters"
+        
+        # Map dimension names to column names
+        dimension_map = {
+            'height': 'height',
+            'width': 'width',
+            'depth': 'depth'
+        }
+        
+        from_col = dimension_map.get(from_dimension)
+        to_col = dimension_map.get(to_dimension)
+        
+        if not from_col or not to_col:
+            return False, 0, "Invalid dimension names"
+        
+        # Swap values for each product
+        count = 0
+        for product in products:
+            from_value = getattr(product, from_col)
+            to_value = getattr(product, to_col)
+            
+            # Swap the values
+            setattr(product, from_col, to_value)
+            setattr(product, to_col, from_value)
+            count += 1
+        
+        db.commit()
+        return True, count, None
+    except Exception as e:
+        db.rollback()
+        print(f"Error swapping dimensions: {e}")
+        return False, 0, str(e)
+    finally:
+        db.close()
+
+
+def reset_dimensions(group_id, brands, category, types):
+    """Reset dimension values to original values for filtered products"""
+    from models.dimension.product import Product
+    
+    db = SessionLocal()
+    try:
+        # Build query with filters
+        query = db.query(Product).filter(Product.group_id == group_id)
+        
+        if brands:
+            query = query.filter(Product.brand.in_(brands))
+        if category:
+            query = query.filter(Product.category == category)
+        if types:
+            query = query.filter(Product.product_type.in_(types))
+        
+        products = query.all()
+        
+        if not products:
+            return False, 0, "No products found with the specified filters"
+        
+        # Reset values for each product
+        count = 0
+        for product in products:
+            # Restore original dimensions
+            if hasattr(product, 'ori_height') and product.ori_height is not None:
+                product.height = product.ori_height
+            if hasattr(product, 'ori_width') and product.ori_width is not None:
+                product.width = product.ori_width
+            if hasattr(product, 'ori_depth') and product.ori_depth is not None:
+                product.depth = product.ori_depth
+            count += 1
+        
+        db.commit()
+        return True, count, None
+    except Exception as e:
+        db.rollback()
+        print(f"Error resetting dimensions: {e}")
+        return False, 0, str(e)
+    finally:
+        db.close()
+
+
 def load_saved_iteration(iteration_id):
     """Load saved iteration filters and complete data for display - optimized"""
     from models.dimension.product_iteration import ProductIteration

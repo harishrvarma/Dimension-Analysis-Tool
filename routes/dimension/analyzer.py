@@ -355,6 +355,58 @@ def api_update_item_status():
         return jsonify({"ok": False, "message": error or "Failed to update item"})
 
 
+@analyzer_bp.post("/api/swap-dimensions")
+def api_swap_dimensions():
+    """Swap dimension values for filtered products"""
+    payload = request.get_json(silent=True) or {}
+    group_id = payload.get("group_id")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    types = payload.get("types") or []
+    from_dimension = payload.get("from_dimension")
+    to_dimension = payload.get("to_dimension")
+    
+    if not group_id or not from_dimension or not to_dimension:
+        return jsonify({"ok": False, "message": "Group ID and both dimensions are required"})
+    
+    if not brands and not category and not types:
+        return jsonify({"ok": False, "message": "At least one filter (Brand, Category, or Type) is required"})
+    
+    success, count, error = analyzer.swap_dimensions(
+        group_id, brands, category, types, from_dimension, to_dimension
+    )
+    
+    if success:
+        return jsonify({"ok": True, "count": count, "message": f"Swapped dimensions for {count} products"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to swap dimensions"})
+
+
+@analyzer_bp.post("/api/reset-dimensions")
+def api_reset_dimensions():
+    """Reset dimension values to original values for filtered products"""
+    payload = request.get_json(silent=True) or {}
+    group_id = payload.get("group_id")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    types = payload.get("types") or []
+    
+    if not group_id:
+        return jsonify({"ok": False, "message": "Group ID is required"})
+    
+    if not brands and not category and not types:
+        return jsonify({"ok": False, "message": "At least one filter (Brand, Category, or Type) is required"})
+    
+    success, count, error = analyzer.reset_dimensions(
+        group_id, brands, category, types
+    )
+    
+    if success:
+        return jsonify({"ok": True, "count": count, "message": f"Reset dimensions for {count} products"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to reset dimensions"})
+
+
 @analyzer_bp.get("/api/analyze-all-export")
 def api_analyze_all_export_get():
     """Analyze all products and export results - GET with algorithm parameter (legacy)"""

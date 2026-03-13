@@ -21,6 +21,11 @@ class Product(BaseModel):
     qb_code = Column(String(100), nullable=True, default=None)
     name = Column(String(500), nullable=True, default=None)
 
+    
+    ori_height = Column(Float, nullable=True, default=None)
+    ori_width = Column(Float, nullable=True, default=None)
+    ori_depth = Column(Float, nullable=True, default=None)
+
     height = Column(Float, nullable=True, default=None)
     width = Column(Float, nullable=True, default=None)
     depth = Column(Float, nullable=True, default=None)
