@@ -1009,6 +1009,31 @@ img.preview {
 <tbody id="iterationSummaryBody"></tbody>
 </table>
 </div>
+<div id="swapDimensionPanel" style="flex:0 0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:#e67e22;">🔄 Swap Dimensions</h3>
+<div style="display:flex;gap:8px;align-items:end;">
+<div style="flex:0 0 140px;">
+<label style="font-size:11px;font-weight:600;margin-bottom:3px;display:block;">From Dimension</label>
+<select id="swapFromDimension" style="width:100%;padding:6px;font-size:12px;border:1px solid #c9d4e7;border-radius:4px;">
+<option value="">Select Dimension</option>
+<option value="height">Height</option>
+<option value="width">Width</option>
+<option value="depth">Depth</option>
+</select>
+</div>
+<div style="flex:0 0 140px;">
+<label style="font-size:11px;font-weight:600;margin-bottom:3px;display:block;">To Dimension</label>
+<select id="swapToDimension" style="width:100%;padding:6px;font-size:12px;border:1px solid #c9d4e7;border-radius:4px;">
+<option value="">Select Dimension</option>
+<option value="height">Height</option>
+<option value="width">Width</option>
+<option value="depth">Depth</option>
+</select>
+</div>
+<button id="swapBtn" style="padding:6px 16px;font-size:12px;background:#3498db;border-color:#3498db;font-weight:600;white-space:nowrap;height:32px;">Swap</button>
+<button id="swapResetBtn" style="padding:6px 16px;font-size:12px;background:#95a5a6;border-color:#95a5a6;font-weight:600;white-space:nowrap;height:32px;">Reset</button>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -4063,6 +4088,155 @@ document.getElementById('exportAlgoSettingsTrigger').addEventListener('click', (
   
   updatePrompt();
 })();
+
+// Swap Dimension functionality
+const swapFromDimension = document.getElementById('swapFromDimension');
+const swapToDimension = document.getElementById('swapToDimension');
+const swapBtn = document.getElementById('swapBtn');
+const swapResetBtn = document.getElementById('swapResetBtn');
+
+// Disable selected option in the other dropdown
+swapFromDimension.addEventListener('change', function() {
+  const selectedValue = this.value;
+  Array.from(swapToDimension.options).forEach(opt => {
+    if (opt.value && opt.value === selectedValue) {
+      opt.disabled = true;
+    } else {
+      opt.disabled = false;
+    }
+  });
+  // Reset to dimension if it's now disabled
+  if (swapToDimension.value === selectedValue) {
+    swapToDimension.value = '';
+  }
+});
+
+swapToDimension.addEventListener('change', function() {
+  const selectedValue = this.value;
+  Array.from(swapFromDimension.options).forEach(opt => {
+    if (opt.value && opt.value === selectedValue) {
+      opt.disabled = true;
+    } else {
+      opt.disabled = false;
+    }
+  });
+  // Reset from dimension if it's now disabled
+  if (swapFromDimension.value === selectedValue) {
+    swapFromDimension.value = '';
+  }
+});
+
+swapResetBtn.addEventListener('click', async function() {
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  
+  if (!groupId) {
+    showMessage('Please select Product Group');
+    return;
+  }
+  
+  if (!brands.length && !category && !types.length) {
+    showMessage('Please select at least one filter: Brand, Category, or Product Type');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to reset dimensions to original values?\n\nThis will restore original dimension values for all filtered products.')) {
+    return;
+  }
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: brands,
+    category: category,
+    types: types
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/reset-dimensions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (data.ok) {
+    showMessage(`Successfully reset dimensions for ${data.count} products`);
+    // Reset dropdowns
+    swapFromDimension.value = '';
+    swapToDimension.value = '';
+    Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
+    Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
+    // Reload options to refresh data
+    await loadOptions();
+  } else {
+    showMessage('Failed to reset dimensions: ' + (data.message || 'Unknown error'));
+  }
+});
+
+swapBtn.addEventListener('click', async function() {
+  const fromDim = swapFromDimension.value;
+  const toDim = swapToDimension.value;
+  const groupId = els.group.value;
+  const brands = selectedValues(els.brand);
+  const category = els.category.value;
+  const types = selectedValues(els.type);
+  
+  if (!fromDim || !toDim) {
+    showMessage('Please select both dimensions to swap');
+    return;
+  }
+  
+  if (!groupId) {
+    showMessage('Please select Product Group');
+    return;
+  }
+  
+  if (!brands.length && !category && !types.length) {
+    showMessage('Please select at least one filter: Brand, Category, or Product Type');
+    return;
+  }
+  
+  const fromLabel = swapFromDimension.options[swapFromDimension.selectedIndex].text;
+  const toLabel = swapToDimension.options[swapToDimension.selectedIndex].text;
+  
+  if (!confirm(`Are you sure you want to swap ${fromLabel} with ${toLabel}?\n\nThis will swap dimension values for all filtered products.`)) {
+    return;
+  }
+  
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: brands,
+    category: category,
+    types: types,
+    from_dimension: fromDim,
+    to_dimension: toDim
+  };
+  
+  showLoader();
+  const res = await fetch('/dimension/analyzer/api/swap-dimensions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  hideLoader();
+  
+  if (data.ok) {
+    showMessage(`Successfully swapped ${fromLabel} with ${toLabel} for ${data.count} products`);
+    // Reset dropdowns
+    swapFromDimension.value = '';
+    swapToDimension.value = '';
+    Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
+    Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
+    // Reload options to refresh data
+    await loadOptions();
+  } else {
+    showMessage('Failed to swap dimensions: ' + (data.message || 'Unknown error'));
+  }
+});
 
 async function updateItemStatus(sku, finalStatus) {
   if (!selectedIterationId) {
