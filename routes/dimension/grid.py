@@ -28,7 +28,7 @@ def api_options():
     types = payload.get("types") or []
     final_status = payload.get("final_status") or []
     skip_status = payload.get("skip_status") or []
-    
+
     if not group_id:
         return jsonify({
             "ok": False,
@@ -36,25 +36,39 @@ def api_options():
             "brand_options": [],
             "category_options": [],
             "type_options": [],
-            "configuration_options": [],
             "analyzed_status": {}
         })
-    
+
     brand_options = grid.get_brands_with_counts(group_id, final_status if final_status else None)
     category_options = grid.get_categories_with_counts(group_id, brands if brands else None, final_status if final_status else None)
     type_options = grid.get_types_with_counts(group_id, brands if brands else None, categories if categories else None, final_status if final_status else None)
-    configuration_options = grid.get_configurations(group_id, brands if brands else None, categories if categories else None, types if types else None, skip_status if skip_status else None, final_status if final_status else None)
     analyzed_status = grid.get_analyzed_status(group_id, brands if brands else None, categories if categories else None)
-    
+
     return jsonify({
         "ok": True,
         "brand_options": brand_options,
         "category_options": category_options,
         "type_options": type_options,
-        "configuration_options": configuration_options,
         "analyzed_status": analyzed_status,
         "message": f"Loaded options for group {group_id}"
     })
+
+
+@grid_bp.post("/api/iteration-filters")
+def api_iteration_filters():
+    """Get brands and categories from iteration"""
+    payload = request.get_json(silent=True) or {}
+    iteration_id = payload.get("iteration_id")
+    
+    if not iteration_id:
+        return jsonify({"ok": False, "message": "Iteration ID required"})
+    
+    filters = grid.get_iteration_filters(iteration_id)
+    
+    if not filters:
+        return jsonify({"ok": False, "message": "Iteration not found"})
+    
+    return jsonify({"ok": True, "filters": filters})
 
 
 @grid_bp.post("/api/grid-data")
@@ -67,18 +81,18 @@ def api_grid_data():
     types = payload.get("types") or []
     final_status = payload.get("final_status") or []
     skip_status = payload.get("skip_status") or []
-    iteration = payload.get("iteration")
-    configuration = payload.get("configuration")  # Can be list or None
+    clusters = payload.get("clusters") or []
+    iteration_id = payload.get("iteration_id")
     page = payload.get("page", 1)
     per_page = payload.get("per_page", 50)
     sort_column = payload.get("sort_column")
     sort_direction = payload.get("sort_direction", "asc")
-    
+
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected.", "data": [], "total": 0})
-    
-    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, skip_status if skip_status else None, iteration, configuration, page, per_page, sort_column, sort_direction)
-    
+
+    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, skip_status if skip_status else None, clusters if clusters else None, iteration_id, page, per_page, sort_column, sort_direction)
+
     return jsonify({
         "ok": True,
         "data": data,
@@ -93,13 +107,13 @@ def api_update_skip_status():
     payload = request.get_json(silent=True) or {}
     product_id = payload.get("product_id")
     skip_status = payload.get("skip_status")
-    
+
     if product_id is None:
         return jsonify({"ok": False, "message": "Product ID is required."})
-    
+
     from models.base.base import SessionLocal
     from repositories.dimension.product_repository import ProductRepository
-    
+
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
@@ -118,56 +132,49 @@ def api_export_data():
     """Export grid data to CSV"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
-    brands = payload.get("brands") or []
-    categories = payload.get("categories") or []
-    types = payload.get("types") or []
-    final_status = payload.get("final_status") or []
-    skip_status = payload.get("skip_status") or []
-    iteration = payload.get("iteration")
-    configuration = payload.get("configuration")
-    
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected."}), 400
-    
+
     import csv
     from io import StringIO
     from flask import make_response
-    
+
     si = StringIO()
     writer = csv.writer(si)
-    writer.writerow(['Product ID', 'System Product ID', 'QB Code', 'Name', 'Base Image URL', 'Product URL',
-                     'Brand', 'Category', 'Product Type', 'Iteration Product Type Count', 'Iteration Product Type', 'Iteration Product Count', 'Outlier Count',
-                     'Outlier %', 'EPS', 'Sample', 'Height', 'Width', 'Depth', 'Weight', 'Final Status',
-                     'Iterations Info', 'Manual Outlier', 'Manual Outlier Count', 'Skip Status'])
-    
-    # Export in chunks
+    writer.writerow(['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
+                     'Name', 'Height', 'Width', 'Depth', 'EPS', 'Sample', 'Final Status', 
+                     'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
+                     'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History'])
+
     page = 1
     chunk_size = 5000
     while True:
-        data, _ = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None,
-                                          skip_status if skip_status else None, iteration, configuration, page, chunk_size, None, 'asc', skip_count=True, include_iteration_count=True)
-
+        data, _ = grid.load_grid_data(group_id, payload.get("brands"), payload.get("categories"),
+                                      payload.get("types"), payload.get("final_status"), payload.get("skip_status"),
+                                      payload.get("clusters"), payload.get("iteration_id"), page, chunk_size, None, 'asc', skip_count=True)
         if not data:
             break
 
         for row in data:
-            iteration_product_type = row.get('iteration_product_type', '-') if row.get('iteration_product_type') else '-'
-            iteration_product_count = row.get('iteration_product_count', '-') if row.get('iteration_product_count') and row.get('iteration_product_count') != '-' else '-'
-            skip_display = 'Yes' if row.get('skip_status') == 1 else ('No' if row.get('skip_status') == 0 else '-')
+            skip_display = 'Yes' if row['skip_status'] == 1 else ('No' if row['skip_status'] == 0 else '-')
+            history_text = ''
+            if row['iteration_history']:
+                history_lines = [f"EPS: {h['eps']}, Sample: {h['sample']}, Status: {h['status']}, {h['date']}"
+                               for h in row['iteration_history']]
+                history_text = ' | '.join(history_lines)
+
             writer.writerow([
-                row['product_id'], row['system_product_id'], row['qb_code'], row['name'],
-                row.get('base_image_url', ''), row.get('product_url', ''),
-                row['brand'], row['category'], row['product_type'], row['product_type_count'],
-                iteration_product_type, iteration_product_count, row['outlier_count'], row['outlier_percentage'],
-                row['eps'], row['sample'], row['height'], row['width'], row['depth'], row['weight'],
-                row['final_status'], row.get('config_info', ''), row.get('manual_outlier', '-'),
-                row.get('manual_outlier_count', 0), skip_display
+                row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
+                row['height'], row['width'], row['depth'], row['eps'], row['sample'], row['final_status'],
+                row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
+                row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
+                skip_display, history_text
             ])
 
         if len(data) < chunk_size:
             break
         page += 1
-    
+
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=grid_export.csv"
     output.headers["Content-type"] = "text/csv"
@@ -179,17 +186,9 @@ def api_export_xls():
     """Export grid data to XLS with red background for outlier dimensions"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
-    brands = payload.get("brands") or []
-    categories = payload.get("categories") or []
-    types = payload.get("types") or []
-    final_status = payload.get("final_status") or []
-    skip_status = payload.get("skip_status") or []
-    iteration = payload.get("iteration")
-    configuration = payload.get("configuration")
-    
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected."}), 400
-    
+
     from io import BytesIO
     from flask import make_response
     try:
@@ -197,72 +196,67 @@ def api_export_xls():
         from openpyxl.styles import PatternFill
     except ImportError:
         return jsonify({"ok": False, "message": "openpyxl not installed"}), 500
-    
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Grid Export"
-    
+
     red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
-    
-    headers = ['Product ID', 'System Product ID', 'QB Code', 'Name', 'Base Image URL', 'Product URL',
-               'Brand', 'Category', 'Product Type', 'Iteration Product Type Count', 'Iteration Product Type', 'Iteration Product Count', 'Outlier Count',
-               'Outlier %', 'EPS', 'Sample', 'Height', 'Width', 'Depth', 'Weight', 'Final Status',
-               'Iterations Info', 'Manual Outlier', 'Manual Outlier Count', 'Skip Status']
+
+    headers = ['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
+               'Name', 'Height', 'Width', 'Depth', 'EPS', 'Sample', 'Final Status',
+               'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
+               'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History']
     ws.append(headers)
 
-    # Export in chunks
     page = 1
     chunk_size = 5000
-    start_row = 2  # Data starts at row 2 (after header)
+    current_row = 2
+    cells_to_color = []
 
     while True:
-        data, _ = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None,
-                                          skip_status if skip_status else None, iteration, configuration, page, chunk_size, None, 'asc', skip_count=True, include_iteration_count=True)
-
+        data, _ = grid.load_grid_data(group_id, payload.get("brands"), payload.get("categories"),
+                                      payload.get("types"), payload.get("final_status"), payload.get("skip_status"),
+                                      payload.get("clusters"), payload.get("iteration_id"), page, chunk_size, None, 'asc', skip_count=True)
         if not data:
             break
-        
-        # Batch append rows
-        rows_to_append = []
+
         for row in data:
-            iteration_product_type = row.get('iteration_product_type', '-') if row.get('iteration_product_type') else '-'
-            iteration_product_count = row.get('iteration_product_count', '-') if row.get('iteration_product_count') and row.get('iteration_product_count') != '-' else '-'
-            skip_display = 'Yes' if row.get('skip_status') == 1 else ('No' if row.get('skip_status') == 0 else '-')
-            row_data = [
-                row['product_id'], row['system_product_id'], row['qb_code'], row['name'],
-                row.get('base_image_url', ''), row.get('product_url', ''),
-                row['brand'], row['category'], row['product_type'], row['product_type_count'],
-                iteration_product_type, iteration_product_count, row['outlier_count'], row['outlier_percentage'],
-                row['eps'], row['sample'], row['height'], row['width'], row['depth'], row['weight'],
-                row['final_status'], row.get('config_info', ''), row.get('manual_outlier', '-'),
-                row.get('manual_outlier_count', 0), skip_display
-            ]
-            rows_to_append.append(row_data)
+            skip_display = 'Yes' if row['skip_status'] == 1 else ('No' if row['skip_status'] == 0 else '-')
+            history_text = ''
+            if row['iteration_history']:
+                history_lines = [f"EPS: {h['eps']}, Sample: {h['sample']}, Status: {h['status']}, {h['date']}"
+                               for h in row['iteration_history']]
+                history_text = ' | '.join(history_lines)
 
-        # Append all rows at once
-        for row_data in rows_to_append:
-            ws.append(row_data)
+            ws.append([
+                row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
+                row['height'], row['width'], row['depth'], row['eps'], row['sample'], row['final_status'],
+                row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
+                row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
+                skip_display, history_text
+            ])
 
-        # Apply red fill in batch for this chunk
-        for idx, row in enumerate(data):
-            current_row = start_row + idx
-            if row.get('iqr_height_status') == 0:
-                ws.cell(row=current_row, column=17).fill = red_fill
-            if row.get('iqr_width_status') == 0:
-                ws.cell(row=current_row, column=18).fill = red_fill
-            if row.get('iqr_depth_status') == 0:
-                ws.cell(row=current_row, column=19).fill = red_fill
+            if row['iqr_height_status'] == 0:
+                cells_to_color.append((current_row, 7))
+            if row['iqr_width_status'] == 0:
+                cells_to_color.append((current_row, 8))
+            if row['iqr_depth_status'] == 0:
+                cells_to_color.append((current_row, 9))
 
-        start_row += len(data)
+            current_row += 1
 
         if len(data) < chunk_size:
             break
         page += 1
-    
+
+    for row_num, col_num in cells_to_color:
+        ws.cell(row=row_num, column=col_num).fill = red_fill
+
     output = BytesIO()
     wb.save(output)
     output.seek(0)
-    
+
     response = make_response(output.getvalue())
     response.headers["Content-Disposition"] = "attachment; filename=grid_export.xlsx"
     response.headers["Content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -274,24 +268,24 @@ def api_save_skip_status():
     """Save skip status for selected products"""
     payload = request.get_json(silent=True) or {}
     skip_items = payload.get("skip_items") or []
-    
+
     if not skip_items:
         return jsonify({"ok": False, "message": "No items to save."})
-    
+
     from models.base.base import SessionLocal
     from models.dimension.product import Product
-    
+
     db = SessionLocal()
     try:
         product_ids = [item["product_id"] for item in skip_items]
         products = db.query(Product).filter(Product.product_id.in_(product_ids)).all()
-        
+
         skip_map = {item["product_id"]: item["skip_status"] for item in skip_items}
-        
+
         for product in products:
             if product.product_id in skip_map:
                 product.skip_status = skip_map[product.product_id]
-        
+
         db.commit()
         return jsonify({"ok": True, "message": f"Saved skip status for {len(skip_items)} products"})
     except Exception as e:

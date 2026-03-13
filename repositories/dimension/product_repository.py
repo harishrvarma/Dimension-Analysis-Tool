@@ -772,3 +772,155 @@ class ProductRepository(BaseRepository):
                 self.db.execute(text(query), params)
         
         self.db.commit()
+
+    def get_all_products_for_export(self, filters=None, record_type='all', product_group_id=None):
+        """Get all products with required fields for export analysis
+        
+        Args:
+            filters: Dict with 'brands', 'categories', 'product_types' lists
+            record_type: 'all' or 'pending'
+            product_group_id: Product group ID to filter by
+        """
+        conditions = [
+            "height IS NOT NULL",
+            "width IS NOT NULL",
+            "depth IS NOT NULL",
+            "brand IS NOT NULL",
+            "category IS NOT NULL",
+            "product_type IS NOT NULL"
+        ]
+        params = {}
+        
+        # Add product group filter
+        if product_group_id:
+            conditions.append("group_id = :group_id")
+            params['group_id'] = product_group_id
+        
+        # Add record type filter
+        if record_type == 'pending':
+            conditions.append("final_status IS NULL")
+        
+        if filters:
+            if filters.get('brands'):
+                placeholders = ','.join([f':brand{i}' for i in range(len(filters['brands']))])
+                conditions.append(f"brand IN ({placeholders})")
+                for i, brand in enumerate(filters['brands']):
+                    params[f'brand{i}'] = brand
+            
+            if filters.get('categories'):
+                placeholders = ','.join([f':cat{i}' for i in range(len(filters['categories']))])
+                conditions.append(f"category IN ({placeholders})")
+                for i, cat in enumerate(filters['categories']):
+                    params[f'cat{i}'] = cat
+            
+            if filters.get('product_types'):
+                placeholders = ','.join([f':type{i}' for i in range(len(filters['product_types']))])
+                conditions.append(f"product_type IN ({placeholders})")
+                for i, ptype in enumerate(filters['product_types']):
+                    params[f'type{i}'] = ptype
+        
+        where_clause = " AND ".join(conditions)
+        query = f"""
+            SELECT 
+                system_product_id,
+                qb_code,
+                brand,
+                category,
+                product_type,
+                name,
+                height,
+                width,
+                depth,
+                base_image_url,
+                product_url
+            FROM dimension_product
+            WHERE {where_clause}
+            ORDER BY brand, category, product_type
+        """
+        
+        result = self.fetch_all(query, params)
+        
+        if result:
+            df = pd.DataFrame(result, columns=[
+                'system_product_id', 'qb_code', 'brand', 'category', 'product_type', 
+                'name', 'height', 'width', 'depth', 'base_image_url', 'product_url'
+            ])
+            return df
+        return pd.DataFrame()
+
+    def update_products_with_eps_sample(self, product_updates: list, group_id: int):
+        """Update products with final_status, dbs_status, eps, sample and analyzed_date for selected group"""
+        from sqlalchemy import text
+        
+        if not product_updates:
+            return
+        
+        for update in product_updates:
+            system_product_id = update.get('system_product_id')
+            if not system_product_id:
+                continue
+            
+            final_status = update.get('final_status')
+            params = {
+                'system_product_id': system_product_id,
+                'group_id': group_id,
+                'final_status': final_status,
+                'dbs_status': final_status,
+                'eps': update.get('eps'),
+                'sample': update.get('sample')
+            }
+            
+            if final_status is not None:
+                query = """
+                    UPDATE dimension_product
+                    SET final_status = :final_status,
+                        dbs_status = :dbs_status,
+                        eps = :eps,
+                        sample = :sample,
+                        analyzed_date = NOW()
+                    WHERE system_product_id = :system_product_id
+                    AND group_id = :group_id
+                """
+            else:
+                query = """
+                    UPDATE dimension_product
+                    SET final_status = NULL,
+                        dbs_status = NULL,
+                        eps = :eps,
+                        sample = :sample,
+                        analyzed_date = NULL
+                    WHERE system_product_id = :system_product_id
+                    AND group_id = :group_id
+                """
+            
+            self.db.execute(text(query), params)
+        
+        self.db.commit()
+    def get_category_product_counts(self, product_group_id):
+        """Get product counts by category for total, analyzed, and pending items"""
+        query = """
+            SELECT 
+                category,
+                COUNT(*) as total,
+                SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed,
+                SUM(CASE WHEN final_status IS NULL THEN 1 ELSE 0 END) as pending
+            FROM dimension_product
+            WHERE group_id = :group_id
+            AND category IS NOT NULL
+            AND height IS NOT NULL 
+            AND width IS NOT NULL 
+            AND depth IS NOT NULL
+            GROUP BY category
+        """
+        result = self.fetch_all(query, {"group_id": product_group_id})
+        
+        category_counts = {}
+        if result:
+            for row in result:
+                category_counts[row[0]] = {
+                    'total': row[1],
+                    'analyzed': row[2],
+                    'pending': row[3]
+                }
+        
+        return category_counts

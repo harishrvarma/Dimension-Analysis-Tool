@@ -190,18 +190,7 @@ class ItemMatchServiceRefactored:
         if products_df.empty:
             return {'error': 'No products found'}
         
-        # Reset scores if save_score is checked
-        if save_score:
-            product_ids = products_df['product_id'].tolist()
-            if product_ids:
-                self.score_service.reset_scores(product_ids)
-                # Also reset matched_ref_id in system product
-                conn = self.session.connection()
-                placeholders = ','.join([f':p{i}' for i in range(len(product_ids))])
-                params = {f'p{i}': pid for i, pid in enumerate(product_ids)}
-                reset_query = text(f"UPDATE matching_system_product SET matched_ref_id = NULL, matched_date = NULL, review_status = 0 WHERE product_id IN ({placeholders})")
-                conn.execute(reset_query, params)
-                self.session.commit()
+        # No deletion - only insert new records that don't exist
         
         matcher = ItemMatcherRefactored(algorithms, attribute_names, weights, thresholds, price_config, self.session)
         summary = matcher.match_items(products_df, competitors_df)
@@ -232,17 +221,17 @@ class ItemMatchServiceRefactored:
         
         if brands and len(brands) > 0:
             placeholders = ','.join([f':b{i}' for i in range(len(brands))])
-            conditions.append(f"p.brand IN ({placeholders})")
+            conditions.append(f"msp.brand IN ({placeholders})")
             for i, b in enumerate(brands):
                 params[f'b{i}'] = b
         if categories and len(categories) > 0:
             placeholders = ','.join([f':c{i}' for i in range(len(categories))])
-            conditions.append(f"p.category IN ({placeholders})")
+            conditions.append(f"msp.category IN ({placeholders})")
             for i, c in enumerate(categories):
                 params[f'c{i}'] = c
         if types and len(types) > 0:
             placeholders = ','.join([f':t{i}' for i in range(len(types))])
-            conditions.append(f"p.product_type IN ({placeholders})")
+            conditions.append(f"msp.product_type IN ({placeholders})")
             for i, t in enumerate(types):
                 params[f't{i}'] = t
         
@@ -250,15 +239,15 @@ class ItemMatchServiceRefactored:
         
         # Build SELECT dynamically based on attributes
         select_cols = ["msp.product_id", "msp.system_product_id", "msp.name",
-                      "COALESCE(p.brand, '') as brand", "COALESCE(p.category, '') as category",
-                      "COALESCE(p.product_type, '') as product_type"]
+                      "COALESCE(msp.brand, '') as brand", "COALESCE(msp.category, '') as category",
+                      "COALESCE(msp.product_type, '') as product_type"]
         
         for attr_name in attribute_names:
             select_cols.append(f"COALESCE(msp.{attr_name}, '') as {attr_name}")
         
         query = text(f"""SELECT {', '.join(select_cols)}
                     FROM matching_system_product msp 
-                    JOIN dimension_product p ON msp.system_product_id = p.system_product_id 
+                    JOIN system_product p ON msp.system_product_id = p.system_product_id 
                     WHERE {where_clause}""")
         
         result = conn.execute(query, params) if params else conn.execute(query)
@@ -307,32 +296,34 @@ class ItemMatchServiceRefactored:
                     
                     result = matcher.calculate_score(prod_data, comp_data)
                     
-                    # Calculate average score per attribute
-                    attr_scores = {}
-                    for attr_name, attr_info in matcher.attributes.items():
-                        if attr_info['type'] == 'status':
-                            continue
-                        scores_for_attr = [v for k, v in result.items() if k.startswith(f'{attr_name}_')]
-                        if scores_for_attr:
-                            avg = sum(scores_for_attr) / len(scores_for_attr)
-                            attr_scores[attr_info['id']] = round(avg, 2)
-                    
-                    final_score = result['final_score']
-                    final_status = matcher.get_status(final_score)
-                    
-                    # Get competitor_product_id (id from matching_competitor_product)
+                    # Get competitor_product_id
                     comp_id = int(comp['competitor_id'])
                     
-                    # Save to new schema
-                    self.score_service.save_score(
-                        system_product_ref_id=int(prod_id),
-                        competitor_product_id=comp_id,
-                        configuration_group_id=None,
-                        total_score=final_score,
-                        score_status=final_status,
-                        attribute_scores=attr_scores
-                    )
-                    saved_count += 1
+                    # Save for EACH algorithm separately
+                    for algorithm_id in matcher.algorithms:
+                        # Calculate attribute scores for THIS algorithm only
+                        attr_scores = {}
+                        for attr_name, attr_info in matcher.attributes.items():
+                            if attr_info['type'] == 'status':
+                                continue
+                            # Get score for this specific algorithm
+                            score_key = f'{attr_name}_{algorithm_id}'
+                            if score_key in result:
+                                attr_scores[attr_info['id']] = result[score_key]
+                        
+                        final_score = result['final_score']
+                        final_status = matcher.get_status(final_score)
+                        
+                        # Save with specific algorithm_id
+                        self.score_service.save_score(
+                            system_product_id=int(prod_id),
+                            competitor_product_id=comp_id,
+                            algorithm_id=algorithm_id,
+                            total_score=final_score,
+                            score_status=final_status,
+                            attribute_scores=attr_scores
+                        )
+                        saved_count += 1
                     
                     if final_score > best_score:
                         best_score = final_score

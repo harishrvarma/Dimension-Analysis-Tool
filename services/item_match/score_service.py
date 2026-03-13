@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 
 class ScoreService:
-    """Service to manage score storage in new schema"""
+    """Service to manage score storage"""
     
     def __init__(self, session=None):
         self.session = session or SessionLocal()
@@ -15,42 +15,32 @@ class ScoreService:
         if self._should_close and hasattr(self, 'session'):
             self.session.close()
     
-    def save_score(self, system_product_id, competitor_product_id, configuration_group_id, 
-                   total_score, score_status, attribute_scores):
+    def save_score(self, system_product_id, competitor_product_id, algorithm_id, 
+                   total_score, score_status, attribute_scores, hard_refresh=False):
         """
-        Save score in new schema (check if exists, update or insert)
-        
-        Args:
-            system_product_id: matching_system_product.product_id
-            competitor_product_id: matching_competitor_product.competitor_product_id
-            configuration_group_id: configuration group id
-            total_score: calculated total score
-            score_status: 'Matched', 'Review', 'Not Matched'
-            attribute_scores: dict {matching_attribute_id: score_value}
+        Save score:
+        - matching_scores: ONE record per (product, competitor) - stores final score
+        - matching_score_attributes: MULTIPLE records per algorithm
         """
-        # Check if score already exists
+        # Check if main score exists (unique on product + competitor only)
         existing_score = self.session.query(MatchingScore).filter(
             MatchingScore.system_product_id == system_product_id,
-            MatchingScore.competitor_product_id == competitor_product_id,
-            MatchingScore.configuration_group_id == configuration_group_id
+            MatchingScore.competitor_product_id == competitor_product_id
         ).first()
         
         if existing_score:
-            # Update existing score
+            # Record exists - update algorithm_id and total_score for the latest run
+            existing_score.algorithm_id = algorithm_id
             existing_score.total_score = total_score
             existing_score.score_status = score_status
+            self.session.flush()
             matching_score_id = existing_score.score_id
-            
-            # Delete old attribute scores
-            self.session.query(MatchingScoreAttribute).filter(
-                MatchingScoreAttribute.matching_score_id == matching_score_id
-            ).delete()
         else:
-            # Insert new score
+            # Insert new main score
             new_score = MatchingScore(
                 system_product_id=system_product_id,
                 competitor_product_id=competitor_product_id,
-                configuration_group_id=configuration_group_id,
+                algorithm_id=algorithm_id,
                 total_score=total_score,
                 score_status=score_status
             )
@@ -58,16 +48,49 @@ class ScoreService:
             self.session.flush()
             matching_score_id = new_score.score_id
         
-        # Insert attribute scores
+        # Insert/Update attribute scores for THIS algorithm
         for attr_id, score_val in attribute_scores.items():
-            attr_score = MatchingScoreAttribute(
-                matching_score_id=matching_score_id,
-                attribute_id=attr_id,
-                system_product_id=system_product_id,
-                competitor_product_id=competitor_product_id,
-                score=score_val
+            check_sql = text(
+                "SELECT score_attribute_id FROM matching_score_attributes "
+                "WHERE system_product_id = :prod_id "
+                "AND competitor_product_id = :comp_id "
+                "AND attribute_id = :attr_id "
+                "AND algorithm_id = :algo_id "
+                "LIMIT 1"
             )
-            self.session.add(attr_score)
+            result = self.session.execute(check_sql, {
+                'prod_id': system_product_id,
+                'comp_id': competitor_product_id,
+                'attr_id': attr_id,
+                'algo_id': algorithm_id
+            }).fetchone()
+            
+            if result:
+                # Update existing attribute score
+                update_sql = text(
+                    "UPDATE matching_score_attributes "
+                    "SET score = :score "
+                    "WHERE score_attribute_id = :score_attr_id"
+                )
+                self.session.execute(update_sql, {
+                    'score': score_val,
+                    'score_attr_id': result[0]
+                })
+            else:
+                # Insert new attribute score
+                insert_sql = text(
+                    "INSERT INTO matching_score_attributes "
+                    "(score_id, attribute_id, system_product_id, competitor_product_id, algorithm_id, score) "
+                    "VALUES (:score_id, :attr_id, :prod_id, :comp_id, :algo_id, :score)"
+                )
+                self.session.execute(insert_sql, {
+                    'score_id': matching_score_id,
+                    'attr_id': attr_id,
+                    'prod_id': system_product_id,
+                    'comp_id': competitor_product_id,
+                    'algo_id': algorithm_id,
+                    'score': score_val
+                })
         
         self.session.commit()
         return matching_score_id
@@ -89,7 +112,7 @@ class ScoreService:
             return None
         
         attr_scores = self.session.query(MatchingScoreAttribute).filter(
-            MatchingScoreAttribute.matching_score_id == score.score_id
+            MatchingScoreAttribute.score_id == score.score_id
         ).all()
         
         return {

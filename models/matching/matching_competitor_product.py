@@ -20,13 +20,6 @@ class MatchingCompetitorProduct(BaseModel):
 
     url = Column(Text, nullable=True, default=None)
 
-    score = Column(Float, nullable=True, default=None)
-    score_status = Column(String(20), nullable=True, default=None)
-    
-    sku_score = Column(Float, nullable=True, default=None)
-    url_score = Column(Float, nullable=True, default=None)
-    price_score = Column(Float, nullable=True, default=None)
-
     # ----------------------------------------
     # relationship
     # ----------------------------------------

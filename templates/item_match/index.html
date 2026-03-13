@@ -12,37 +12,44 @@
   --yellow: #f59e0b;
   --red: #ef4444;
 }
-* { box-sizing: border-box; }
-.page { padding: 16px; }
-.section { margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fafcff; }
-.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--ink); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.page { padding: 8px 12px 0 12px; }
+.section { margin: 0 0 4px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fafcff; }
+.section-title { font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-select, button, input { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px; font-size: 13px; }
+select, button, input { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px; font-size: 13px; background: #fff; }
+.custom-select { position: relative; }
+.custom-select-trigger { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px 10px; font-size: 13px; background: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.custom-select-options { position: absolute; left: 0; right: 0; margin-top: 6px; border: 1px solid #c9d4e7; border-radius: 8px; background: #fff; z-index: 50; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); max-height: 200px; overflow-y: auto; }
+.custom-select-options.hidden { display: none; }
+.custom-option { padding: 12px 16px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+.custom-option:last-child { border-bottom: none; }
+.custom-option:hover { background: #f8fafc; }
 button { cursor: pointer; background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 600; }
 button:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
-.slider-group { margin-bottom: 16px; }
-.slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-.slider-row { display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; align-items: center; margin-bottom: 12px; }
+.slider-group { margin: 0; }
+.slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin: 0; }
+.slider-row { display: grid; grid-template-columns: 150px 1fr 70px; gap: 8px; align-items: center; margin: 0; }
 .slider-row label { margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: flex-start; gap: 4px; }
-.slider-row input[type="number"] { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 6px 8px; font-size: 13px; text-align: center; }
-.slider { width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; }
-.slider::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--blue); cursor: pointer; }
-.score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
-.score-card { padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.2s; border: 2px solid transparent; }
+.slider-row input[type="number"] { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 4px 6px; font-size: 13px; text-align: center; }
+.slider { width: 100%; height: 4px; border-radius: 2px; background: #e5e7eb; outline: none; }
+.slider::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--blue); cursor: pointer; }
+.score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0; }
+.score-card { padding: 4px 8px; border-radius: 6px; text-align: center; cursor: pointer; transition: transform 0.2s; border: 2px solid transparent; }
 .score-card:hover { transform: translateY(-2px); }
 .score-card.active { border-color: var(--blue); }
-.score-card h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
-.score-card h2 { margin: 0; font-size: 2.5rem; font-weight: bold; }
+.score-card h3 { margin: 0; font-size: 9px; color: var(--muted); }
+.score-card h2 { margin: 0; font-size: 1.1rem; font-weight: bold; }
 .score-card.total { background: #eff6ff; } .score-card.total h2 { color: var(--blue); }
 .score-card.matched { background: #f0fdf4; } .score-card.matched h2 { color: var(--green); }
 .score-card.review { background: #fffbeb; } .score-card.review h2 { color: var(--yellow); }
 .score-card.not-matched { background: #fef2f2; } .score-card.not-matched h2 { color: var(--red); }
-.chart-container { max-width: 500px; margin: 20px auto; }
+.chart-container { max-width: 500px; margin: 0 auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .product-main-row { background: #eff6ff; border: 2px solid #2563eb; font-weight: 600; position: sticky; top: 0; z-index: 10; }
-.product-info { background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
-.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.product-info { background: #f8fafc; padding: 8px 12px; border-radius: 8px; margin: 0 0 4px 0; }
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .info-item { font-size: 13px; } .info-item strong { color: var(--muted); }
 table th { background: #f8fafc; padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; cursor: pointer; user-select: none; }
 #comparisonTable th { position: sticky; top: 42px; z-index: 9; }
@@ -53,7 +60,7 @@ table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
 table tr:hover { background: #f8fafc; cursor: pointer; }
 .table-container { max-height: 500px; overflow-y: auto; }
 .hidden { display: none; }
-.loading { text-align: center; padding: 20px; }
+.loading { text-align: center; padding: 0 20px; }
 .select-hidden { display: none; }
 .multi-select { position: relative; }
 .ms-trigger { width: 100%; border: 1px solid #c9d4e7; border-radius: 6px; padding: 8px 10px; font-size: 13px; background: #ffffff; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
@@ -67,11 +74,11 @@ table tr:hover { background: #f8fafc; cursor: pointer; }
 .ms-opt { display: grid; grid-template-columns: 16px 1fr; align-items: center; column-gap: 8px; padding: 5px 2px; font-size: 13px; }
 .ms-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; border: 1px solid #9ca3af; accent-color: #2563eb; }
 .label-count { font-weight: 600; color: #1d4ed8; margin-left: 4px; }
-.chip-container { display: flex; gap: 6px; margin-bottom: 12px; }
+.chip-container { display: flex; gap: 6px; margin: 0 0 4px 0; }
 .chip { display: inline-flex; align-items: center; padding: 4px 10px; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 16px; font-size: 12px; font-weight: 600; color: #1e40af; cursor: pointer; transition: all 0.2s; user-select: none; }
 .chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 .chip:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin: 0 0 4px 0; }
 .section-title { font-size: 16px; font-weight: 600; color: var(--ink); }
 .pagination { display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); white-space: nowrap; }
 .pagination button { padding: 5px 10px; border: 1px solid #2563eb; border-radius: 4px; background: #fff; color: #2563eb; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; min-width: 32px; }
@@ -88,7 +95,7 @@ table th:hover { background: #bae6fd; }
 .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .close-btn { background: #ef4444; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: none; }
 .product-info { background: #f8fafc; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; color: #4b5563; }
-.price-calc-row { background: #f8fafc; border: 2px solid #2563eb; padding: 12px; border-radius: 6px; margin-top: 12px; margin-bottom: 12px; font-size: 13px; color: #1f2937; }
+.price-calc-row { background: #f8fafc; border: 2px solid #2563eb; padding: 8px 12px; border-radius: 6px; margin: 4px 0; font-size: 13px; color: #1f2937; }
 .price-calc-row strong { color: #1f2937; font-weight: 700; }
 .price-calc-row .price-value { font-weight: 700; font-size: 15px; color: #2563eb; }
 .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -125,7 +132,6 @@ table th:hover { background: #bae6fd; }
 </style>
 
 <div class="page">
-  <h2 style="margin:0 0 16px;">Item Match Analysis</h2>
 
   <!-- Filters Section -->
   <div class="section">
@@ -165,15 +171,19 @@ table th:hover { background: #bae6fd; }
         </div>
       </div>
       <div>
-        <label>Algorithm<span id="algoCount" class="label-count">(0 selected)</span></label>
-        <select id="algorithmSelect" class="select-hidden" multiple>
+        <label>Algorithm</label>
+        <select id="algorithmSelect" class="select-hidden">
           <option value="tfidf" selected>TF-IDF Vectorization</option>
           <option value="custom">Custom (SKU + URL + Price)</option>
           <option value="tfidf_price">TF-IDF + Price Margin</option>
         </select>
-        <div class="multi-select" id="algoDropdown">
-          <div class="ms-trigger" id="algoTrigger">Select Algorithm <span>▾</span></div>
-          <div class="ms-menu hidden" id="algoMenu"></div>
+        <div class="custom-select" id="algoCustomSelect">
+          <div class="custom-select-trigger" id="algoSelectTrigger">TF-IDF Vectorization <span>▾</span></div>
+          <div class="custom-select-options hidden" id="algoSelectOptions">
+            <div class="custom-option" data-value="tfidf">TF-IDF Vectorization</div>
+            <div class="custom-option" data-value="custom">Custom (SKU + URL + Price)</div>
+            <div class="custom-option" data-value="tfidf_price">TF-IDF + Price Margin</div>
+          </div>
         </div>
       </div>
     </div>
@@ -181,10 +191,10 @@ table th:hover { background: #bae6fd; }
 
   <!-- Configuration Section -->
   <div class="section">
-    <div id="weightGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;">
+    <div id="weightGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
       <!-- Weightage Configuration -->
       <div id="weightageSection">
-        <div class="section-title">Weightage Configuration</div>
+        <div class="section-title" style="margin:0 0 2px 0;">Weightage Configuration</div>
         <div class="slider-row" id="skuWeightRow">
           <label>SKU Weight<span id="skuPercentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
           <input type="range" id="skuWeight" class="slider" min="0" max="100" value="35">
@@ -203,8 +213,8 @@ table th:hover { background: #bae6fd; }
       </div>
       
       <!-- Price Margin Configuration -->
-      <div style="border-left: 2px solid #dde5f1; padding-left: 16px;">
-        <div class="section-title">Price Margin Configuration</div>
+      <div style="border-left: 2px solid #dde5f1; padding-left: 12px;">
+        <div class="section-title" style="margin:0 0 2px 0;">Price Margin Configuration</div>
         <div class="slider-row">
           <label>Margin %</label>
           <input type="range" id="priceMargin" class="slider" min="0" max="100" value="25">
@@ -218,8 +228,8 @@ table th:hover { background: #bae6fd; }
       </div>
       
       <!-- Status Configuration -->
-      <div style="border-left: 2px solid #dde5f1; padding-left: 16px;">
-        <div class="section-title">Status Configuration</div>
+      <div style="border-left: 2px solid #dde5f1; padding-left: 12px;">
+        <div class="section-title" style="margin:0 0 2px 0;">Status Configuration</div>
         <div class="slider-row">
           <label>Matched (≥)</label>
           <input type="range" id="matchedThreshold" class="slider" min="0" max="100" value="85">
@@ -241,54 +251,67 @@ table th:hover { background: #bae6fd; }
 
   <!-- Score Summary & Compare Button -->
   <div class="section">
-    <div style="display:flex; gap:20px; align-items:flex-start;">
-      <!-- Left side: Product counts, checkboxes and buttons -->
-      <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:8px;">
-        <!-- Product count cards in single row -->
-        <div style="display:flex; gap:6px;">
-          <div class="score-card total" data-status="all" style="padding:6px 10px;">
-            <h3 style="font-size:10px; margin:0 0 2px;">Total</h3>
+    <!-- Top row: Checkboxes and Buttons in one line -->
+    <div style="display:flex; align-items:center; gap:20px; margin-bottom:8px;">
+      <!-- Checkboxes -->
+      <div style="display:flex; gap:12px;">
+        <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="saveScoreCheck" style="width:12px; height:12px;">
+          <span>Save Score</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="saveTopMostCheck" style="width:12px; height:12px;">
+          <span>Save Top Most</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="hardRefreshCheck" style="width:12px; height:12px;">
+          <span>Hard Refresh</span>
+        </label>
+      </div>
+      
+      <!-- Buttons -->
+      <div style="display:flex; gap:8px;">
+        <button id="compareBtn" style="width:100px; height:32px; font-size:12px; padding:0;" disabled>Analyze</button>
+        <button id="recalculateBtn" style="width:120px; height:32px; font-size:12px; padding:0; background:#f59e0b; border-color:#f59e0b;" disabled>Recalculate Score</button>
+        <button id="bulkAnalyzeBtn" style="width:100px; height:32px; font-size:12px; padding:0; background:#10b981; border-color:#10b981;" disabled>Bulk Analyze</button>
+      </div>
+    </div>
+    
+    <!-- Bottom row: Three columns - Count blocks | Chart 1 | Chart 2 -->
+    <div style="display:grid; grid-template-columns:auto 1fr 1fr; gap:20px; align-items:center;">
+      <!-- Column 1: Count blocks -->
+      <div style="display:flex; flex-direction:column; gap:8px; justify-content:center; align-items:center;">
+        <div style="display:flex; gap:8px;">
+          <div class="score-card total" data-status="all" style="padding:8px 12px; width:100px;">
+            <h3 style="font-size:10px; margin:0;">Total</h3>
             <h2 style="font-size:1.2rem; margin:0;" id="totalItems">0</h2>
           </div>
-          <div class="score-card matched hidden" data-status="Matched" style="padding:6px 10px;" id="matchedCard">
-            <h3 style="font-size:10px; margin:0 0 2px;">Matched</h3>
+          <div class="score-card matched hidden" data-status="Matched" style="padding:8px 12px; width:100px;" id="matchedCard">
+            <h3 style="font-size:10px; margin:0;">Matched</h3>
             <h2 style="font-size:1.2rem; margin:0;" id="matchedItems">0</h2>
           </div>
-          <div class="score-card review hidden" data-status="Review" style="padding:6px 10px;" id="reviewCard">
-            <h3 style="font-size:10px; margin:0 0 2px;">Review</h3>
+          <div class="score-card review hidden" data-status="Review" style="padding:8px 12px; width:100px;" id="reviewCard">
+            <h3 style="font-size:10px; margin:0;">Review</h3>
             <h2 style="font-size:1.2rem; margin:0;" id="reviewItems">0</h2>
           </div>
-          <div class="score-card not-matched hidden" data-status="Not Matched" style="padding:6px 10px;" id="notMatchedCard">
-            <h3 style="font-size:10px; margin:0 0 2px;">Not Matched</h3>
+          <div class="score-card not-matched hidden" data-status="Not Matched" style="padding:8px 12px; width:100px;" id="notMatchedCard">
+            <h3 style="font-size:10px; margin:0;">Not Matched</h3>
             <h2 style="font-size:1.2rem; margin:0;" id="notMatchedItems">0</h2>
           </div>
         </div>
-        
-        <!-- Checkboxes -->
-        <div style="display:flex; gap:12px; align-items:center;">
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="saveScoreCheck" style="width:14px; height:14px;">
-            <span>Save Score</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="saveTopMostCheck" style="width:14px; height:14px;">
-            <span>Save Top Most</span>
-          </label>
-        </div>
-        
-        <!-- Buttons -->
-        <div style="display:flex; gap:8px;">
-          <button id="compareBtn" style="width:120px; height:36px; font-size:13px; padding:0;" disabled>Analyze</button>
-          <button id="analyseMultipleBtn" style="width:140px; height:36px; font-size:13px; padding:0;" disabled>Analyse Multiple</button>
-        </div>
+        <button id="exportCsvBtn" style="width:120px; height:32px; font-size:12px; padding:0; background:#10b981; border-color:#10b981; display:none;">Export to CSV</button>
       </div>
       
-      <!-- Right side: Chart -->
-      <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-        <div style="max-width:350px; width:100%;">
-          <div class="section-title" style="text-align:center; margin-bottom:8px; font-size:13px;">Status Distribution</div>
-          <canvas id="statusChart" style="max-height:200px;"></canvas>
-        </div>
+      <!-- Column 2: Status Distribution Chart -->
+      <div id="statusChartColumn" style="display:none; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="section-title" style="text-align:center; margin:0 0 4px 0; font-size:12px;">Status Distribution</div>
+        <canvas id="statusChart" style="max-height:140px; max-width:280px;"></canvas>
+      </div>
+      
+      <!-- Column 3: Score Range Chart -->
+      <div id="scoreRangeChartWrapper" style="display:none; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="section-title" style="text-align:center; margin:0 0 4px 0; font-size:12px;" id="scoreRangeTitle">Score Range</div>
+        <canvas id="scoreRangeChart" style="max-height:140px; max-width:280px;"></canvas>
       </div>
     </div>
   </div>
@@ -316,6 +339,7 @@ table th:hover { background: #bae6fd; }
               <th data-col="category">Category</th>
               <th data-col="product_type">Product Type</th>
               <th data-col="sku">SKU</th>
+              <th data-col="part_number">Part Number</th>
               <th data-col="total_items">Total Compared</th>
               <th data-col="matched_count">Matched</th>
               <th data-col="review_count">Review</th>
@@ -378,12 +402,26 @@ table th:hover { background: #bae6fd; }
   </div>
 </div>
 
+<!-- Recalculate Results Modal -->
+<div id="recalculateModal" class="progress-modal hidden">
+  <div class="progress-content" style="max-width:800px;height:auto;max-height:90vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="progress-title" style="margin:0;">Recalculate Score Results</div>
+      <button id="closeRecalculateBtn" style="width:auto;padding:6px 12px;background:#2563eb;border:none;">Close</button>
+    </div>
+    
+    <div id="recalculateResults" style="display:flex;flex-direction:column;gap:16px;"></div>
+  </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 let allResults = [];
+let originalResults = [];  // Keep backup of original results
 let chartInstance = null;
+let scoreRangeChartInstance = null;
 let currentSort = { column: 'max_score', direction: 'desc' };
 let detailSort = { column: null, direction: 'asc' };
 let currentPage = 1;
@@ -395,35 +433,45 @@ let brandCategoryProgress = {};
 let dbAttributes = [];  // Store attributes from DB
 let dbPriceConfig = {};  // Store price config from DB
 let dbStatusConfig = {};  // Store status config from DB
+let selectedStatus = null;  // Track selected status for score range chart
+let selectedScoreRange = null;  // Track selected score range
+let filteredProductIds = null;  // Store filtered product IDs for recalculation
 
 function loadAttributesFromDB() {
   $.ajax({
     url: '/item-match/api/attributes',
     method: 'GET',
     success: function(data) {
-      if (data.attributes) {
-        dbAttributes = data.attributes;
+      if (data.attributes_by_type) {
+        const attrsByType = data.attributes_by_type;
+        
+        // Store for later use - keep original structure from API
+        dbAttributes = data.attributes || [];
         dbPriceConfig = data.price_config || {};
         dbStatusConfig = data.status_config || {};
         
+        // Also store the attrsByType for rebuilding
+        window.dbAttrsByType = attrsByType;
+        
+        // Populate attribute selector with default attributes
         const attrSelect = $('#attributeSelect')[0];
         attrSelect.innerHTML = '';
         
-        data.attributes.forEach(attr => {
-          const opt = document.createElement('option');
-          opt.value = attr.value;
-          opt.textContent = attr.label;
-          opt.selected = true;  // Select all by default
-          attrSelect.appendChild(opt);
-        });
+        if (attrsByType.default) {
+          attrsByType.default.forEach(attr => {
+            const opt = document.createElement('option');
+            opt.value = attr.value;
+            opt.textContent = attr.label;
+            opt.selected = true;
+            attrSelect.appendChild(opt);
+          });
+        }
         
         renderMultiSelect(attrSelect, $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
-        updateWeightSliders();
-        loadDefaultWeights();
-        loadPriceConfig();
-        loadStatusConfig();
         
-        // Force update button states after a short delay to ensure DOM is ready
+        // Dynamically create configuration sections
+        createConfigurationSections(attrsByType);
+        
         setTimeout(function() {
           updateButtonStates();
         }, 100);
@@ -433,6 +481,133 @@ function loadAttributesFromDB() {
       console.error('Failed to load attributes from database');
     }
   });
+}
+
+function createConfigurationSections(attrsByType) {
+  const weightGrid = $('#weightGrid');
+  weightGrid.empty();
+  
+  // Get currently selected attributes
+  const selectedAttrs = Array.from($('#attributeSelect')[0].selectedOptions || []).map(o => o.value);
+  console.log('[createConfigurationSections] Selected attributes:', selectedAttrs);
+  console.log('[createConfigurationSections] attrsByType:', attrsByType);
+  
+  // Create sections for each attribute type
+  Object.keys(attrsByType).forEach((type, index) => {
+    const attrs = attrsByType[type];
+    const sectionTitle = type.charAt(0).toUpperCase() + type.slice(1) + ' Configuration';
+    
+    let sectionHtml = `<div${index > 0 ? ' style="border-left: 2px solid #dde5f1; padding-left: 12px;"' : ''}${type === 'default' ? ' id="weightageSection"' : ''}>
+      <div class="section-title" style="margin:0 0 2px 0;">${sectionTitle}</div>`;
+    
+    if (type === 'default') {
+      // If no attributes selected yet, show all (initial load)
+      const attrsToShow = selectedAttrs.length > 0 ? attrs.filter(a => selectedAttrs.includes(a.value)) : attrs;
+      console.log('[createConfigurationSections] Attributes to show:', attrsToShow);
+      
+      if (attrsToShow.length === 0) {
+        sectionHtml += '<div style="padding:8px;color:#6b7280;font-size:13px;">No attributes selected</div>';
+      } else {
+        // Group attributes by competitor_attribute for shared sliders
+        const compAttrGroups = {};
+        attrsToShow.forEach(attr => {
+          const compAttr = attr.competitor_attribute || attr.value;
+          if (!compAttrGroups[compAttr]) {
+            compAttrGroups[compAttr] = [];
+          }
+          compAttrGroups[compAttr].push(attr);
+        });
+        
+        console.log('[createConfigurationSections] Competitor attribute groups:', compAttrGroups);
+        
+        // Create one slider per competitor attribute group
+        Object.keys(compAttrGroups).forEach(compAttr => {
+          const group = compAttrGroups[compAttr];
+          const firstAttr = group[0];
+          const sliderId = `${compAttr}Weight`;
+          const inputId = `${compAttr}Input`;
+          const percentageId = `${compAttr}Percentage`;
+          const label = compAttr.toUpperCase();
+          
+          // Show which attributes are grouped (if more than one)
+          const groupInfo = group.length > 1 ? ` (${group.map(a => a.value).join(', ')})` : '';
+          
+          sectionHtml += `
+            <div class="slider-row" id="${compAttr}WeightRow">
+              <label>${label} Weight<span style="font-size:10px;color:#6b7280;">${groupInfo}</span><span id="${percentageId}" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+              <input type="range" id="${sliderId}" class="slider" min="0" max="100" value="${firstAttr.default_weight}">
+              <input type="number" id="${inputId}" min="0" max="100" value="${firstAttr.default_weight}">
+            </div>`;
+        });
+      }
+    } else {
+      // Regular sliders for other types
+      attrs.forEach(attr => {
+        const inputId = `${attr.value}Input`;
+        const sliderId = `${attr.value}Slider`;
+        
+        sectionHtml += `
+          <div class="slider-row">
+            <label>${attr.label}${type === 'status' ? ' (≥)' : type === 'price' ? ' %' : ''}</label>
+            <input type="range" id="${sliderId}" class="slider" min="0" max="100" value="${attr.default_weight}">
+            <input type="number" id="${inputId}" min="0" max="100" value="${attr.default_weight}">
+          </div>`;
+      });
+    }
+    
+    sectionHtml += '</div>';
+    weightGrid.append(sectionHtml);
+    
+    // Add event handlers
+    if (type === 'default') {
+      const attrsToShow = selectedAttrs.length > 0 ? attrs.filter(a => selectedAttrs.includes(a.value)) : attrs;
+      
+      // Group attributes by competitor_attribute
+      const compAttrGroups = {};
+      attrsToShow.forEach(attr => {
+        const compAttr = attr.competitor_attribute || attr.value;
+        if (!compAttrGroups[compAttr]) {
+          compAttrGroups[compAttr] = [];
+        }
+        compAttrGroups[compAttr].push(attr);
+      });
+      
+      Object.keys(compAttrGroups).forEach(compAttr => {
+        const sliderId = `${compAttr}Weight`;
+        const inputId = `${compAttr}Input`;
+        
+        $(`#${sliderId}`).on('input', function() {
+          $(`#${inputId}`).val($(this).val());
+          updateWeightPercentages();
+        });
+        
+        $(`#${inputId}`).on('input', function() {
+          let val = Math.max(0, Math.min(100, $(this).val()));
+          $(this).val(val);
+          $(`#${sliderId}`).val(val);
+          updateWeightPercentages();
+        });
+      });
+    } else {
+      attrs.forEach(attr => {
+        const inputId = `${attr.value}Input`;
+        const sliderId = `${attr.value}Slider`;
+        
+        $(`#${sliderId}`).on('input', function() {
+          $(`#${inputId}`).val($(this).val());
+        });
+        
+        $(`#${inputId}`).on('input', function() {
+          let val = Math.max(0, Math.min(100, $(this).val()));
+          $(this).val(val);
+          $(`#${sliderId}`).val(val);
+        });
+      });
+    }
+  });
+  
+  console.log('[createConfigurationSections] Finished creating sections');
+  updateWeightPercentages();
 }
 
 function loadDefaultWeights() {
@@ -482,7 +657,10 @@ $(document).ready(function() {
   });
   
   $('#attributeSelect').change(function() {
-    updateWeightSliders();
+    // Rebuild entire configuration sections to show/hide sliders
+    if (window.dbAttrsByType) {
+      createConfigurationSections(window.dbAttrsByType);
+    }
   });
   
   $('.chip').click(function() {
@@ -585,6 +763,8 @@ $(document).ready(function() {
     $('.score-card').removeClass('active');
     $(this).addClass('active');
     $('#itemDetailsSection').addClass('hidden');
+    selectedStatus = status;
+    updateScoreRangeChart(status);
     showProductList(status);
   });
   
@@ -633,24 +813,47 @@ $(document).ready(function() {
   $('#categoryTrigger').click(() => toggleMenu('categoryMenu'));
   $('#typeTrigger').click(() => toggleMenu('typeMenu'));
   $('#attrTrigger').click(() => toggleMenu('attrMenu'));
-  $('#algoTrigger').click(() => toggleMenu('algoMenu'));
   
   $(document).click(function(e) {
     if (!$(e.target).closest('.multi-select').length) {
       closeAllMenus();
     }
+    if (!$(e.target).closest('.custom-select').length) {
+      $('#algoSelectOptions').addClass('hidden');
+    }
+  });
+  
+  // Custom algorithm dropdown
+  $('#algoSelectTrigger').click(function(e) {
+    e.stopPropagation();
+    $('#algoSelectOptions').toggleClass('hidden');
+  });
+  
+  $('.custom-option').click(function() {
+    const value = $(this).data('value');
+    const text = $(this).text();
+    $('#algorithmSelect').val(value);
+    $('#algoSelectTrigger').html(text + ' <span>▾</span>');
+    $('#algoSelectOptions').addClass('hidden');
   });
   
   renderMultiSelect($('#attributeSelect')[0], $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
-  renderMultiSelect($('#algorithmSelect')[0], $('#algoMenu')[0], $('#algoTrigger')[0], $('#algoCount')[0], 'Select Algorithm');
   updateWeightSliders();
-  
-  $('#analyseMultipleBtn').click(function() {
-    analyseMultipleProducts();
-  });
   
   $('#closeProgressBtn').click(function() {
     stopAnalysis();
+  });
+  
+  $('#recalculateBtn').click(function() {
+    recalculateScores();
+  });
+  
+  $('#bulkAnalyzeBtn').click(function() {
+    runBulkAnalyze();
+  });
+  
+  $('#exportCsvBtn').click(function() {
+    exportToCsv();
   });
 });
 
@@ -670,31 +873,57 @@ function updateWeightSliders() {
   const container = $('#weightageSection');
   
   container.empty();
+  
+  // If no attributes selected, show message
+  if (selected.length === 0) {
+    container.append('<div class="section-title">Weightage Configuration</div>');
+    container.append('<div style="padding:8px;color:#6b7280;font-size:13px;">No attributes selected</div>');
+    updateWeightPercentages();
+    return;
+  }
+  
   container.append('<div class="section-title">Weightage Configuration</div>');
   
+  // Get unique competitor attributes from selected attributes
+  const uniqueCompAttrs = new Set();
   selected.forEach(attrName => {
     const attr = dbAttributes.find(a => a.value === attrName);
+    if (attr && attr.competitor_attribute) {
+      uniqueCompAttrs.add(attr.competitor_attribute);
+    }
+  });
+  
+  // Create sliders only for unique competitor attributes of SELECTED attributes
+  Array.from(uniqueCompAttrs).forEach(compAttr => {
+    // Find first system attribute that maps to this competitor attribute
+    const systemAttr = selected.find(attrName => {
+      const attr = dbAttributes.find(a => a.value === attrName);
+      return attr && attr.competitor_attribute === compAttr;
+    });
+    
+    if (!systemAttr) return;
+    
+    const attr = dbAttributes.find(a => a.value === systemAttr);
     const defaultWeight = attr ? attr.default_weight : 33;
     
     const rowHtml = `
-      <div class="slider-row" id="${attrName}WeightRow">
-        <label>${attrName.toUpperCase()} Weight<span id="${attrName}Percentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
-        <input type="range" id="${attrName}Weight" class="slider" min="0" max="100" value="${defaultWeight}">
-        <input type="number" id="${attrName}WeightInput" min="0" max="100" value="${defaultWeight}">
+      <div class="slider-row" id="${systemAttr}WeightRow">
+        <label>${systemAttr.toUpperCase()} Weight<span id="${systemAttr}Percentage" style="color:#1f2937;font-weight:600;font-size:12px;">(33.33%)</span></label>
+        <input type="range" id="${systemAttr}Weight" class="slider" min="0" max="100" value="${defaultWeight}">
+        <input type="number" id="${systemAttr}WeightInput" min="0" max="100" value="${defaultWeight}">
       </div>
     `;
     container.append(rowHtml);
     
-    // Attach event handlers
-    $(`#${attrName}Weight`).on('input', function() {
-      $(`#${attrName}WeightInput`).val($(this).val());
+    $(`#${systemAttr}Weight`).on('input', function() {
+      $(`#${systemAttr}WeightInput`).val($(this).val());
       updateWeightPercentages();
     });
     
-    $(`#${attrName}WeightInput`).on('input', function() {
+    $(`#${systemAttr}WeightInput`).on('input', function() {
       let val = Math.max(0, Math.min(100, $(this).val()));
       $(this).val(val);
-      $(`#${attrName}Weight`).val(val);
+      $(`#${systemAttr}Weight`).val(val);
       updateWeightPercentages();
     });
   });
@@ -703,26 +932,44 @@ function updateWeightSliders() {
 }
 
 function updateWeightPercentages() {
-  const selected = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  const selected = getSelectedAttributes();
   const weights = {};
   let totalWeight = 0;
   
-  selected.forEach(attrName => {
-    const val = parseInt($(`#${attrName}WeightInput`).val()) || 0;
-    weights[attrName] = val;
+  // Group selected attributes by competitor_attribute
+  const compAttrGroups = {};
+  selected.forEach(attr => {
+    const dbAttr = dbAttributes.find(a => a.value === attr);
+    const compAttr = dbAttr ? (dbAttr.competitor_attribute || attr) : attr;
+    if (!compAttrGroups[compAttr]) {
+      compAttrGroups[compAttr] = [];
+    }
+    compAttrGroups[compAttr].push(attr);
+  });
+  
+  // Get weight for each competitor attribute group
+  Object.keys(compAttrGroups).forEach(compAttr => {
+    const inputId = `${compAttr}Input`;
+    const val = parseInt($(`#${inputId}`).val()) || 0;
+    weights[compAttr] = val;
     totalWeight += val;
   });
   
   if (totalWeight === 0) totalWeight = 1;
   
-  selected.forEach(attrName => {
-    const percentage = ((weights[attrName] / totalWeight) * 100).toFixed(2);
-    $(`#${attrName}Percentage`).text(`(${percentage}%)`);
+  // Update percentage displays for each competitor attribute
+  Object.keys(compAttrGroups).forEach(compAttr => {
+    const percentage = ((weights[compAttr] / totalWeight) * 100).toFixed(2);
+    const percentageId = `${compAttr}Percentage`;
+    $(`#${percentageId}`).text(`(${percentage}%)`);
   });
 }
 
 function getSelectedAttributes() {
-  return Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  const selected = Array.from($('#attributeSelect')[0].selectedOptions).map(o => o.value);
+  // Enforce order: sku, part_number, url, price
+  const order = ['sku', 'part_number', 'url', 'price'];
+  return order.filter(attr => selected.includes(attr));
 }
 
 function renderMultiSelect(selectEl, menuEl, triggerEl, countEl, placeholder) {
@@ -891,8 +1138,14 @@ function updateCounts() {
   // Analyze button: needs attributes AND at least one filter
   $('#compareBtn').prop('disabled', !hasAttribute || !hasAnyFilter);
   
-  // Analyse Multiple button: always enabled if attributes selected (works with or without filters)
-  $('#analyseMultipleBtn').prop('disabled', false);  // Force enable for testing
+  // Recalculate button: always enabled
+  $('#recalculateBtn').prop('disabled', false);
+  
+  // Bulk analyze button: always enabled
+  $('#bulkAnalyzeBtn').prop('disabled', false);
+  
+  // Export CSV button: only enabled after analysis results are available
+  // Don't enable it here, only after displayResults() is called
   
   if (hasAnyFilter) {
     $.ajax({
@@ -921,13 +1174,16 @@ function analyseMultipleProducts() {
   const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
   const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
   const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
-  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const algorithms = [$('#algorithmSelect').val()];
   const attributes = getSelectedAttributes();
-  const weights = {
-    sku: parseInt($('#skuWeightInput').val()),
-    price: parseInt($('#priceWeightInput').val()),
-    url: parseInt($('#urlWeightInput').val())
-  };
+  
+  // Build weights dynamically based on selected attributes
+  const weights = {};
+  attributes.forEach(attr => {
+    const weightVal = parseInt($(`#${attr}WeightInput`).val()) || 0;
+    weights[attr] = weightVal;
+  });
+  
   const thresholds = {
     matched: parseInt($('#matchedThresholdInput').val()),
     review: parseInt($('#reviewThresholdInput').val())
@@ -936,6 +1192,9 @@ function analyseMultipleProducts() {
     margin: parseInt($('#priceMarginInput').val()),
     margin_diff: parseInt($('#marginDiffInput').val())
   };
+  const hardRefresh = $('#hardRefreshCheck').is(':checked');
+  
+  console.log('Starting analysis with:', {brands, categories, types, algorithms, attributes, weights, thresholds, priceConfig, hardRefresh});
   
   $('#progressModal').removeClass('hidden');
   $('#progressBar').css('width', '0%');
@@ -978,27 +1237,33 @@ function analyseMultipleProducts() {
     url: '/item-match/api/analyze-multiple',
     method: 'POST',
     contentType: 'application/json',
-    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig }),
+    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig, hard_refresh: hardRefresh }),
     success: function(response) {
       if(response.success) {
         const brandCategories = response.brand_categories;
-        processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig);
+        console.log('Got brand categories:', brandCategories);
+        processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig, hardRefresh);
       } else {
+        isAnalyzing = false;
         $('#progressModal').addClass('hidden');
         alert('Error: ' + response.error);
       }
     },
-    error: function() {
+    error: function(xhr, status, error) {
+      isAnalyzing = false;
       $('#progressModal').addClass('hidden');
-      alert('Error starting analysis');
+      console.error('Error starting analysis:', error);
+      alert('Error starting analysis: ' + error);
     }
   });
 }
 
-function processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig) {
+function processBrandByBrand(brandCategories, algorithms, attributes, weights, thresholds, priceConfig, hardRefresh) {
   const brands = Object.keys(brandCategories);
   let totalCategories = 0;
   brands.forEach(b => { totalCategories += brandCategories[b].length; });
+  
+  console.log('Processing', totalCategories, 'categories across', brands.length, 'brands');
   
   let processedCategories = 0;
   let currentBrandIndex = 0;
@@ -1053,9 +1318,11 @@ function processBrandByBrand(brandCategories, algorithms, attributes, weights, t
         weights: weights,
         thresholds: thresholds,
         price_config: priceConfig,
-        reset_scores: processedCategories === 0
+        reset_scores: processedCategories === 0,
+        hard_refresh: hardRefresh
       }),
       success: function(response) {
+        console.log('Processed:', brand, category, response);
         if(response.success) {
           processedCategories++;
           currentCategoryIndex++;
@@ -1110,9 +1377,11 @@ function processBrandByBrand(brandCategories, algorithms, attributes, weights, t
           alert('Error: ' + response.error);
         }
       },
-      error: function() {
+      error: function(xhr, status, error) {
+        isAnalyzing = false;
         $('#progressModal').addClass('hidden');
-        alert('Error processing brand/category');
+        console.error('Error processing brand/category:', brand, category, error);
+        alert('Error processing ' + brand + ' - ' + category + ': ' + error);
       }
     });
   }
@@ -1332,25 +1601,41 @@ function runAnalysis() {
   const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
   const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
   const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
-  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const algorithms = [$('#algorithmSelect').val()];
   const attributes = getSelectedAttributes();
   
-  // Build weights dynamically
+  // Build weights dynamically - map from competitor attributes to individual attributes
   const weights = {};
   attributes.forEach(attr => {
-    weights[attr] = parseInt($(`#${attr}WeightInput`).val()) || 0;
+    // Find the competitor attribute for this attribute
+    const dbAttr = dbAttributes.find(a => a.value === attr);
+    const compAttr = dbAttr ? (dbAttr.competitor_attribute || attr) : attr;
+    const inputId = `${compAttr}Input`;
+    const weight = parseInt($(`#${inputId}`).val()) || 0;
+    weights[attr] = weight;
   });
   
-  const thresholds = {
-    matched: parseInt($('#matchedThresholdInput').val()),
-    review: parseInt($('#reviewThresholdInput').val())
-  };
-  const priceConfig = {
-    margin: parseInt($('#priceMarginInput').val()),
-    margin_diff: parseInt($('#marginDiffInput').val())
-  };
+  // Get thresholds dynamically
+  const thresholds = {};
+  ['matched', 'review'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      thresholds[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  // Get price config dynamically - now with separate low/upper limits
+  const priceConfig = {};
+  ['margin', 'margin_low_limit', 'margin_upper_limit'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      priceConfig[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
   const saveScore = $('#saveScoreCheck').is(':checked');
   const saveTopMost = $('#saveTopMostCheck').is(':checked');
+  const hardRefresh = $('#hardRefreshCheck').is(':checked');
   
   $('#loading').removeClass('hidden');
   $('#resultsSection').addClass('hidden');
@@ -1359,7 +1644,7 @@ function runAnalysis() {
     url: '/item-match/api/analyze',
     method: 'POST',
     contentType: 'application/json',
-    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig, save_score: saveScore, save_top_most: saveTopMost }),
+    data: JSON.stringify({ brands, categories, types, algorithms, attributes, weights, thresholds, price_config: priceConfig, save_score: saveScore, save_top_most: saveTopMost, hard_refresh: hardRefresh }),
     success: function(response) {
       $('#loading').addClass('hidden');
       if(response.error) {
@@ -1377,6 +1662,14 @@ function runAnalysis() {
 
 function displayResults(data) {
   allResults = data.summary;
+  originalResults = [...data.summary];  // Keep backup of original results
+  
+  // Hide score range chart on new analysis
+  $('#scoreRangeChartWrapper').hide();
+  if(scoreRangeChartInstance) {
+    scoreRangeChartInstance.destroy();
+    scoreRangeChartInstance = null;
+  }
   
   $('#totalItems').text(data.stats.total);
   $('#matchedItems').text(data.stats.matched);
@@ -1385,7 +1678,13 @@ function displayResults(data) {
   
   $('#matchedCard, #reviewCard, #notMatchedCard').removeClass('hidden');
   
+  // Show chart columns when we have data
+  $('#statusChartColumn').css('display', 'flex');
+  
   updateChart(data.stats);
+  
+  // Enable export button when we have results
+  $('#exportCsvBtn').show();
   
   // Reload filters to update colors
   loadFilters();
@@ -1422,34 +1721,234 @@ function updateChart(stats) {
           const index = elements[0].index;
           const statusMap = ['Matched', 'Review', 'Not Matched'];
           const status = statusMap[index];
+          selectedStatus = status;
           $('.score-card').removeClass('active');
           $(`.score-card[data-status="${status}"]`).addClass('active');
           $('#itemDetailsSection').addClass('hidden');
           showProductList(status);
+          updateScoreRangeChart(status);
         }
       }
     }
   });
 }
 
-function showProductList(status) {
-  const filtered = status === 'all' ? allResults : allResults.filter(r => r.status === status);
+function updateScoreRangeChart(status) {
+  const filtered = status === 'all' ? originalResults : originalResults.filter(r => r.status === status);
   
-  // Sort data
+  if (filtered.length === 0) {
+    $('#scoreRangeChartWrapper').hide();
+    return;
+  }
+  
+  const ranges = {
+    '0-10': 0,
+    '10-20': 0,
+    '20-30': 0,
+    '30-40': 0,
+    '40-50': 0,
+    '50-60': 0,
+    '60-70': 0,
+    '70-80': 0,
+    '80-90': 0,
+    '90-100': 0
+  };
+  
+  filtered.forEach(item => {
+    const score = item.max_score;
+    if (score < 10) ranges['0-10']++;
+    else if (score < 20) ranges['10-20']++;
+    else if (score < 30) ranges['20-30']++;
+    else if (score < 40) ranges['30-40']++;
+    else if (score < 50) ranges['40-50']++;
+    else if (score < 60) ranges['50-60']++;
+    else if (score < 70) ranges['60-70']++;
+    else if (score < 80) ranges['70-80']++;
+    else if (score < 90) ranges['80-90']++;
+    else ranges['90-100']++;
+  });
+  
+  const ctx = document.getElementById('scoreRangeChart').getContext('2d');
+  
+  if(scoreRangeChartInstance) {
+    scoreRangeChartInstance.destroy();
+  }
+  
+  // For 'all' status, color bars based on the predominant status in each range
+  let barColors;
+  if (status === 'all') {
+    barColors = ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'].map(range => {
+      const [minScore, maxScore] = range.split('-').map(Number);
+      const itemsInRange = filtered.filter(r => {
+        if (range === '90-100') {
+          return r.max_score >= minScore && r.max_score <= 100;
+        } else {
+          return r.max_score >= minScore && r.max_score < maxScore;
+        }
+      });
+      
+      if (itemsInRange.length === 0) return '#e5e7eb'; // Gray for empty ranges
+      
+      // Count statuses in this range
+      const matchedCount = itemsInRange.filter(r => r.status === 'Matched').length;
+      const reviewCount = itemsInRange.filter(r => r.status === 'Review').length;
+      const notMatchedCount = itemsInRange.filter(r => r.status === 'Not Matched').length;
+      
+      // Return color of predominant status
+      if (matchedCount >= reviewCount && matchedCount >= notMatchedCount) return '#10b981'; // Green
+      else if (reviewCount >= notMatchedCount) return '#f59e0b'; // Yellow
+      else return '#ef4444'; // Red
+    });
+  } else {
+    const statusColors = {
+      'Matched': '#10b981',
+      'Review': '#f59e0b',
+      'Not Matched': '#ef4444'
+    };
+    const barColor = statusColors[status] || '#2563eb';
+    barColors = barColor;
+  }
+  
+  scoreRangeChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'],
+      datasets: [{
+        data: [ranges['0-10'], ranges['10-20'], ranges['20-30'], ranges['30-40'], ranges['40-50'], ranges['50-60'], ranges['60-70'], ranges['70-80'], ranges['80-90'], ranges['90-100']],
+        backgroundColor: barColors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const index = elements[0].index;
+          const rangeLabels = ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'];
+          selectedScoreRange = rangeLabels[index];
+          currentPage = 1;
+          showProductListByScoreRange(status, selectedScoreRange);
+        }
+      }
+    }
+  });
+  
+  $('#scoreRangeTitle').text(`Score Range - ${status === 'all' ? 'All' : status}`);
+  $('#scoreRangeChartWrapper').css('display', 'flex');
+}
+
+function showProductListByScoreRange(status, scoreRange) {
+  const [minScore, maxScore] = scoreRange.split('-').map(Number);
+  let filtered;
+  if (status === 'all') {
+    filtered = originalResults.filter(r => {
+      if (scoreRange === '90-100') {
+        return r.max_score >= minScore && r.max_score <= 100;
+      } else {
+        return r.max_score >= minScore && r.max_score < maxScore;
+      }
+    });
+  } else {
+    filtered = originalResults.filter(r => {
+      const scoreMatch = scoreRange === '90-100' 
+        ? (r.max_score >= minScore && r.max_score <= 100)
+        : (r.max_score >= minScore && r.max_score < maxScore);
+      return r.status === status && scoreMatch;
+    });
+  }
+  
+  allResults = filtered;
+  filteredProductIds = filtered.map(r => r.product_id);
+  
   const sorted = [...filtered].sort((a, b) => {
     let aVal = a[currentSort.column];
     let bVal = b[currentSort.column];
-    
-    // Handle numeric vs string
     if (typeof aVal === 'string') aVal = aVal.toLowerCase();
     if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-    
     if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
     if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
     return 0;
   });
   
-  // Pagination
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  currentPage = Math.min(currentPage, Math.max(1, totalPages));
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = startIdx + pageSize;
+  const paginated = sorted.slice(startIdx, endIdx);
+  
+  $('#productListTitle').text(`Product List - ${status} (${scoreRange}) (${sorted.length})`);
+  
+  const attributes = getSelectedAttributes();
+  const thead = $('#productTable thead tr');
+  const tbody = $('#productTable tbody');
+  
+  thead.empty();
+  tbody.empty();
+  
+  thead.append('<th data-col="brand">Brand</th>');
+  thead.append('<th data-col="category">Category</th>');
+  thead.append('<th data-col="product_type">Product Type</th>');
+  
+  if (attributes.includes('sku')) thead.append('<th data-col="sku">SKU</th>');
+  if (attributes.includes('part_number')) thead.append('<th data-col="part_number">Part Number</th>');
+  
+  thead.append('<th data-col="total_items">Total Compared</th>');
+  thead.append('<th data-col="matched_count">Matched</th>');
+  thead.append('<th data-col="review_count">Review</th>');
+  thead.append('<th data-col="not_matched_count">Not Matched</th>');
+  thead.append('<th data-col="max_score">Best Score</th>');
+  thead.append('<th data-col="status">Status</th>');
+  
+  paginated.forEach(row => {
+    const statusColor = row.status === 'Matched' ? '#10b981' : row.status === 'Review' ? '#f59e0b' : '#ef4444';
+    let rowHtml = `<tr data-product-id="${row.product_id}">`;
+    rowHtml += `<td>${row.brand ?? '-'}</td>`;
+    rowHtml += `<td>${row.category ?? '-'}</td>`;
+    rowHtml += `<td>${row.product_type ?? '-'}</td>`;
+    if (attributes.includes('sku')) rowHtml += `<td>${row.sku ?? '-'}</td>`;
+    if (attributes.includes('part_number')) rowHtml += `<td>${row.part_number ?? '-'}</td>`;
+    rowHtml += `<td>${row.total_items ?? 0}</td>`;
+    rowHtml += `<td style="color:#10b981;font-weight:600">${row.matched_count ?? 0}</td>`;
+    rowHtml += `<td style="color:#f59e0b;font-weight:600">${row.review_count ?? 0}</td>`;
+    rowHtml += `<td style="color:#ef4444;font-weight:600">${row.not_matched_count ?? 0}</td>`;
+    rowHtml += `<td>${row.max_score}%</td>`;
+    rowHtml += `<td style="color:${statusColor};font-weight:600">${row.status}</td>`;
+    rowHtml += '</tr>';
+    tbody.append(rowHtml);
+  });
+  
+  $('#productTable tbody tr').click(function() {
+    const productId = $(this).data('product-id');
+    showItemDetails(productId);
+  });
+  
+  $('#productTable th').removeClass('sort-asc sort-desc');
+  $(`#productTable th[data-col="${currentSort.column}"]`).addClass(`sort-${currentSort.direction}`);
+  
+  $('#paginationInfo').text(`Page ${currentPage} of ${totalPages} (${sorted.length} items)`);
+  $('#prevPage').prop('disabled', currentPage === 1);
+  $('#nextPage').prop('disabled', currentPage === totalPages);
+  
+  $('#productListSection').removeClass('hidden');
+}
+
+function showProductList(status) {
+  const filtered = status === 'all' ? [...originalResults] : originalResults.filter(r => r.status === status);
+  allResults = filtered;
+  filteredProductIds = filtered.map(r => r.product_id);
+  
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal = a[currentSort.column];
+    let bVal = b[currentSort.column];
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+  
   const totalPages = Math.ceil(sorted.length / pageSize);
   currentPage = Math.min(currentPage, Math.max(1, totalPages));
   const startIdx = (currentPage - 1) * pageSize;
@@ -1458,25 +1957,43 @@ function showProductList(status) {
   
   $('#productListTitle').text(`Product List - ${status === 'all' ? 'All' : status} (${sorted.length})`);
   
+  const attributes = getSelectedAttributes();
+  const thead = $('#productTable thead tr');
   const tbody = $('#productTable tbody');
+  
+  thead.empty();
   tbody.empty();
+  
+  thead.append('<th data-col="brand">Brand</th>');
+  thead.append('<th data-col="category">Category</th>');
+  thead.append('<th data-col="product_type">Product Type</th>');
+  
+  if (attributes.includes('sku')) thead.append('<th data-col="sku">SKU</th>');
+  if (attributes.includes('part_number')) thead.append('<th data-col="part_number">Part Number</th>');
+  
+  thead.append('<th data-col="total_items">Total Compared</th>');
+  thead.append('<th data-col="matched_count">Matched</th>');
+  thead.append('<th data-col="review_count">Review</th>');
+  thead.append('<th data-col="not_matched_count">Not Matched</th>');
+  thead.append('<th data-col="max_score">Best Score</th>');
+  thead.append('<th data-col="status">Status</th>');
   
   paginated.forEach(row => {
     const statusColor = row.status === 'Matched' ? '#10b981' : row.status === 'Review' ? '#f59e0b' : '#ef4444';
-    tbody.append(`
-      <tr data-product-id="${row.product_id}">
-        <td>${row.brand ?? '-'}</td>
-        <td>${row.category ?? '-'}</td>
-        <td>${row.product_type ?? '-'}</td>
-        <td>${row.sku}</td>
-        <td>${row.total_items ?? 0}</td>
-        <td style="color:#10b981;font-weight:600">${row.matched_count ?? 0}</td>
-        <td style="color:#f59e0b;font-weight:600">${row.review_count ?? 0}</td>
-        <td style="color:#ef4444;font-weight:600">${row.not_matched_count ?? 0}</td>
-        <td>${row.max_score}%</td>
-        <td style="color:${statusColor};font-weight:600">${row.status}</td>
-      </tr>
-    `);
+    let rowHtml = `<tr data-product-id="${row.product_id}">`;
+    rowHtml += `<td>${row.brand ?? '-'}</td>`;
+    rowHtml += `<td>${row.category ?? '-'}</td>`;
+    rowHtml += `<td>${row.product_type ?? '-'}</td>`;
+    if (attributes.includes('sku')) rowHtml += `<td>${row.sku ?? '-'}</td>`;
+    if (attributes.includes('part_number')) rowHtml += `<td>${row.part_number ?? '-'}</td>`;
+    rowHtml += `<td>${row.total_items ?? 0}</td>`;
+    rowHtml += `<td style="color:#10b981;font-weight:600">${row.matched_count ?? 0}</td>`;
+    rowHtml += `<td style="color:#f59e0b;font-weight:600">${row.review_count ?? 0}</td>`;
+    rowHtml += `<td style="color:#ef4444;font-weight:600">${row.not_matched_count ?? 0}</td>`;
+    rowHtml += `<td>${row.max_score}%</td>`;
+    rowHtml += `<td style="color:${statusColor};font-weight:600">${row.status}</td>`;
+    rowHtml += '</tr>';
+    tbody.append(rowHtml);
   });
   
   $('#productTable tbody tr').click(function() {
@@ -1484,15 +2001,9 @@ function showProductList(status) {
     showItemDetails(productId);
   });
   
-  // Update sort indicators
   $('#productTable th').removeClass('sort-asc sort-desc');
-  const colMap = { 0: 'brand', 1: 'category', 2: 'product_type', 3: 'sku', 4: 'total_items', 5: 'matched_count', 6: 'review_count', 7: 'not_matched_count', 8: 'max_score', 9: 'status' };
-  const colIndex = Object.keys(colMap).find(k => colMap[k] === currentSort.column);
-  if (colIndex) {
-    $(`#productTable th:eq(${colIndex})`).addClass(`sort-${currentSort.direction}`);
-  }
+  $(`#productTable th[data-col="${currentSort.column}"]`).addClass(`sort-${currentSort.direction}`);
   
-  // Update pagination
   $('#paginationInfo').text(`Page ${currentPage} of ${totalPages} (${sorted.length} items)`);
   $('#prevPage').prop('disabled', currentPage === 1);
   $('#nextPage').prop('disabled', currentPage === totalPages);
@@ -1521,21 +2032,37 @@ function sortComparisonTable() {
 }
 
 function showItemDetails(productId) {
-  const algorithms = Array.from($('#algorithmSelect')[0].selectedOptions).map(o => o.value);
+  const algorithms = [$('#algorithmSelect').val()];
   const attributes = getSelectedAttributes();
-  const weights = {
-    sku: parseInt($('#skuWeightInput').val()),
-    price: parseInt($('#priceWeightInput').val()),
-    url: parseInt($('#urlWeightInput').val())
-  };
-  const thresholds = {
-    matched: parseInt($('#matchedThresholdInput').val()),
-    review: parseInt($('#reviewThresholdInput').val())
-  };
-  const priceConfig = {
-    margin: parseInt($('#priceMarginInput').val()),
-    margin_diff: parseInt($('#marginDiffInput').val())
-  };
+  
+  // Build weights dynamically - map from competitor attributes to individual attributes
+  const weights = {};
+  attributes.forEach(attr => {
+    // Find the competitor attribute for this attribute
+    const dbAttr = dbAttributes.find(a => a.value === attr);
+    const compAttr = dbAttr ? (dbAttr.competitor_attribute || attr) : attr;
+    const inputId = `${compAttr}Input`;
+    const weight = parseInt($(`#${inputId}`).val()) || 0;
+    weights[attr] = weight;
+  });
+  
+  // Get thresholds dynamically
+  const thresholds = {};
+  ['matched', 'review'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      thresholds[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  // Get price config dynamically - now with separate low/upper limits
+  const priceConfig = {};
+  ['margin', 'margin_low_limit', 'margin_upper_limit'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      priceConfig[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
   
   $.ajax({
     url: `/item-match/api/item-details/${productId}`,
@@ -1560,48 +2087,50 @@ function showItemDetails(productId) {
       
       // Add price calculation details if price attribute is selected and using custom/tfidf_price algorithm
       if (data.attributes.includes('price') && (data.algorithms.includes('custom') || data.algorithms.includes('tfidf_price'))) {
-        const margin = priceConfig.margin;
-        const marginDiff = priceConfig.margin_diff;
+        const margin = priceConfig.margin || 25;
+        const marginLow = priceConfig.margin_low_limit || 10;
+        const marginUpper = priceConfig.margin_upper_limit || 10;
         const systemPrice = parseFloat(p.price);
         const marginAmount = systemPrice * (margin / 100);
-        const diffAmount = systemPrice * (marginDiff / 100);
+        const lowAmount = systemPrice * (marginLow / 100);
+        const upperAmount = systemPrice * (marginUpper / 100);
         const targetPrice = systemPrice + marginAmount;
-        const minPrice = targetPrice - diffAmount;
-        const maxPrice = targetPrice + diffAmount;
+        const minPrice = targetPrice - lowAmount;
+        const maxPrice = targetPrice + upperAmount;
         
         infoHtml += `<div class="price-calc-row">
           <strong>Price Calculation:</strong> System Price: <span class="price-value">$${systemPrice.toFixed(2)}</span> | 
           Margin ${margin}%: <span class="price-value">+$${marginAmount.toFixed(2)}</span> = Target: <span class="price-value">$${targetPrice.toFixed(2)}</span> | 
-          Range (±${marginDiff}%): <span class="price-value">$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}</span>
+          Range (-${marginLow}% / +${marginUpper}%): <span class="price-value">$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}</span>
         </div>`;
       }
       
       $('#productInfo').html(infoHtml);
       
-      // Build dynamic table header based on selected attributes and algorithms
+      // Build dynamic table header based on selected attributes
       let mainRowHtml = '';
       let headerHtml = '';
       
-      if (data.attributes.includes('sku')) {
-        mainRowHtml += `<td><a href="${p.url}" target="_blank" class="url-link">${p.sku}</a></td>`;
-        headerHtml += '<th data-col="comp_sku">SKU</th>';
-      }
-      if (data.attributes.includes('url')) {
-        mainRowHtml += `<td class="url-cell" title="${p.url}">${p.url}</td>`;
-        headerHtml += '<th data-col="comp_url">URL</th>';
-      }
-      if (data.attributes.includes('price')) {
-        mainRowHtml += `<td>$${p.price}</td>`;
-        headerHtml += '<th data-col="comp_price">Price</th>';
-      }
-      
-      // Add algorithm columns for each attribute
       data.attributes.forEach(attr => {
-        data.algorithms.forEach(algo => {
-          const algoName = algo === 'tfidf' ? 'TF-IDF' : algo === 'custom' ? 'CUSTOM' : algo.toUpperCase();
-          headerHtml += `<th data-col="${attr}_${algo}">${attr.toUpperCase()} ${algoName} %</th>`;
-          mainRowHtml += '<td>-</td>';
-        });
+        if (attr === 'sku') {
+          mainRowHtml += `<td><a href="${p.url}" target="_blank" class="url-link">${p.sku}</a></td>`;
+          headerHtml += '<th data-col="comp_sku">SKU</th>';
+        } else if (attr === 'part_number') {
+          mainRowHtml += `<td>${p.part_number ?? '-'}</td>`;
+          headerHtml += '<th data-col="comp_part_number">Part Number</th>';
+        } else if (attr === 'url') {
+          mainRowHtml += `<td class="url-cell" title="${p.url}">${p.url}</td>`;
+          headerHtml += '<th data-col="comp_url">URL</th>';
+        } else if (attr === 'price') {
+          mainRowHtml += `<td>$${p.price}</td>`;
+          headerHtml += '<th data-col="comp_price">Price</th>';
+        }
+      });
+      
+      // Add score columns for each attribute
+      data.attributes.forEach(attr => {
+        headerHtml += `<th data-col="${attr}_score">${attr.toUpperCase()} Score %</th>`;
+        mainRowHtml += '<td>-</td>';
       });
       
       mainRowHtml += '<td>-</td><td>-</td>';
@@ -1622,46 +2151,30 @@ function showItemDetails(productId) {
         let rowHtml = `<tr`;
         
         // Add data attributes for sorting
-        if (data.attributes.includes('sku')) rowHtml += ` data-comp_sku="${comp.comp_sku}"`;
-        if (data.attributes.includes('url')) rowHtml += ` data-comp_url="${comp.comp_url}"`;
-        if (data.attributes.includes('price')) rowHtml += ` data-comp_price="${comp.comp_price}"`;
-        
         data.attributes.forEach(attr => {
-          data.algorithms.forEach(algo => {
-            const scoreKey = `${attr}_${algo}`;
-            rowHtml += ` data-${scoreKey}="${comp[scoreKey] || 0}"`;
-          });
+          rowHtml += ` data-${attr}_score="${comp[`${attr}_score`] || 0}"`;
         });
         
         rowHtml += ` data-final_score="${comp.final_score}" data-status="${comp.status}">`;
         
-        // Add attribute columns
-        if (data.attributes.includes('sku')) {
-          rowHtml += `<td><a href="${comp.comp_url}" target="_blank" class="url-link">${comp.comp_sku}</a></td>`;
-        }
-        if (data.attributes.includes('url')) {
-          rowHtml += `<td class="url-cell" title="${comp.comp_url}">${comp.comp_url}</td>`;
-        }
-        if (data.attributes.includes('price')) {
-          rowHtml += `<td>$${comp.comp_price}</td>`;
-        }
-        
-        // Add algorithm score columns
+        // Add attribute columns based on selected attributes
         data.attributes.forEach(attr => {
-          data.algorithms.forEach(algo => {
-            const scoreKey = `${attr}_${algo}`;
-            rowHtml += `<td>${comp[scoreKey] || 0}%</td>`;
-          });
+          if (attr === 'sku') {
+            rowHtml += `<td><a href="${comp.comp_url}" target="_blank" class="url-link">${comp.comp_sku}</a></td>`;
+          } else if (attr === 'part_number') {
+            rowHtml += `<td>${comp.comp_part_number ?? '-'}</td>`;
+          } else if (attr === 'url') {
+            rowHtml += `<td class="url-cell" title="${comp.comp_url}">${comp.comp_url}</td>`;
+          } else if (attr === 'price') {
+            rowHtml += `<td>$${comp.comp_price}</td>`;
+          }
         });
         
-        // Calculate average scores for each attribute
-        const skuScores = data.attributes.includes('sku') ? data.algorithms.map(algo => comp[`sku_${algo}`] || 0) : [];
-        const urlScores = data.attributes.includes('url') ? data.algorithms.map(algo => comp[`url_${algo}`] || 0) : [];
-        const priceScores = data.attributes.includes('price') ? data.algorithms.map(algo => comp[`price_${algo}`] || 0) : [];
-        
-        const avgSkuScore = skuScores.length > 0 ? (skuScores.reduce((a, b) => a + b, 0) / skuScores.length).toFixed(2) : null;
-        const avgUrlScore = urlScores.length > 0 ? (urlScores.reduce((a, b) => a + b, 0) / urlScores.length).toFixed(2) : null;
-        const avgPriceScore = priceScores.length > 0 ? (priceScores.reduce((a, b) => a + b, 0) / priceScores.length).toFixed(2) : null;
+        // Add attribute score columns
+        data.attributes.forEach(attr => {
+          const avgScore = comp[`${attr}_score`] || 0;
+          rowHtml += `<td>${avgScore}%</td>`;
+        });
         
         // Determine dropdown color class based on review_status
         let dropdownClass = 'action-dropdown';
@@ -1681,9 +2194,15 @@ function showItemDetails(productId) {
           selectedOption = 'reject';
         }
         
+        // Build dynamic data attributes for dropdown
+        let dropdownAttrs = `data-ref-id="${comp.competitor_ref_id}" data-internal-id="${p.internal_product_id}" data-score="${comp.final_score}" data-score-status="${comp.status}"`;
+        data.attributes.forEach(attr => {
+          dropdownAttrs += ` data-${attr}-score="${comp[`${attr}_score`] || 0}"`;
+        });
+        
         rowHtml += `<td style="font-weight:600">${comp.final_score}%</td>
           <td style="color:${statusColor};font-weight:600">${comp.status}</td>
-          <td><select class="${dropdownClass}" data-ref-id="${comp.competitor_ref_id}" data-internal-id="${p.internal_product_id}" data-score="${comp.final_score}" data-score-status="${comp.status}" data-sku-score="${avgSkuScore}" data-url-score="${avgUrlScore}" data-price-score="${avgPriceScore}">
+          <td><select class="${dropdownClass}" ${dropdownAttrs}>>
             <option value="" ${selectedOption === '' ? 'selected' : ''}>Pending</option>
             <option value="approve" ${selectedOption === 'approve' ? 'selected' : ''}>Approve</option>
             <option value="reject" ${selectedOption === 'reject' ? 'selected' : ''}>Reject</option>
@@ -1719,6 +2238,8 @@ function showItemDetails(productId) {
 }
 
 function updateMatchAction(competitorRefId, internalProductId, score, status, skuScore, urlScore, priceScore, action) {
+  const dropdown = $(`.action-dropdown[data-ref-id="${competitorRefId}"]`);
+  
   $.ajax({
     url: '/item-match/api/update-action',
     method: 'POST',
@@ -1735,17 +2256,32 @@ function updateMatchAction(competitorRefId, internalProductId, score, status, sk
     }),
     success: function(response) {
       if(response.success) {
-        alert(`Match ${action}d successfully!`);
-        const productId = $('#comparisonTable').data('product-id');
-        if (productId) {
-          showItemDetails(productId);
+        // If approve or reject, reset all other dropdowns to pending
+        if (action === 'approve' || action === 'reject') {
+          $('.action-dropdown').each(function() {
+            if ($(this).data('ref-id') !== competitorRefId) {
+              $(this).val('').removeClass('status-approve status-reject').addClass('status-pending');
+            }
+          });
         }
-      } else {
-        alert('Error: ' + (response.error || 'Failed to update'));
+        
+        // Update current dropdown color based on action
+        dropdown.removeClass('status-approve status-pending status-reject');
+        if (action === 'approve') {
+          dropdown.addClass('status-approve');
+        } else if (action === 'reject') {
+          dropdown.addClass('status-reject');
+        } else {
+          dropdown.addClass('status-pending');
+        }
       }
     },
     error: function() {
-      alert('Error updating match');
+      // Revert dropdown on error
+      const productId = $('#comparisonTable').data('product-id');
+      if (productId) {
+        showItemDetails(productId);
+      }
     }
   });
 }
@@ -1753,5 +2289,759 @@ function updateMatchAction(competitorRefId, internalProductId, score, status, sk
 function closeDetailModal() {
   $('#itemDetailsSection').addClass('hidden');
 }
+
+function recalculateScores() {
+  const attributes = getSelectedAttributes();
+  const algorithm = $('#algorithmSelect').val();
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  
+  // Build weights dynamically - map from competitor attributes to individual attributes
+  const weights = {};
+  attributes.forEach(attr => {
+    // Find the competitor attribute for this attribute
+    const dbAttr = dbAttributes.find(a => a.value === attr);
+    const compAttr = dbAttr ? (dbAttr.competitor_attribute || attr) : attr;
+    const inputId = `${compAttr}Input`;
+    const weight = parseInt($(`#${inputId}`).val()) || 0;
+    weights[attr] = weight;
+  });
+  
+  // Get thresholds dynamically
+  const thresholds = {};
+  ['matched', 'review'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      thresholds[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  // Get price config dynamically - now with separate low/upper limits
+  const priceConfig = {};
+  ['margin', 'margin_low_limit', 'margin_upper_limit'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      priceConfig[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  const saveScore = $('#saveScoreCheck').is(':checked');
+  const saveTopMost = $('#saveTopMostCheck').is(':checked');
+  const hardRefresh = $('#hardRefreshCheck').is(':checked');
+  
+  $('#loading').removeClass('hidden');
+  
+  // Re-run analysis with current config on ALL products matching filters (not just visible ones)
+  $.ajax({
+    url: '/item-match/api/analyze',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ 
+      brands, 
+      categories, 
+      types, 
+      algorithms: [algorithm], 
+      attributes, 
+      weights, 
+      thresholds, 
+      price_config: priceConfig,
+      save_score: saveScore,
+      save_top_most: saveTopMost,
+      hard_refresh: hardRefresh
+    }),
+    success: function(response) {
+      $('#loading').addClass('hidden');
+      if(response.error) {
+        alert(response.error);
+        return;
+      }
+      
+      // Replace allResults with fresh calculated data
+      allResults = response.summary;
+      originalResults = [...response.summary];  // Update backup too
+      filteredProductIds = allResults.map(r => r.product_id);
+      
+      const stats = response.stats;
+      
+      selectedScoreRange = null;
+      selectedStatus = null;
+      currentPage = 1;
+      $('.score-card').removeClass('active');
+      $('.score-card[data-status="all"]').addClass('active');
+      
+      $('#totalItems').text(stats.total);
+      $('#matchedItems').text(stats.matched);
+      $('#reviewItems').text(stats.review);
+      $('#notMatchedItems').text(stats.not_matched);
+      
+      $('#matchedCard, #reviewCard, #notMatchedCard').removeClass('hidden');
+      $('#statusChartColumn').css('display', 'flex');
+      
+      // Show export button when we have results
+      $('#exportCsvBtn').show();
+      
+      updateChart(stats);
+      showProductList('all');
+      
+      $('#resultsSection').removeClass('hidden');
+      $('#productListSection').removeClass('hidden');
+      $('#itemDetailsSection').addClass('hidden');
+      $('#scoreRangeChartWrapper').hide();
+      
+      // Clear score range chart
+      if(scoreRangeChartInstance) {
+        scoreRangeChartInstance.destroy();
+        scoreRangeChartInstance = null;
+      }
+      
+      loadFilters();
+    },
+    error: function(xhr) {
+      $('#loading').addClass('hidden');
+      const errorMsg = xhr.responseJSON?.error || 'Error recalculating scores';
+      alert(errorMsg);
+    }
+  });
+}
+
+function saveCurrentState() {
+  if (!allResults || allResults.length === 0) {
+    return;
+  }
+  
+  // Get current filter and configuration values
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const algorithm = $('#algorithmSelect').val();
+  const attributes = getSelectedAttributes();
+  const weights = {};
+  attributes.forEach(attr => {
+    weights[attr] = parseInt($(`#${attr}WeightInput`).val()) || 0;
+  });
+  const thresholds = {
+    matched: parseInt($('#matchedThresholdInput').val()),
+    review: parseInt($('#reviewThresholdInput').val())
+  };
+  const priceConfig = {
+    margin: parseInt($('#priceMarginInput').val()),
+    margin_diff: parseInt($('#marginDiffInput').val())
+  };
+  
+  // Create current state object
+  const currentState = {
+    filters: { brands, categories, types },
+    config: { algorithm, attributes, weights, thresholds, priceConfig },
+    itemIds: allResults.map(r => r.product_id).sort()
+  };
+  
+  // Check if this exact configuration AND item set already exists
+  const isDuplicate = stateHistory.some(state => {
+    const stateItemIds = state.allResults.map(r => r.product_id).sort();
+    return JSON.stringify(state.filters) === JSON.stringify(currentState.filters) &&
+           JSON.stringify(state.config) === JSON.stringify(currentState.config) &&
+           JSON.stringify(stateItemIds) === JSON.stringify(currentState.itemIds);
+  });
+  
+  if (isDuplicate) {
+    return;
+  }
+  
+  // Save new state - NEVER remove old states, only add new ones
+  const state = {
+    allResults: [...allResults],
+    originalResults: [...originalResults],
+    filteredProductIds: filteredProductIds ? [...filteredProductIds] : null,
+    filters: currentState.filters,
+    config: currentState.config
+  };
+  
+  // Always append to history, never truncate
+  stateHistory.push(state);
+  currentStateIndex = stateHistory.length - 1;
+  
+  console.log('[SAVE STATE] Added state', currentStateIndex + 1, 'Total states:', stateHistory.length);
+  
+  if (stateHistory.length >= 2) {
+    $('#previousBtn').show().prop('disabled', false);
+  }
+  
+  updateStateHistoryList();
+}
+
+function restorePreviousState() {
+  if (currentStateIndex <= 0) return;
+  console.log('[RESTORE] Moving from state', currentStateIndex + 1, 'to state', currentStateIndex);
+  applyState(currentStateIndex - 1);
+}
+
+function applyState(stateIndex) {
+  if (stateIndex < 0 || stateIndex >= stateHistory.length) return;
+  
+  currentStateIndex = stateIndex;
+  const state = stateHistory[stateIndex];
+  
+  console.log('[APPLY STATE] Applying state at index:', stateIndex, 'with', state.allResults.length, 'items');
+  
+  // Restore filters and configuration
+  const { brands, categories, types } = state.filters;
+  const { algorithm, attributes, weights, thresholds, priceConfig } = state.config;
+  
+  // Set filter values
+  $('#brandFilter').val(brands);
+  $('#categoryFilter').val(categories);
+  $('#typeFilter').val(types);
+  $('#algorithmSelect').val(algorithm);
+  
+  // Set attribute selections
+  $('#attributeSelect').val(attributes);
+  renderMultiSelect($('#attributeSelect')[0], $('#attrMenu')[0], $('#attrTrigger')[0], $('#attrCount')[0], 'Select Attributes');
+  
+  // Set weights for each attribute
+  attributes.forEach(attr => {
+    if ($(`#${attr}WeightInput`).length) {
+      $(`#${attr}WeightInput`).val(weights[attr] || 0);
+      $(`#${attr}Weight`).val(weights[attr] || 0);
+    }
+  });
+  updateWeightPercentages();
+  
+  // Set thresholds
+  $('#matchedThreshold').val(thresholds.matched);
+  $('#reviewThreshold').val(thresholds.review);
+  
+  // Set price config
+  $('#priceMarginInput').val(priceConfig.margin);
+  $('#marginDiffInput').val(priceConfig.margin_diff);
+  
+  // Update Previous button state
+  $('#previousBtn').prop('disabled', stateIndex === 0);
+  
+  updateStateHistoryList();
+  
+  // Run analysis with restored configuration
+  $('#loading').removeClass('hidden');
+  
+  $.ajax({
+    url: '/item-match/api/analyze',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ 
+      brands, 
+      categories, 
+      types, 
+      algorithms: [algorithm], 
+      attributes, 
+      weights, 
+      thresholds, 
+      price_config: priceConfig,
+      save_score: false,
+      save_top_most: false,
+      hard_refresh: false,
+      product_ids: state.filteredProductIds
+    }),
+    success: function(response) {
+      $('#loading').addClass('hidden');
+      if(response.error) {
+        alert(response.error);
+        return;
+      }
+      
+      // Update results with recalculated data
+      allResults = response.summary;
+      originalResults = [...response.summary];
+      filteredProductIds = allResults.map(r => r.product_id);
+      
+      const stats = response.stats;
+      
+      selectedScoreRange = null;
+      selectedStatus = null;
+      currentPage = 1;
+      $('.score-card').removeClass('active');
+      $('.score-card[data-status="all"]').addClass('active');
+      
+      $('#totalItems').text(stats.total);
+      $('#matchedItems').text(stats.matched);
+      $('#reviewItems').text(stats.review);
+      $('#notMatchedItems').text(stats.not_matched);
+      
+      $('#matchedCard, #reviewCard, #notMatchedCard').removeClass('hidden');
+      $('#chartContainer').css('display', 'flex');
+      $('#chartDivider').css('display', 'block');
+      
+      updateChart(stats);
+      showProductList('all');
+      
+      $('#resultsSection').removeClass('hidden');
+      $('#productListSection').removeClass('hidden');
+      $('#itemDetailsSection').addClass('hidden');
+      $('#scoreRangeChartWrapper').hide();
+      
+      loadFilters();
+    },
+    error: function(xhr) {
+      $('#loading').addClass('hidden');
+      const errorMsg = xhr.responseJSON?.error || 'Error applying state';
+      alert(errorMsg);
+    }
+  });
+}
+
+function runBulkAnalyze() {
+  const brands = Array.from($('#brandFilter')[0].selectedOptions).map(o => o.value);
+  const categories = Array.from($('#categoryFilter')[0].selectedOptions).map(o => o.value);
+  const types = Array.from($('#typeFilter')[0].selectedOptions).map(o => o.value);
+  const algorithm = $('#algorithmSelect').val();
+  
+  if (!confirm(`Start bulk analysis for selected data using ${algorithm} algorithm?\n\nThis will run in the background. Check server logs for progress.`)) {
+    return;
+  }
+  
+  $('#bulkAnalyzeBtn').prop('disabled', true).text('Running...');
+  
+  $.ajax({
+    url: '/item-match/api/bulk-analyze',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ brands, categories, types, algorithm_id: algorithm }),
+    success: function(response) {
+      $('#bulkAnalyzeBtn').prop('disabled', false).text('Bulk Analyze');
+      if(response.success) {
+        alert('Bulk analysis started successfully. Check server logs for progress and timing.');
+      } else {
+        alert('Error: ' + (response.error || 'Unknown error'));
+      }
+    },
+    error: function() {
+      $('#bulkAnalyzeBtn').prop('disabled', false).text('Bulk Analyze');
+      alert('Error starting bulk analysis');
+    }
+  });
+}
+
+function showRecalculateResults(response, attributes, weights, thresholds, algorithm, brands, categories, types) {
+  let html = '';
+  
+  // Summary Section
+  html += `<div style="background:#eff6ff;border:2px solid #2563eb;border-radius:8px;padding:16px;">
+    <div style="font-size:16px;font-weight:700;color:#1e40af;margin-bottom:12px;">Summary</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+      <div style="text-align:center;padding:12px;background:#fff;border-radius:6px;">
+        <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Updated Scores</div>
+        <div style="font-size:24px;font-weight:700;color:#2563eb;">${response.updated || 0}</div>
+      </div>
+    </div>
+  </div>`;
+  
+  // Configuration Section
+  let totalWeight = 0;
+  attributes.forEach(attr => {
+    if (weights[attr]) totalWeight += weights[attr];
+  });
+  const weightPercentages = {};
+  attributes.forEach(attr => {
+    if (weights[attr]) weightPercentages[attr] = ((weights[attr] / totalWeight) * 100).toFixed(1);
+  });
+  
+  const wts = attributes.map(attr => `${attr.toUpperCase()}: ${weights[attr]} (${weightPercentages[attr]}%)`).join(', ');
+  const thresh = `Matched: ≥${thresholds.matched}%, Review: ≥${thresholds.review}%`;
+  
+  html += `<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
+    <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:12px;">Configuration Used</div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+      <div><span style="color:#6b7280;font-weight:600;">Algorithm:</span> <span style="color:#1f2937;">${algorithm === 'tfidf' ? 'TF-IDF Vectorization' : algorithm === 'custom' ? 'Custom (SKU + URL + Price)' : 'TF-IDF + Price Margin'}</span></div>
+      <div><span style="color:#6b7280;font-weight:600;">Attributes:</span> <span style="color:#1f2937;">${attributes.map(a => a.toUpperCase()).join(', ')}</span></div>
+      <div><span style="color:#6b7280;font-weight:600;">Weights:</span> <span style="color:#1f2937;">${wts}</span></div>
+      <div><span style="color:#6b7280;font-weight:600;">Thresholds:</span> <span style="color:#1f2937;">${thresh}</span></div>
+    </div>
+  </div>`;
+  
+  // Filters Section
+  if (brands.length > 0 || categories.length > 0 || types.length > 0) {
+    html += `<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:12px;">Filters Applied</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">`;
+    
+    if (brands.length > 0) {
+      html += `<div><span style="color:#92400e;font-weight:600;">Brands:</span> <span style="color:#1f2937;">${brands.join(', ')}</span></div>`;
+    }
+    if (categories.length > 0) {
+      html += `<div><span style="color:#92400e;font-weight:600;">Categories:</span> <span style="color:#1f2937;">${categories.join(', ')}</span></div>`;
+    }
+    if (types.length > 0) {
+      html += `<div><span style="color:#92400e;font-weight:600;">Types:</span> <span style="color:#1f2937;">${types.join(', ')}</span></div>`;
+    }
+    
+    html += `</div></div>`;
+  } else {
+    html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:8px;">⚠️ No Filters Applied</div>
+      <div style="font-size:13px;color:#6b7280;">All products in the database were processed.</div>
+    </div>`;
+  }
+  
+  // Error Section (if any)
+  if (response.error) {
+    html += `<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:8px;">Error Details</div>
+      <div style="font-size:13px;color:#6b7280;">${response.error}</div>
+    </div>`;
+  }
+  
+  // Success Section
+  if (response.updated > 0) {
+    html += `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:#065f46;margin-bottom:8px;">✓ Operation Completed Successfully</div>
+      <div style="font-size:13px;color:#6b7280;">
+        <div>• ${response.updated} score(s) were recalculated with new weights and thresholds</div>
+        <div>• Configuration table updated for algorithm: ${algorithm}</div>
+      </div>
+    </div>`;
+  } else if (response.message) {
+    html += `<div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;">ℹ️ Information</div>
+      <div style="font-size:13px;color:#6b7280;">${response.message}</div>
+    </div>`;
+  }
+  
+  $('#recalculateResults').html(html);
+  $('#recalculateModal').removeClass('hidden');
+}
+
+$('#closeRecalculateBtn').click(function() {
+  $('#recalculateModal').addClass('hidden');
+});
+
+function exportToCsv() {
+  if (!allResults || allResults.length === 0) {
+    alert('No data to export');
+    return;
+  }
+  
+  const attributes = getSelectedAttributes();
+  const algorithm = $('#algorithmSelect').val();
+  
+  // Build weights dynamically
+  const weights = {};
+  attributes.forEach(attr => {
+    const dbAttr = dbAttributes.find(a => a.value === attr);
+    const compAttr = dbAttr ? (dbAttr.competitor_attribute || attr) : attr;
+    const inputId = `${compAttr}Input`;
+    const weight = parseInt($(`#${inputId}`).val()) || 0;
+    weights[attr] = weight;
+  });
+  
+  // Get thresholds and price config
+  const thresholds = {};
+  ['matched', 'review'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      thresholds[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  const priceConfig = {};
+  ['margin', 'margin_low_limit', 'margin_upper_limit'].forEach(attr => {
+    const inputId = `${attr}Input`;
+    if ($(`#${inputId}`).length) {
+      priceConfig[attr] = parseInt($(`#${inputId}`).val()) || 0;
+    }
+  });
+  
+  $('#exportCsvBtn').prop('disabled', true).text('Exporting...');
+  
+  // Get detailed data for each product
+  const exportPromises = allResults.map(product => {
+    return $.ajax({
+      url: `/item-match/api/item-details/${product.product_id}`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ 
+        algorithms: [algorithm], 
+        attributes, 
+        weights, 
+        thresholds, 
+        price_config: priceConfig 
+      })
+    });
+  });
+  
+  Promise.all(exportPromises).then(responses => {
+    // Create CSV headers based on selected attributes
+    const baseHeaders = ['Item Number', 'Brand', 'Category'];
+    
+    // Add system product columns based on selected attributes
+    if (attributes.includes('sku')) baseHeaders.push('SKU');
+    if (attributes.includes('part_number')) baseHeaders.push('Part Number');
+    if (attributes.includes('price')) baseHeaders.push('System Price');
+    if (attributes.includes('url')) baseHeaders.push('System URL');
+    
+    const competitorHeaders = ['Competitor ID'];
+    
+    // Add competitor columns based on selected attributes
+    if (attributes.includes('sku')) competitorHeaders.push('Competitor SKU');
+    if (attributes.includes('url')) competitorHeaders.push('Competitor URL');
+    if (attributes.includes('price')) competitorHeaders.push('Competitor Price');
+    
+    // Add attribute score headers
+    const rawScoreHeaders = [];
+    const weightedScoreHeaders = [];
+    
+    // Calculate total weight for percentage calculation
+    let totalWeight = 0;
+    attributes.forEach(attr => {
+      if (weights[attr]) totalWeight += weights[attr];
+    });
+    
+    attributes.forEach(attr => {
+      rawScoreHeaders.push(`${attr.toUpperCase()} Score`);
+      const percentage = totalWeight > 0 ? ((weights[attr] / totalWeight) * 100).toFixed(1) : 0;
+      weightedScoreHeaders.push(`${attr.toUpperCase()} Weighted Score (${percentage}%)`);
+    });
+    
+    const finalHeaders = ['Final Score', 'Status'];
+    const headers = [...baseHeaders, ...competitorHeaders, ...rawScoreHeaders, ...weightedScoreHeaders, ...finalHeaders];
+    
+    let csvContent = headers.join(',') + '\n';
+    
+    // Process each product's detailed data
+    responses.forEach((response, index) => {
+      if (response.error) return;
+      
+      const product = response.product;
+      const comparisons = response.comparisons || [];
+      
+      // If no comparisons, add a row with just product data
+      if (comparisons.length === 0) {
+        const row = [
+          product.product_id || '',
+          product.brand || '',
+          product.category || ''
+        ];
+        
+        // Add system product data based on selected attributes
+        if (attributes.includes('sku')) row.push(product.sku || '');
+        if (attributes.includes('part_number')) row.push(product.part_number || '');
+        if (attributes.includes('price')) row.push(product.price || '');
+        if (attributes.includes('url')) row.push(product.url || '');
+        
+        // Add empty competitor fields
+        row.push(''); // Competitor ID
+        if (attributes.includes('sku')) row.push('');
+        if (attributes.includes('url')) row.push('');
+        if (attributes.includes('price')) row.push('');
+        
+        // Add empty score fields
+        attributes.forEach(() => {
+          row.push(''); // Raw score
+          row.push(''); // Weighted score
+        });
+        
+        row.push('', ''); // Empty final score and status
+        
+        csvContent += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+        return;
+      }
+      
+      // Add a row for each competitor comparison
+      comparisons.forEach(comp => {
+        const baseData = [
+          product.product_id || '',
+          product.brand || '',
+          product.category || ''
+        ];
+        
+        // Add system product data based on selected attributes
+        if (attributes.includes('sku')) baseData.push(product.sku || '');
+        if (attributes.includes('part_number')) baseData.push(product.part_number || '');
+        if (attributes.includes('price')) baseData.push(product.price || '');
+        if (attributes.includes('url')) baseData.push(product.url || '');
+        
+        const competitorData = [comp.competitor_ref_id || ''];
+        
+        // Add competitor data based on selected attributes
+        if (attributes.includes('sku')) competitorData.push(comp.comp_sku || '');
+        if (attributes.includes('url')) competitorData.push(comp.comp_url || '');
+        if (attributes.includes('price')) competitorData.push(comp.comp_price || '');
+        
+        // Calculate raw scores and weighted scores separately
+        const rawScores = [];
+        const weightedScores = [];
+        let calculatedFinalScore = 0;
+        
+        // Check for perfect match logic - if any attribute scores 100%, final score becomes 100%
+        let hasPerfectMatch = false;
+        attributes.forEach(attr => {
+          const score = comp[`${attr}_score`] || 0;
+          if (score >= 100) {
+            hasPerfectMatch = true;
+          }
+        });
+        
+        if (hasPerfectMatch) {
+          // Perfect match logic - final score is 100%
+          attributes.forEach(attr => {
+            const score = comp[`${attr}_score`] || 0;
+            const weight = weights[attr] || 0;
+            const weightedScore = totalWeight > 0 ? ((score * weight) / totalWeight).toFixed(2) : 0;
+            rawScores.push(score);
+            weightedScores.push(weightedScore);
+          });
+          calculatedFinalScore = 100.00;
+        } else {
+          // Normal weighted calculation
+          attributes.forEach(attr => {
+            const score = comp[`${attr}_score`] || 0;
+            const weight = weights[attr] || 0;
+            // Use the same calculation as the backend: (score * weight) / totalWeight
+            const weightedScore = totalWeight > 0 ? ((score * weight) / totalWeight).toFixed(2) : 0;
+            rawScores.push(score);
+            weightedScores.push(weightedScore);
+            calculatedFinalScore += parseFloat(weightedScore);
+          });
+        }
+        
+        const finalData = [
+          calculatedFinalScore.toFixed(2),
+          comp.status || ''
+        ];
+        
+        csvContent += [...baseData, ...competitorData, ...rawScores, ...weightedScores, ...finalData]
+          .map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+      });
+    });
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `item_match_detailed_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    $('#exportCsvBtn').prop('disabled', false).text('Export to CSV');
+    
+  }).catch(error => {
+    console.error('Export failed:', error);
+    alert('Export failed. Please try again.');
+    $('#exportCsvBtn').prop('disabled', false).text('Export to CSV');
+  });
+}
+
+function fetchRecalculatedData(brands, categories, types, algorithms, attributes, weights, thresholds) {
+  const priceConfig = {
+    margin: parseInt($('#priceMarginInput').val()),
+    margin_diff: parseInt($('#marginDiffInput').val())
+  };
+  
+  $.ajax({
+    url: '/item-match/api/analyze',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ 
+      brands, 
+      categories, 
+      types, 
+      algorithms, 
+      attributes, 
+      weights, 
+      thresholds, 
+      price_config: priceConfig,
+      save_score: false,
+      save_top_most: false,
+      hard_refresh: false
+    }),
+    success: function(response) {
+      if(response.error) {
+        console.error('Error fetching recalculated data:', response.error);
+        return;
+      }
+      displayResults(response);
+    },
+    error: function() {
+      console.error('Error fetching recalculated data');
+    }
+  });
+}
+
+function updateStateHistoryList() {
+  if (stateHistory.length === 0) {
+    $('#stateHistoryList').hide();
+    return;
+  }
+  
+  $('#stateHistoryList').show();
+  const container = $('#stateHistoryItems');
+  container.empty();
+  
+  // Create table with separate columns for each setting including filters
+  const table = $(`<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="background: #f3f4f6;">
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 40px;">State</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 50px;">Items</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 70px;">Algorithm</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 80px;">Attributes</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">SKU</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">URL</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">Price</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">Match</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">Review</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">Margin</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 45px;">Diff</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 100px;">Brands</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left; width: 100px;">Categories</th>
+        <th style="padding: 8px; border: 1px solid #d1d5db; text-align: left;">Types</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>`);
+  
+  const tbody = table.find('tbody');
+  
+  stateHistory.forEach((state, index) => {
+    const isActive = index === currentStateIndex;
+    const { brands, categories, types } = state.filters;
+    const { algorithm, attributes, weights, thresholds, priceConfig } = state.config;
+    
+    const brandsDisplay = brands.length > 0 ? brands.slice(0,2).join(',') + (brands.length > 2 ? '...' : '') : '-';
+    const categoriesDisplay = categories.length > 0 ? categories.slice(0,2).join(',') + (categories.length > 2 ? '...' : '') : '-';
+    const typesDisplay = types.length > 0 ? types.slice(0,2).join(',') + (types.length > 2 ? '...' : '') : '-';
+    
+    const algoDisplay = algorithm === 'tfidf' ? 'TF-IDF' : algorithm === 'custom' ? 'Custom' : 'TF+P';
+    const attributesDisplay = attributes.join(',');
+    
+    const row = $(`<tr data-state-index="${index}" style="cursor: pointer; ${isActive ? 'background-color: #dbeafe;' : ''}" class="state-row">
+      <td style="padding: 8px; border: 1px solid #d1d5db; font-weight: 600;">${index + 1}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db;">${state.allResults.length}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db;" title="${algorithm}">${algoDisplay}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db;" title="${attributesDisplay}">${attributesDisplay}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${weights.sku || '-'}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${weights.url || '-'}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${weights.price || '-'}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${thresholds.matched}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${thresholds.review}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${priceConfig.margin}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">${priceConfig.margin_diff}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; overflow: hidden; text-overflow: ellipsis;" title="${brands.join(', ')}">${brandsDisplay}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; overflow: hidden; text-overflow: ellipsis;" title="${categories.join(', ')}">${categoriesDisplay}</td>
+      <td style="padding: 8px; border: 1px solid #d1d5db; overflow: hidden; text-overflow: ellipsis;" title="${types.join(', ')}">${typesDisplay}</td>
+    </tr>`);
+    
+    row.on('click', function() {
+      const stateIndex = parseInt($(this).data('state-index'));
+      applyState(stateIndex);
+    });
+    
+    tbody.append(row);
+  });
+  
+  container.append(table);
+}
+
 </script>
 {% endblock %}

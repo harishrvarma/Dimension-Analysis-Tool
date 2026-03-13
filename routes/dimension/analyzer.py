@@ -95,6 +95,7 @@ def api_analyze():
     category = payload.get("category")
     types = payload.get("types") or []
     algorithms = payload.get("algorithms") or []
+    algorithm_settings = payload.get("algorithm_settings") or ["shape", "size", "volume"]
     h_mult = float(payload.get("h_mult", 1.5))
     w_mult = float(payload.get("w_mult", 1.5))
     d_mult = float(payload.get("d_mult", 1.5))
@@ -102,6 +103,7 @@ def api_analyze():
     dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
     analysis_mode = payload.get("analysis_mode", "all")
     save_to_db = payload.get("save_to_db", False)
+    selected_iteration_id = payload.get("selected_iteration_id")
     
     if not group_id or not category or not algorithms:
         return jsonify({"ok": False, "message": "Missing required fields"})
@@ -109,7 +111,8 @@ def api_analyze():
     result = analyzer.analyze_and_save(
         group_id, brands, category, types, algorithms,
         h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples,
-        analysis_mode, save_to_db
+        analysis_mode, save_to_db, selected_iteration_id,
+        algorithm_settings=algorithm_settings
     )
     
     return jsonify(result)
@@ -117,33 +120,29 @@ def api_analyze():
 
 @analyzer_bp.post("/api/iteration-history")
 def api_iteration_history():
-    """Get iteration history for a category"""
+    """Get iteration history for a category - only by group_id and category"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
-    brands = payload.get("brands") or []
     category = payload.get("category")
-    types = payload.get("types") or []
     
     if not group_id or not category:
         return jsonify({"ok": False, "history": []})
     
-    history = analyzer.get_iteration_history(group_id, brands, category, types)
+    history = analyzer.get_iteration_history(group_id, category)
     return jsonify({"ok": True, "history": history})
 
 
 @analyzer_bp.post("/api/reset-iterations")
 def api_reset_iterations():
-    """Reset iterations for a category"""
+    """Reset all iterations for a category and product group"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
-    brands = payload.get("brands") or []
     category = payload.get("category")
-    types = payload.get("types") or []
     
-    if not group_id:
-        return jsonify({"ok": False, "message": "Product Group is required"})
+    if not group_id or not category:
+        return jsonify({"ok": False, "message": "Product Group and Category are required"})
     
-    success = analyzer.reset_iterations(group_id, brands, category, types)
+    success = analyzer.reset_iterations(group_id, category)
     return jsonify({"ok": success})
 
 
@@ -231,6 +230,31 @@ def api_export():
     return output
 
 
+@analyzer_bp.post("/api/set-cluster-normal")
+def api_set_cluster_normal():
+    """Mark all products in a cluster as normal"""
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get("skus") or []
+    iteration = payload.get("iteration")
+    brands = payload.get("brands") or []
+    category = payload.get("category")
+    eps = payload.get("eps")
+    sample = payload.get("sample")
+    group_id = payload.get("group_id")
+    
+    if not skus or not iteration:
+        return jsonify({"ok": False, "message": "SKUs and iteration are required"})
+    
+    success, error = analyzer.set_cluster_as_normal(
+        skus, iteration, brands, category, eps, sample, group_id
+    )
+    
+    if success:
+        return jsonify({"ok": True, "message": f"Updated {len(skus)} products"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to update products"})
+
+
 @analyzer_bp.post("/api/set-cluster-outlier")
 def api_set_cluster_outlier():
     """Mark all products in a cluster as outliers"""
@@ -239,12 +263,15 @@ def api_set_cluster_outlier():
     iteration = payload.get("iteration")
     brands = payload.get("brands") or []
     category = payload.get("category")
+    eps = payload.get("eps")
+    sample = payload.get("sample")
+    group_id = payload.get("group_id")
     
     if not skus or not iteration:
         return jsonify({"ok": False, "message": "SKUs and iteration are required"})
     
     success, error = analyzer.set_cluster_as_outlier(
-        skus, iteration, brands, category
+        skus, iteration, brands, category, eps, sample, group_id
     )
     
     if success:
@@ -261,12 +288,13 @@ def api_remove_cluster_outlier():
     iteration = payload.get("iteration")
     brands = payload.get("brands") or []
     category = payload.get("category")
+    group_id = payload.get("group_id")
     
     if not skus or not iteration:
         return jsonify({"ok": False, "message": "SKUs and iteration are required"})
     
     success, error = analyzer.remove_cluster_outlier(
-        skus, iteration, brands, category
+        skus, iteration, brands, category, group_id
     )
     
     if success:
@@ -274,59 +302,6 @@ def api_remove_cluster_outlier():
     else:
         return jsonify({"ok": False, "message": error or "Failed to update products"})
 
-
-@analyzer_bp.post("/api/analyze-multiple")
-def api_analyze_multiple():
-    """Analyze multiple combinations based on filter hierarchy"""
-    payload = request.get_json(silent=True) or {}
-    
-    group_id = payload.get("group_id")
-    brands = payload.get("brands") or []
-    category = payload.get("category")
-    types = payload.get("types") or []
-    algorithms = payload.get("algorithms") or []
-    h_mult = float(payload.get("h_mult", 1.5))
-    w_mult = float(payload.get("w_mult", 1.5))
-    d_mult = float(payload.get("d_mult", 1.5))
-    dbscan_eps = float(payload.get("dbscan_eps", 1.0))
-    dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
-    save_to_db = payload.get("save_to_db", False)
-    
-    if not group_id or not algorithms:
-        return jsonify({"ok": False, "message": "Missing required fields"})
-    
-    result = analyzer.analyze_multiple_combinations(
-        group_id, brands, category, types, algorithms,
-        h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db
-    )
-    
-    return jsonify(result)
-
-
-@analyzer_bp.post("/api/process-combination")
-def api_process_combination():
-    """Process a single combination"""
-    payload = request.get_json(silent=True) or {}
-    
-    group_id = payload.get("group_id")
-    combination = payload.get("combination")
-    algorithms = payload.get("algorithms") or []
-    h_mult = float(payload.get("h_mult", 1.5))
-    w_mult = float(payload.get("w_mult", 1.5))
-    d_mult = float(payload.get("d_mult", 1.5))
-    dbscan_eps = float(payload.get("dbscan_eps", 1.0))
-    dbscan_min_samples = int(payload.get("dbscan_min_samples", 4))
-    save_to_db = payload.get("save_to_db", False)
-    
-    if not group_id or not combination or not algorithms:
-        return jsonify({"ok": False, "message": "Missing required fields"})
-    
-    result = analyzer.process_single_combination_v2(
-        group_id, combination, algorithms,
-        h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db
-    )
-    
-    return jsonify(result)
 
 
 @analyzer_bp.post("/api/load-iteration")
@@ -353,3 +328,112 @@ def api_delete_iteration():
     
     success, message = analyzer.delete_iteration(iteration_id)
     return jsonify({"ok": success, "message": message})
+
+
+@analyzer_bp.post("/api/update-item-status")
+def api_update_item_status():
+    """Update final_status for a specific iteration item"""
+    payload = request.get_json(silent=True) or {}
+    sku = payload.get("sku")
+    final_status = payload.get("final_status")  # Can be 0, 1, or None
+    iteration_id = payload.get("iteration_id")
+    group_id = payload.get("group_id")
+    category = payload.get("category")
+    eps = payload.get("eps")
+    sample = payload.get("sample")
+    
+    if sku is None or not iteration_id:
+        return jsonify({"ok": False, "message": "SKU and iteration_id are required"})
+    
+    success, error = analyzer.update_item_status(
+        sku, final_status, iteration_id, group_id, category, eps, sample
+    )
+    
+    if success:
+        return jsonify({"ok": True, "message": f"Updated {sku}"})
+    else:
+        return jsonify({"ok": False, "message": error or "Failed to update item"})
+
+
+@analyzer_bp.get("/api/analyze-all-export")
+def api_analyze_all_export_get():
+    """Analyze all products and export results - GET with algorithm parameter (legacy)"""
+    from services.dimension.analyze_all_export import analyze_all_and_export
+    from flask import Response
+    import time
+    
+    algorithm = request.args.get('algorithm', 'DBSCAN')
+    
+    print(f"Starting export with algorithm: {algorithm}")
+    start = time.time()
+    
+    csv_data, error = analyze_all_and_export(algorithm=algorithm)
+    
+    print(f"Export completed in {time.time()-start:.1f}s")
+    
+    if error:
+        return jsonify({"ok": False, "message": error}), 400
+    
+    response = Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename=analyze_all_export_{algorithm}.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+    return response
+
+
+@analyzer_bp.post("/api/analyze-all-export")
+def api_analyze_all_export_post():
+    """Analyze all products and export results - POST with full configuration"""
+    from services.dimension.analyze_all_export import analyze_all_and_export
+    from flask import Response
+    import time
+    
+    payload = request.get_json(silent=True) or {}
+    
+    product_group_id = payload.get('product_group_id')
+    algorithm = payload.get('algorithm', 'DBSCAN')
+    record_type = payload.get('record_type', 'all')
+    configurations = payload.get('configurations', [])
+    algorithm_settings = payload.get('algorithm_settings', ['shape', 'size', 'volume'])
+    
+    if not product_group_id:
+        return jsonify({"ok": False, "message": "Product Group ID is required"}), 400
+    
+    # Convert configurations to list of tuples
+    configs = [(c['eps'], c['min_samples']) for c in configurations] if configurations else None
+    
+    # Create filters with product group
+    filters = {'product_group_id': product_group_id}
+    
+    print(f"Starting export with product_group_id: {product_group_id}, algorithm: {algorithm}, record_type: {record_type}, settings: {algorithm_settings}")
+    start = time.time()
+    
+    csv_data, error = analyze_all_and_export(
+        product_group_id=product_group_id,
+        algorithm=algorithm,
+        record_type=record_type,
+        configs=configs,
+        filters=filters,
+        algorithm_settings=algorithm_settings
+    )
+    
+    print(f"Export completed in {time.time()-start:.1f}s")
+    
+    if error:
+        return jsonify({"ok": False, "message": error}), 400
+    
+    response = Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename=analyze_all_export_{algorithm}_category_{record_type}.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+    return response
+
+

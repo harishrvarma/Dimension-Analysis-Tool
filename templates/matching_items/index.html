@@ -66,8 +66,6 @@ table tr:hover { background: #f8fafc; cursor: pointer; }
 </style>
 
 <div class="page">
-  <h2 style="margin:0 0 16px;">Matching Items Grid</h2>
-
   <!-- Filters Section -->
   <div class="section">
     <div class="section-title">Filters</div>
@@ -137,13 +135,14 @@ table tr:hover { background: #f8fafc; cursor: pointer; }
               <th data-col="category">Category</th>
               <th data-col="product_type">Product Type</th>
               <th data-col="sku">SKU</th>
+              <th data-col="part_number">Part Number</th>
               <th data-col="name">Name</th>
               <th data-col="price">Price</th>
               <th data-col="url">URL</th>
+              <th data-col="competitor_count">Total Compared</th>
               <th data-col="competitor_id">Competitor ID</th>
               <th data-col="score">Score</th>
               <th data-col="score_status">Score Status</th>
-              <th data-col="competitor_count">Competitor Count</th>
               <th data-col="review_status">Review Status</th>
             </tr>
           </thead>
@@ -529,13 +528,14 @@ function displayGrid(data) {
         <td>${row.category ?? '-'}</td>
         <td>${row.product_type ?? '-'}</td>
         <td><a href="${row.url}" target="_blank" class="url-link">${row.sku}</a></td>
+        <td>${row.part_number ?? '-'}</td>
         <td>${row.name ?? '-'}</td>
         <td>$${row.price ?? 0}</td>
         <td class="url-cell" title="${row.url}">${row.url}</td>
+        <td>${row.competitor_count ?? 0}</td>
         <td>${row.competitor_id ?? '-'}</td>
         <td>${row.score ?? '-'}</td>
         <td style="color:${scoreStatusColor};font-weight:600">${row.score_status ?? '-'}</td>
-        <td>${row.competitor_count ?? 0}</td>
         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       </tr>
     `);
@@ -620,28 +620,42 @@ function displayComparison(data) {
     <strong>Brand:</strong> ${sys.brand ?? '-'} &nbsp;|&nbsp;
     <strong>Category:</strong> ${sys.category ?? '-'} &nbsp;|&nbsp;
     <strong>Product Type:</strong> ${sys.product_type ?? '-'} &nbsp;|&nbsp;
+    <strong>Part Number:</strong> ${sys.part_number ?? '-'} &nbsp;|&nbsp;
     <strong>Product ID:</strong> ${sys.system_product_id}
   `);
   
   // 2. System product row in thead (first row)
   let mainRowHtml = '';
-  if (data.attributes.includes('sku')) mainRowHtml += `<th><a href="${sys.url}" target="_blank" class="url-link">${sys.sku}</a></th>`;
-  if (data.attributes.includes('price')) mainRowHtml += `<th>$${sys.price}</th>`;
-  if (data.attributes.includes('url')) mainRowHtml += `<th class="url-cell" title="${sys.url}">${sys.url}</th>`;
-  if (data.attributes.includes('sku')) mainRowHtml += '<th>-</th>';
-  if (data.attributes.includes('price')) mainRowHtml += '<th>-</th>';
-  if (data.attributes.includes('url')) mainRowHtml += '<th>-</th>';
+  
+  // Add system product attribute values
+  data.attributes.forEach(attr => {
+    if (attr === 'sku') mainRowHtml += `<th><a href="${sys.url}" target="_blank" class="url-link">${sys.sku}</a></th>`;
+    else if (attr === 'part_number') mainRowHtml += `<th>${sys.part_number ?? '-'}</th>`;
+    else if (attr === 'price') mainRowHtml += `<th>$${sys.price}</th>`;
+    else if (attr === 'url') mainRowHtml += `<th class="url-cell" title="${sys.url}">${sys.url}</th>`;
+  });
+  
+  // Add empty cells for score columns
+  data.attributes.forEach(() => {
+    mainRowHtml += '<th>-</th>';
+  });
+  
+  // Add empty cells for final score, status, action
   mainRowHtml += '<th>-</th><th>-</th><th>-</th>';
   $('#productMainRow').html(mainRowHtml);
   
   // 3. Column headers in thead (second row)
   let headerHtml = '';
   if (data.attributes.includes('sku')) headerHtml += '<th data-col="sku">Competitor SKU</th>';
+  if (data.attributes.includes('part_number')) headerHtml += '<th data-col="part_number">Competitor Part Number</th>';
   if (data.attributes.includes('price')) headerHtml += '<th data-col="price">Competitor Price</th>';
   if (data.attributes.includes('url')) headerHtml += '<th data-col="url">Competitor URL</th>';
-  if (data.attributes.includes('sku')) headerHtml += '<th>SKU Score</th>';
-  if (data.attributes.includes('price')) headerHtml += '<th>Price Score</th>';
-  if (data.attributes.includes('url')) headerHtml += '<th>URL Score</th>';
+  
+  // Add score columns for each attribute
+  data.attributes.forEach(attr => {
+    headerHtml += `<th data-col="${attr}_score">${attr.toUpperCase()} Score %</th>`;
+  });
+  
   headerHtml += '<th data-col="score">Final Score</th><th data-col="status">Status</th><th>Action</th>';
   $('#comparisonHead').html(headerHtml);
   
@@ -686,12 +700,22 @@ function renderComparisonRows(comparisons, attributes) {
     
     let rowHtml = '<tr>';
     
-    if (attributes.includes('sku')) rowHtml += `<td><a href="${comp.url}" target="_blank" class="url-link">${comp.sku ?? '-'}</a></td>`;
-    if (attributes.includes('price')) rowHtml += `<td>$${comp.price ?? 0}</td>`;
-    if (attributes.includes('url')) rowHtml += `<td class="url-cell" title="${comp.url}">${comp.url}</td>`;
-    if (attributes.includes('sku')) rowHtml += `<td>${comp.sku_score !== null && comp.sku_score !== undefined ? comp.sku_score + '%' : '-'}</td>`;
-    if (attributes.includes('price')) rowHtml += `<td>${comp.price_score !== null && comp.price_score !== undefined ? comp.price_score + '%' : '-'}</td>`;
-    if (attributes.includes('url')) rowHtml += `<td>${comp.url_score !== null && comp.url_score !== undefined ? comp.url_score + '%' : '-'}</td>`;
+    // Add competitor attribute values
+    attributes.forEach(attr => {
+      if (attr === 'sku') rowHtml += `<td><a href="${comp.url}" target="_blank" class="url-link">${comp.sku ?? '-'}</a></td>`;
+      else if (attr === 'part_number') rowHtml += `<td>${comp.part_number ?? '-'}</td>`;
+      else if (attr === 'price') rowHtml += `<td>$${comp.price ?? 0}</td>`;
+      else if (attr === 'url') rowHtml += `<td class="url-cell" title="${comp.url}">${comp.url}</td>`;
+    });
+    
+    // Add attribute score columns
+    attributes.forEach(attr => {
+      const scoreKey = `${attr}_score`;
+      const scoreValue = comp[scoreKey];
+      rowHtml += `<td>${scoreValue !== null && scoreValue !== undefined ? scoreValue + '%' : '-'}</td>`;
+    });
+    
+    // Add final score, status, and action
     rowHtml += `<td>${comp.score !== null && comp.score !== undefined ? comp.score + '%' : '-'}</td>
       <td style="color:${statusColor};font-weight:600">${comp.status ?? '-'}</td>`;
     rowHtml += `<td>
@@ -722,5 +746,6 @@ function renderComparisonRows(comparisons, attributes) {
     updateReviewStatus(compId, action);
   });
 }
+
 </script>
 {% endblock %}

@@ -46,7 +46,7 @@ class ProductIterationRepository:
             print(f"Error deleting iteration with items: {e}")
             return False
 
-    def save_iteration(self, brand, category, product_types, product_group_id, algorithm, eps, sample):
+    def save_iteration(self, brand, category, product_types, product_group_id, algorithm, eps, sample, unique_number=None, total_items=None, analyzed_items=None, pending_items=None, outlier_items=None):
         """Save new iteration and return iteration_id"""
         sorted_types = '|'.join(sorted(product_types)) if isinstance(product_types, list) else product_types
         
@@ -59,7 +59,12 @@ class ProductIterationRepository:
                 product_type=sorted_types,
                 eps=eps,
                 sample=sample,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
+                unique_number=unique_number,
+                total_items=total_items,
+                analyzed_items=analyzed_items,
+                pending_items=pending_items,
+                outlier_items=outlier_items
             )
             self.db.add(iteration)
             self.db.flush()
@@ -301,3 +306,100 @@ class ProductIterationRepository:
         except Exception as e:
             print(f"Error deleting iterations by filters: {e}")
             return False
+
+    def get_iteration_summary_by_group_category(self, group_id, category):
+        """Get iteration summary by group_id and category"""
+        from sqlalchemy import func
+        from models.dimension.product_iteration_item import DimensionProductIterationItem
+        from models.dimension.product import Product
+        
+        try:
+            results = self.db.query(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample
+            ).join(
+                DimensionProductIterationItem,
+                ProductIteration.iteration_id == DimensionProductIterationItem.iteration_id
+            ).filter(
+                ProductIteration.product_group_id == group_id,
+                ProductIteration.category == category
+            ).group_by(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample
+            ).order_by(
+                ProductIteration.iteration_id.asc()
+            ).all()
+            
+            summary = []
+            for row in results:
+                iter_id = row.iteration_id
+                
+                # Get counts for this iteration, excluding skipped products
+                total = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                # Normal: status = 1 AND final_status IS NULL
+                normal = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    DimensionProductIterationItem.status == 1,
+                    DimensionProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                # Outlier: status = 0 AND final_status IS NULL
+                outlier = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    DimensionProductIterationItem.status == 0,
+                    DimensionProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                # Manual Outlier: final_status = 0
+                manual_outlier = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    DimensionProductIterationItem.final_status == 0,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                # Manual Normal: final_status = 1
+                manual_normal = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                    Product,
+                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    DimensionProductIterationItem.iteration_id == iter_id,
+                    DimensionProductIterationItem.final_status == 1,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                
+                summary.append({
+                    'iteration': iter_id,
+                    'iteration_id': iter_id,
+                    'eps': float(row.eps) if row.eps else None,
+                    'sample': int(row.sample) if row.sample else None,
+                    'total_count': int(total),
+                    'normal_count': int(normal),
+                    'outlier_count': int(outlier),
+                    'manual_outlier_count': int(manual_outlier),
+                    'manual_normal_count': int(manual_normal)
+                })
+            
+            return summary
+        except Exception as e:
+            print(f"Error getting iteration summary: {e}")
+            return []

@@ -45,7 +45,7 @@
     .filters {
       margin-top: 12px;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 12px;
     }
     .select-hidden { display: none; }
@@ -369,31 +369,61 @@
       position: relative;
       cursor: pointer;
     }
-    .item-count-tooltip {
+    .final-status-tooltip {
       position: relative;
       cursor: help;
       text-decoration: underline;
       text-decoration-style: dotted;
+      text-decoration-color: currentColor;
     }
-    .item-count-tooltip:hover::after {
-      content: attr(data-tooltip);
+    .final-status-tooltip .tooltip-content {
+      visibility: hidden;
       position: absolute;
+      bottom: 125%;
       left: 50%;
-      bottom: 100%;
       transform: translateX(-50%);
-      background: #1f2937;
-      color: white;
+      background-color: #1f2937;
+      color: #fff;
       padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      white-space: pre-line;
-      z-index: 1000;
-      margin-bottom: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: pre;
+      z-index: 10000;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      width: max-content;
-      max-width: 400px;
+      min-width: 400px;
+      max-width: 600px;
+      font-family: 'Courier New', monospace;
       line-height: 1.6;
-      text-align: left;
+    }
+    .final-status-tooltip .tooltip-content::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #1f2937 transparent transparent transparent;
+    }
+    @media (min-width: 1400px) {
+      .final-status-tooltip .tooltip-content {
+        left: 50%;
+        transform: translateX(-50%);
+      }
+    }
+    @media (max-width: 1399px) {
+      .final-status-tooltip .tooltip-content {
+        left: auto;
+        right: 0;
+        transform: none;
+      }
+      .final-status-tooltip .tooltip-content::after {
+        left: auto;
+        right: 20px;
+      }
+    }
+    .final-status-tooltip:hover .tooltip-content {
+      visibility: visible;
     }
     @media (max-width: 980px) {
       .row { grid-template-columns: 1fr; }
@@ -465,14 +495,6 @@
           <div class="ms-menu hidden" id="typeMenu"></div>
         </div>
       </div>
-      <div>
-        <label>Configuration (Optional)<span id="configCount" class="label-count">(0 selected)</span></label>
-        <select id="configFilter" class="select-hidden" multiple></select>
-        <div class="multi-select" id="configDropdown">
-          <div class="ms-trigger" id="configTrigger">Select Configuration <span>▾</span></div>
-          <div class="ms-menu hidden" id="configMenu"></div>
-        </div>
-      </div>
     </div>
 
     <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:10px;">
@@ -529,11 +551,7 @@
       typeCount: document.getElementById("typeCount"),
       typeTrigger: document.getElementById("typeTrigger"),
       typeMenu: document.getElementById("typeMenu"),
-      config: document.getElementById("configFilter"),
-      configCount: document.getElementById("configCount"),
-      configTrigger: document.getElementById("configTrigger"),
-      configMenu: document.getElementById("configMenu"),
-      gridContainer: document.getElementById("gridContainer"),
+      gridContainer: document.getElementById("gridContainer")
     };
 
     let gridData = [];
@@ -542,8 +560,8 @@
     let sortDirection = 'asc';
     let currentPage = 1;
     let itemsPerPage = 50;
-    let currentIteration = null;
     let selectedProductIds = new Set();
+    const urlParams = new URLSearchParams(window.location.search);
 
     function selectedValues(selectEl) {
       return Array.from(selectEl.selectedOptions).map(o => o.value);
@@ -567,7 +585,6 @@
       els.brandMenu.classList.add("hidden");
       els.categoryMenu.classList.add("hidden");
       els.typeMenu.classList.add("hidden");
-      els.configMenu.classList.add("hidden");
     }
 
     function updateMultiCount(selectEl, triggerEl, countEl, placeholder) {
@@ -634,7 +651,7 @@
         const row = document.createElement("label");
         row.className = "ms-opt";
         row.dataset.filterText = String(opt.textContent || "").toLowerCase();
-        
+
         if (hasAnalyzedStatus) {
           const status = analyzedStatus[opt.value];
           if (status) {
@@ -764,7 +781,7 @@
         document.getElementById("massActionsBtn").classList.add("hidden");
         return;
       }
-      
+
       showLoader();
       const payload = {
         group_id: parseInt(els.group.value),
@@ -794,13 +811,11 @@
       setSelectOptions(els.brand, data.brand_options, selectedValues(els.brand));
       setSelectOptions(els.category, data.category_options, selectedValues(els.category));
       setSelectOptions(els.type, data.type_options, selectedValues(els.type));
-      setSelectOptions(els.config, data.configuration_options || [], selectedValues(els.config));
-      
+
       const analyzedStatus = data.analyzed_status || {};
       renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand', analyzedStatus.brands || {});
       renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, 'Select Category', analyzedStatus.categories || {});
       renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Product Type', analyzedStatus.types || {});
-      renderMultiCheckboxDropdown(els.config, els.configMenu, els.configTrigger, els.configCount, 'Select Configuration');
     }
 
     els.group.addEventListener("change", async () => {
@@ -808,55 +823,53 @@
       setSelectOptions(els.brand, []);
       setSelectOptions(els.category, []);
       setSelectOptions(els.type, []);
-      setSelectOptions(els.config, []);
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
       await loadOptions();
     });
-    
+
     els.status.addEventListener("change", async () => {
       // Reset dependent dropdowns and show placeholder
       const currentBrands = selectedValues(els.brand);
       const currentCategories = selectedValues(els.category);
       const currentTypes = selectedValues(els.type);
-      
+
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
-      
+
       await loadOptions();
-      
+
       // Clear selections after reload
       setSelectOptions(els.brand, Array.from(els.brand.options).map(o => ({value: o.value, label: o.textContent})), []);
       setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
-    
+
     els.brand.addEventListener("change", async () => {
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
-      
+
       const currentBrands = selectedValues(els.brand);
       await loadOptions();
-      
+
       // Restore brand selections and re-render with updated analyzed status
       Array.from(els.brand.options).forEach(opt => {
         opt.selected = currentBrands.includes(opt.value);
       });
-      
+
       // Clear category and type selections
       setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
-      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
-    
+
     els.category.addEventListener("change", async () => {
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
-      
+
       const currentBrands = selectedValues(els.brand);
       const currentCategories = selectedValues(els.category);
       await loadOptions();
-      
+
       // Restore brand and category selections
       Array.from(els.brand.options).forEach(opt => {
         opt.selected = currentBrands.includes(opt.value);
@@ -864,19 +877,17 @@
       Array.from(els.category.options).forEach(opt => {
         opt.selected = currentCategories.includes(opt.value);
       });
-      
+
       // Clear type selection
       setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
-      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
-    
+
     els.type.addEventListener("change", async () => {
       // Show placeholder when type changes
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
 
       await loadOptions();
-      setSelectOptions(els.config, Array.from(els.config.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
     document.getElementById("loadBtn").addEventListener("click", async () => {
       if (!els.group.value) {
@@ -927,7 +938,7 @@
         alert("Please load grid data first");
         return;
       }
-      
+
       showLoader();
       const payload = {
         group_id: parseInt(els.group.value),
@@ -935,20 +946,15 @@
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip),
-        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null
+        skip_status: selectedValues(els.skip)
       };
-      
-      if (currentIteration !== null) {
-        payload.iteration = currentIteration;
-      }
-      
+
       const res = await fetch("/grid/api/export-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      
+
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -970,7 +976,7 @@
         alert("Please load grid data first");
         return;
       }
-      
+
       showLoader();
       const payload = {
         group_id: parseInt(els.group.value),
@@ -978,20 +984,15 @@
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip),
-        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null
+        skip_status: selectedValues(els.skip)
       };
-      
-      if (currentIteration !== null) {
-        payload.iteration = currentIteration;
-      }
-      
+
       const res = await fetch("/grid/api/export-xls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      
+
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -1017,17 +1018,14 @@
         types: selectedValues(els.type),
         final_status: selectedValues(els.status),
         skip_status: selectedValues(els.skip),
-        configuration: selectedValues(els.config).length > 0 ? selectedValues(els.config) : null,
+        clusters: urlParams.getAll('clusters'),
+        iteration_id: urlParams.get('iteration_id') ? parseInt(urlParams.get('iteration_id')) : null,
         page: currentPage,
         per_page: itemsPerPage,
         sort_column: sortColumn,
         sort_direction: sortDirection
       };
-      
-      if (currentIteration !== null) {
-        payload.iteration = currentIteration;
-      }
-      
+
       const res = await fetch("/grid/api/grid-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1077,7 +1075,7 @@
         document.getElementById("massActionsBtn").classList.add("hidden");
         return;
       }
-      
+
       // Show mass actions button when grid has data
       document.getElementById("massActionsBtn").classList.remove("hidden");
 
@@ -1102,11 +1100,16 @@
         { key: 'height', label: 'Height' },
         { key: 'width', label: 'Width' },
         { key: 'depth', label: 'Depth' },
+        { key: 'eps', label: 'EPS' },
+        { key: 'sample', label: 'Sample' },
         { key: 'final_status', label: 'Final Status' },
-        { key: 'iterations', label: 'Iterations' },
-        { key: 'outlier_percentage', label: 'Outlier %' },
-        { key: 'product_type_count', label: 'Iteration Product Type' },
-        { key: 'manual_outlier', label: 'Manual Outlier' },
+        { key: 'total_items', label: 'Total Items' },
+        { key: 'analyzed_items', label: 'Analyzed Items' },
+        { key: 'pending_items', label: 'Pending Items' },
+        { key: 'outlier_items', label: 'Outlier Items' },
+        { key: 'cluster', label: 'Cluster' },
+        { key: 'cluster_items', label: 'Cluster Items' },
+        { key: 'cluster_items_per', label: 'Cluster Items (%)' },
         { key: 'skip_status', label: 'Skip' }
       );
 
@@ -1137,10 +1140,22 @@
         columns.forEach(col => {
           let value = row[col.key] || '';
           let cellClass = '';
-          
+
           if (col.key === 'checkbox') {
             const isChecked = selectedProductIds.has(row.product_id);
             value = `<input type="checkbox" class="product-checkbox" value="${row.product_id}" ${isChecked ? 'checked' : ''} onchange="toggleProductCheckbox(${row.product_id}, this.checked)">`;
+          } else if (col.key === 'cluster_items_per') {
+            value = typeof value === 'number' ? value.toFixed(2) + '%' : (value || '0.00%');
+          } else if (col.key === 'total_items' || col.key === 'analyzed_items' || col.key === 'pending_items' || col.key === 'outlier_items' || col.key === 'cluster_items') {
+            value = value || 0;
+          } else if (col.key === 'cluster') {
+            value = value || '-';
+            // Make cluster clickable if iteration_id is available
+            if (value !== '-' && (row.iteration_id || urlParams.get('iteration_id'))) {
+              const iterationId = row.iteration_id || urlParams.get('iteration_id');
+              const clusterValue = value === 'Noise/Outlier' ? '-1' : value.replace('Cluster ', '');
+              value = `<a href="/dimension/analyzer?iteration_id=${iterationId}&cluster=${clusterValue}" target="_blank" style="color: #2563eb; text-decoration: underline; cursor: pointer;">${value}</a>`;
+            }
           } else if (col.key === 'skip_status') {
             const isActive = (row.skip_status === 1 || row.skip_status === '1');
             const iconClass = isActive ? 'active' : 'inactive';
@@ -1160,6 +1175,19 @@
             if (row.iqr_depth_status === 0) cellClass = 'bg-red';
           } else if (col.key === 'final_status') {
             cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';
+            if (row.iteration_history && row.iteration_history.length > 0) {
+              const historyLines = row.iteration_history.map((h, idx) => {
+                const highlight = idx === 0 ? '★' : ' ';
+                const eps = String(h.eps).padEnd(6);
+                const sample = String(h.sample).padEnd(8);
+                const status = h.status.padEnd(10);
+                return `${highlight} ${eps} ${sample} ${status} ${h.date}`;
+              });
+              const header = '  EPS    Sample   Status      Date';
+              const separator = '  ' + '-'.repeat(50);
+              const tooltipText = [header, separator, ...historyLines].join('\n');
+              value = `<span class="final-status-tooltip">${value}<span class="tooltip-content">${tooltipText}</span></span>`;
+            }
           } else if (col.key === 'outlier_percentage') {
             value = typeof value === 'number' ? value.toFixed(2) + '%' : value;
           } else if (col.key === 'iterations' && row.config_info) {
@@ -1176,7 +1204,7 @@
             const tooltip = `${count} ${count === 1 ? 'Outlier' : 'Outliers'}`;
             value = `<span class="item-count-tooltip" data-tooltip="${tooltip}">${value}</span>`;
           }
-          
+
           html += `<td class="${cellClass}" style="text-align:${col.key === 'skip' ? 'center' : 'left'}">${value}</td>`;
         });
         html += '</tr>';
@@ -1185,7 +1213,7 @@
       html += '</tbody></table>';
       els.gridContainer.innerHTML = html;
       els.gridContainer.classList.remove("hidden");
-      
+
       // Update select all checkbox state
       const selectAllCheckbox = document.getElementById('selectAllCheckbox');
       if (selectAllCheckbox && gridData.length > 0) {
@@ -1258,53 +1286,106 @@
       }
     });
 
-    els.configTrigger.addEventListener("click", () => {
-      const willOpen = els.configMenu.classList.contains("hidden");
-      closeAllDropdownMenus();
-      if (willOpen) {
-        els.configMenu.classList.remove("hidden");
-        const input = els.configMenu.querySelector(".ms-search");
-        if (input) input.focus();
-      }
-    });
-
     document.addEventListener("click", (e) => {
       const inStatus = e.target.closest("#statusDropdown");
       const inSkip = e.target.closest("#skipDropdown");
       const inBrand = e.target.closest("#brandDropdown");
       const inCategory = e.target.closest("#categoryDropdown");
       const inType = e.target.closest("#typeDropdown");
-      const inConfig = e.target.closest("#configDropdown");
-      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType && !inConfig) closeAllDropdownMenus();
+
+      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
     });
 
     (async function init() {
       renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
       renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
-      renderMultiCheckboxDropdown(els.config, els.configMenu, els.configTrigger, els.configCount, "Select Configuration");
 
       await loadProductGroups();
-      
+
       // Check for URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
       const groupId = urlParams.get('group_id');
       const category = urlParams.get('category');
       const brands = urlParams.getAll('brands');
       const types = urlParams.getAll('types');
+      const clusters = urlParams.getAll('clusters');
       const finalStatus = urlParams.get('final_status');
       const skipStatus = urlParams.get('skip_status');
-      const iteration = urlParams.get('iteration');
-      
-      // Store iteration if provided
-      if (iteration !== null) {
-        currentIteration = parseInt(iteration);
+      const iterationId = urlParams.get('iteration_id');
+
+      // If iteration_id is provided, fetch filters from iteration
+      if (iterationId) {
+        const iterRes = await fetch('/grid/api/iteration-filters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ iteration_id: parseInt(iterationId) })
+        });
+        const iterData = await iterRes.json();
+        
+        if (iterData.ok && iterData.filters) {
+          // Set product group
+          els.group.value = iterData.filters.group_id;
+          await loadOptions();
+          
+          // Set brands: use URL param if provided, otherwise use all brands from iteration
+          if (brands.length > 0) {
+            Array.from(els.brand.options).forEach(opt => {
+              opt.selected = brands.includes(opt.value);
+            });
+          } else if (iterData.filters.brands && iterData.filters.brands.length > 0) {
+            Array.from(els.brand.options).forEach(opt => {
+              opt.selected = iterData.filters.brands.includes(opt.value);
+            });
+          }
+          renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
+          await loadOptions();
+          
+          // Set categories from iteration
+          if (iterData.filters.categories && iterData.filters.categories.length > 0) {
+            Array.from(els.category.options).forEach(opt => {
+              opt.selected = iterData.filters.categories.includes(opt.value);
+            });
+            renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
+            await loadOptions();
+          }
+          
+          // Set final status if provided
+          if (finalStatus !== null) {
+            const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
+            const statusValue = statusMap[finalStatus];
+            if (statusValue) {
+              Array.from(els.status.options).forEach(opt => {
+                opt.selected = opt.value === statusValue;
+              });
+              renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
+            }
+          }
+          
+          // Set skip status if provided
+          if (skipStatus !== null) {
+            const skipMap = {'0': 'No', '1': 'Yes'};
+            const skipValue = skipMap[skipStatus];
+            if (skipValue) {
+              Array.from(els.skip.options).forEach(opt => {
+                opt.selected = opt.value === skipValue;
+              });
+              renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
+            }
+          }
+          
+          // Auto-load grid if category is selected
+          if (iterData.filters.categories && iterData.filters.categories.length > 0) {
+            currentPage = 1;
+            await loadGridData();
+          }
+        }
+        return;
       }
-      
+
       if (groupId) {
         // Set product group
         els.group.value = groupId;
         await loadOptions();
-        
+
         // Set final status if provided
         if (finalStatus !== null) {
           const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
@@ -1328,7 +1409,7 @@
             renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
           }
         }
-        
+
         // Set brands if provided
         if (brands.length > 0) {
           Array.from(els.brand.options).forEach(opt => {
@@ -1337,7 +1418,7 @@
           renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
           await loadOptions();
         }
-        
+
         // Set category if provided
         if (category) {
           Array.from(els.category.options).forEach(opt => {
@@ -1346,7 +1427,7 @@
           renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
           await loadOptions();
         }
-        
+
         // Set types if provided
         if (types.length > 0) {
           Array.from(els.type.options).forEach(opt => {
@@ -1354,7 +1435,7 @@
           });
           renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
         }
-        
+
         // Auto-load grid if category is selected
         if (category && selectedValues(els.category).length > 0) {
           currentPage = 1;
@@ -1373,13 +1454,13 @@
         alert("Please select at least one product");
         return;
       }
-      
+
       showLoader();
       const skipItems = Array.from(selectedProductIds).map(id => ({
         product_id: id,
         skip_status: parseInt(skipStatus)
       }));
-      
+
       const res = await fetch('/grid/api/save-skip-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1387,7 +1468,7 @@
       });
       const data = await res.json();
       hideLoader();
-      
+
       if (data.ok) {
         alert(data.message);
         selectedProductIds.clear();
@@ -1421,29 +1502,29 @@
     window.toggleSkipStatus = toggleSkipStatus;
     window.changePage = changePage;
     window.changeItemsPerPage = changeItemsPerPage;
-    
+
     // Image tooltip functions
     let imageTooltip = null;
-    
+
     window.showImageTooltip = function(event, imageUrl) {
       if (!imageUrl || imageUrl === '') return;
-      
+
       if (!imageTooltip) {
         imageTooltip = document.createElement('div');
         imageTooltip.className = 'image-tooltip';
         document.body.appendChild(imageTooltip);
       }
-      
+
       imageTooltip.innerHTML = `<img src="${imageUrl}" alt="Product Image" onerror="this.parentElement.style.display='none'">`;
       imageTooltip.style.display = 'block';
-      
+
       const rect = event.target.getBoundingClientRect();
       const tooltipWidth = 270;
       const tooltipHeight = 270;
-      
+
       let left = rect.right + 10;
       let top = rect.top;
-      
+
       if (left + tooltipWidth > window.innerWidth) {
         left = rect.left - tooltipWidth - 10;
       }
@@ -1451,15 +1532,18 @@
         top = window.innerHeight - tooltipHeight - 10;
       }
       if (top < 0) top = 10;
-      
+
       imageTooltip.style.left = (left + window.scrollX) + 'px';
       imageTooltip.style.top = (top + window.scrollY) + 'px';
     };
-    
+
     window.hideImageTooltip = function() {
       if (imageTooltip) {
         imageTooltip.style.display = 'none';
       }
     };
+
+    // Function to redirect to analyzer page with iteration loaded
+    // Removed - now using direct links
   </script>
 {% endblock %}
