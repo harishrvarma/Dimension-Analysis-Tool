@@ -669,13 +669,13 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         db.close()
 
 
-def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension):
+def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None):
     """Swap dimension values for filtered products"""
     from models.dimension.product import Product
     
     db = SessionLocal()
     try:
-        # Build query with filters
+        # Build base query with top-level filters
         query = db.query(Product).filter(Product.group_id == group_id)
         
         if brands:
@@ -685,10 +685,47 @@ def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimens
         if types:
             query = query.filter(Product.product_type.in_(types))
         
+        # If specific clusters are selected, filter by those clusters only
+        if selected_clusters and len(selected_clusters) > 0:
+            from models.dimension.product_iteration_item import DimensionProductIterationItem
+            from models.dimension.product_iteration import ProductIteration
+            from sqlalchemy import or_
+            
+            # Get latest iteration for the category
+            latest_iteration = db.query(ProductIteration).filter(
+                ProductIteration.product_group_id == group_id,
+                ProductIteration.category == category
+            ).order_by(ProductIteration.timestamp.desc()).first()
+            
+            if latest_iteration:
+                # Build cluster conditions
+                cluster_conditions = []
+                for cluster in selected_clusters:
+                    if cluster == -1:
+                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
+                    else:
+                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
+                
+                if cluster_conditions:
+                    # Get system_product_ids from selected clusters
+                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
+                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
+                        or_(*cluster_conditions)
+                    ).subquery()
+                    
+                    # Filter products to only those in selected clusters
+                    query = query.filter(Product.system_product_id.in_(
+                        db.query(cluster_products.c.system_product_id)
+                    ))
+            else:
+                # No iteration found, cannot filter by clusters
+                return False, 0, "No analysis iteration found for cluster filtering"
+        
         products = query.all()
         
         if not products:
-            return False, 0, "No products found with the specified filters"
+            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
+            return False, 0, f"No products found with the specified filters{cluster_msg}"
         
         # Map dimension names to column names
         dimension_map = {
@@ -724,13 +761,13 @@ def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimens
         db.close()
 
 
-def reset_dimensions(group_id, brands, category, types):
+def reset_dimensions(group_id, brands, category, types, selected_clusters=None):
     """Reset dimension values to original values for filtered products"""
     from models.dimension.product import Product
     
     db = SessionLocal()
     try:
-        # Build query with filters
+        # Build base query with top-level filters
         query = db.query(Product).filter(Product.group_id == group_id)
         
         if brands:
@@ -740,10 +777,47 @@ def reset_dimensions(group_id, brands, category, types):
         if types:
             query = query.filter(Product.product_type.in_(types))
         
+        # If specific clusters are selected, filter by those clusters only
+        if selected_clusters and len(selected_clusters) > 0:
+            from models.dimension.product_iteration_item import DimensionProductIterationItem
+            from models.dimension.product_iteration import ProductIteration
+            from sqlalchemy import or_
+            
+            # Get latest iteration for the category
+            latest_iteration = db.query(ProductIteration).filter(
+                ProductIteration.product_group_id == group_id,
+                ProductIteration.category == category
+            ).order_by(ProductIteration.timestamp.desc()).first()
+            
+            if latest_iteration:
+                # Build cluster conditions
+                cluster_conditions = []
+                for cluster in selected_clusters:
+                    if cluster == -1:
+                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
+                    else:
+                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
+                
+                if cluster_conditions:
+                    # Get system_product_ids from selected clusters
+                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
+                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
+                        or_(*cluster_conditions)
+                    ).subquery()
+                    
+                    # Filter products to only those in selected clusters
+                    query = query.filter(Product.system_product_id.in_(
+                        db.query(cluster_products.c.system_product_id)
+                    ))
+            else:
+                # No iteration found, cannot filter by clusters
+                return False, 0, "No analysis iteration found for cluster filtering"
+        
         products = query.all()
         
         if not products:
-            return False, 0, "No products found with the specified filters"
+            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
+            return False, 0, f"No products found with the specified filters{cluster_msg}"
         
         # Reset values for each product
         count = 0

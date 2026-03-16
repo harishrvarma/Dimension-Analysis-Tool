@@ -1106,6 +1106,16 @@ img.preview {
 </div>
 
 <script>
+let currentClusterPreview = null; // Track currently displayed cluster
+
+function refreshCurrentClusterPreview() {
+  // Check if there's a cluster preview currently displayed
+  if (currentClusterPreview !== null) {
+    // Set a flag to refresh the cluster preview after cluster summary is loaded
+    window.pendingClusterPreviewRefresh = currentClusterPreview;
+  }
+}
+
 let analysisData = [];
 let sessionToken = null;
 let plotlyBound = false;
@@ -2291,7 +2301,11 @@ function displayClusterSummary() {
       const cluster = parseInt(this.dataset.cluster);
       const clusterInfo = sortedClusters.find(c => c.cluster === cluster);
       if (clusterInfo) {
+        // First, render the cluster preview
         renderClusterPreview(clusterInfo);
+        
+        // Then, select only this cluster's checkbox and update chart
+        selectSingleCluster(cluster);
       }
     });
   });
@@ -2349,7 +2363,11 @@ function displayClusterSummary() {
   // Add event listener for toggle all checkbox
   const toggleAllCheckbox = document.getElementById('toggleAllClusters');
   if (toggleAllCheckbox) {
-    toggleAllCheckbox.addEventListener('change', function() {
+    // Remove any existing event listeners to avoid duplicates
+    toggleAllCheckbox.replaceWith(toggleAllCheckbox.cloneNode(true));
+    const newToggleAllCheckbox = document.getElementById('toggleAllClusters');
+    
+    newToggleAllCheckbox.addEventListener('change', function() {
       const isChecked = this.checked;
       const allCheckboxes = document.querySelectorAll('.cluster-visibility-toggle');
 
@@ -2376,6 +2394,24 @@ function displayClusterSummary() {
         Plotly.restyle(chartDiv, update, traceIndices);
       }
     });
+    
+    // Update the toggle all checkbox state based on current individual checkboxes
+    updateToggleAllCheckbox();
+  }
+  
+  // Check if there's a pending cluster preview refresh
+  if (window.pendingClusterPreviewRefresh !== undefined) {
+    const pendingCluster = window.pendingClusterPreviewRefresh;
+    delete window.pendingClusterPreviewRefresh;
+    
+    // First, select the cluster to restore the previous selection state
+    selectSingleCluster(pendingCluster);
+    
+    // Then, find the cluster data and render the preview with fresh data
+    const clusterInfo = sortedClusters.find(c => c.cluster === pendingCluster);
+    if (clusterInfo) {
+      renderClusterPreview(clusterInfo);
+    }
   }
 }
 
@@ -2436,11 +2472,8 @@ function applyClusterFilter(targetCluster) {
       Plotly.restyle(chartDiv, update, traceIndices);
     }
     
-    // Update toggle all checkbox
-    const toggleAllCheckbox = document.getElementById('toggleAllClusters');
-    if (toggleAllCheckbox) {
-      toggleAllCheckbox.checked = false;
-    }
+    // Update toggle all checkbox state
+    updateToggleAllCheckbox();
     
     // Show message about cluster filter
     const clusterName = targetCluster === -1 ? 'Noise/Outlier' : `Cluster ${targetCluster}`;
@@ -2448,6 +2481,50 @@ function applyClusterFilter(targetCluster) {
   };
   
   checkClusterSummary();
+}
+
+function selectSingleCluster(targetCluster) {
+  // Uncheck all cluster checkboxes first
+  const allCheckboxes = document.querySelectorAll('.cluster-visibility-toggle');
+  allCheckboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  
+  // Check only the target cluster
+  const targetCheckbox = document.querySelector(`.cluster-visibility-toggle[data-cluster="${targetCluster}"]`);
+  if (targetCheckbox) {
+    targetCheckbox.checked = true;
+  }
+  
+  // Update chart visibility
+  const chartDiv = document.getElementById('chart');
+  if (!chartDiv || !chartDiv.data) return;
+  
+  const update = { visible: [] };
+  const traceIndices = [];
+  
+  chartDiv.data.forEach((trace, idx) => {
+    if (trace.name === 'Outlier Products') {
+      // Show outliers only if target cluster is -1 (Noise/Outlier)
+      update.visible.push(targetCluster === -1);
+      traceIndices.push(idx);
+    } else if (trace.name.includes('Cluster')) {
+      const traceCluster = parseInt(trace.name.replace('Cluster ', ''));
+      update.visible.push(traceCluster === targetCluster);
+      traceIndices.push(idx);
+    } else if (trace.name === 'Normal Products') {
+      // Hide generic normal products trace when filtering by cluster
+      update.visible.push(false);
+      traceIndices.push(idx);
+    }
+  });
+  
+  if (traceIndices.length > 0) {
+    Plotly.restyle(chartDiv, update, traceIndices);
+  }
+  
+  // Update toggle all checkbox state
+  updateToggleAllCheckbox();
 }
 
 function updateToggleAllCheckbox() {
@@ -3180,6 +3257,9 @@ function displayChart(data) {
 }
 
 function renderPreviewEmpty() {
+  // Clear current cluster preview tracking
+  currentClusterPreview = null;
+  
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = 'var(--line)';
   els.preview.innerHTML = `
@@ -3191,6 +3271,9 @@ function renderPreviewEmpty() {
 function renderClusterPreview(clusterInfo) {
   const clusterLabel = clusterInfo.cluster === -1 ? 'Noise/Outlier' : `Cluster ${clusterInfo.cluster}`;
   const products = clusterInfo.products.slice(0, 100);
+  
+  // Track the currently displayed cluster
+  currentClusterPreview = clusterInfo.cluster;
   
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
@@ -3272,6 +3355,9 @@ function initLazyLoading() {
 }
 
 function renderPreview(p) {
+  // Clear current cluster preview tracking since we're showing individual product
+  currentClusterPreview = null;
+  
   const isOutlier = Boolean(p.is_outlier_combined);
   
   const bgColor = isOutlier ? '#fee' : '#eff6ff';
@@ -4142,7 +4228,25 @@ swapResetBtn.addEventListener('click', async function() {
     return;
   }
   
-  if (!confirm('Are you sure you want to reset dimensions to original values?\n\nThis will restore original dimension values for all filtered products.')) {
+  // Get selected clusters from cluster summary
+  const selectedClusters = getSelectedClusters();
+  
+  // Build confirmation message with selected details
+  let confirmMessage = `Are you sure you want to reset dimensions to original values?\n\n`;
+  confirmMessage += `Selected filters:\n`;
+  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
+  if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
+  if (category) confirmMessage += `• Category: ${category}\n`;
+  if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
+  
+  if (selectedClusters.length > 0) {
+    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
+    confirmMessage += `\nThis will restore original dimension values for products in the selected clusters only.`;
+  } else {
+    confirmMessage += `\nThis will restore original dimension values for all products matching the above filters.`;
+  }
+  
+  if (!confirm(confirmMessage)) {
     return;
   }
   
@@ -4150,7 +4254,8 @@ swapResetBtn.addEventListener('click', async function() {
     group_id: parseInt(groupId),
     brands: brands,
     category: category,
-    types: types
+    types: types,
+    selected_clusters: selectedClusters
   };
   
   showLoader();
@@ -4169,8 +4274,18 @@ swapResetBtn.addEventListener('click', async function() {
     swapToDimension.value = '';
     Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
     Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
-    // Reload options to refresh data
-    await loadOptions();
+    
+    // Reload the current iteration if one is selected to show updated data
+    if (selectedIterationId) {
+      const currentSelectedClusters = getSelectedClusters();
+      await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
+      
+      // If there's a cluster preview currently displayed, refresh it with updated data
+      refreshCurrentClusterPreview();
+    } else {
+      // Reload options to refresh data
+      await loadOptions();
+    }
   } else {
     showMessage('Failed to reset dimensions: ' + (data.message || 'Unknown error'));
   }
@@ -4199,10 +4314,28 @@ swapBtn.addEventListener('click', async function() {
     return;
   }
   
+  // Get selected clusters from cluster summary
+  const selectedClusters = getSelectedClusters();
+  
   const fromLabel = swapFromDimension.options[swapFromDimension.selectedIndex].text;
   const toLabel = swapToDimension.options[swapToDimension.selectedIndex].text;
   
-  if (!confirm(`Are you sure you want to swap ${fromLabel} with ${toLabel}?\n\nThis will swap dimension values for all filtered products.`)) {
+  // Build confirmation message with selected details
+  let confirmMessage = `Are you sure you want to swap ${fromLabel} with ${toLabel}?\n\n`;
+  confirmMessage += `Selected filters:\n`;
+  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
+  if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
+  if (category) confirmMessage += `• Category: ${category}\n`;
+  if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
+  
+  if (selectedClusters.length > 0) {
+    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
+    confirmMessage += `\nThis will swap dimension values for products in the selected clusters only.`;
+  } else {
+    confirmMessage += `\nThis will swap dimension values for all products matching the above filters.`;
+  }
+  
+  if (!confirm(confirmMessage)) {
     return;
   }
   
@@ -4212,7 +4345,8 @@ swapBtn.addEventListener('click', async function() {
     category: category,
     types: types,
     from_dimension: fromDim,
-    to_dimension: toDim
+    to_dimension: toDim,
+    selected_clusters: selectedClusters
   };
   
   showLoader();
@@ -4231,12 +4365,37 @@ swapBtn.addEventListener('click', async function() {
     swapToDimension.value = '';
     Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
     Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
-    // Reload options to refresh data
-    await loadOptions();
+    
+    // Reload the current iteration if one is selected to show updated data
+    if (selectedIterationId) {
+      const currentSelectedClusters = getSelectedClusters();
+      await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
+      
+      // If there's a cluster preview currently displayed, refresh it with updated data
+      refreshCurrentClusterPreview();
+    } else {
+      // Reload options to refresh data
+      await loadOptions();
+    }
   } else {
     showMessage('Failed to swap dimensions: ' + (data.message || 'Unknown error'));
   }
 });
+
+function getSelectedClusters() {
+  // Get selected clusters from cluster summary checkboxes
+  const selectedClusters = [];
+  const checkedBoxes = document.querySelectorAll('.cluster-visibility-toggle:checked');
+  
+  // Only return clusters if there are checked boxes (specific selection)
+  // If no boxes are checked, return empty array (use top filters only)
+  checkedBoxes.forEach(checkbox => {
+    const cluster = parseInt(checkbox.dataset.cluster);
+    selectedClusters.push(cluster);
+  });
+  
+  return selectedClusters;
+}
 
 async function updateItemStatus(sku, finalStatus) {
   if (!selectedIterationId) {
