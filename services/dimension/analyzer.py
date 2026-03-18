@@ -672,90 +672,95 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         db.close()
 
 
-def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None):
-    """Swap dimension values for filtered products"""
+def _build_product_id_subquery(db, group_id, brands, category, types, selected_clusters, skus):
+    """Build a query of product_id (integer PK) applying all filter layers.
+    Returns (query, error_string_or_None).
+    """
     from models.dimension.product import Product
-    
+    from models.dimension.product_iteration_item import DimensionProductIterationItem
+    from models.dimension.product_iteration import ProductIteration
+    from sqlalchemy import or_
+
+    # Layer 1: top-level filters — select only product_id (integer PK)
+    id_query = db.query(Product.product_id).filter(Product.group_id == group_id)
+    if brands:
+        id_query = id_query.filter(Product.brand.in_(brands))
+    if category:
+        id_query = id_query.filter(Product.category == category)
+    if types:
+        id_query = id_query.filter(Product.product_type.in_(types))
+
+    # Layer 2: cluster filter — join via system_product_id (has index)
+    if selected_clusters and len(selected_clusters) > 0:
+        latest_iteration = db.query(ProductIteration).filter(
+            ProductIteration.product_group_id == group_id,
+            ProductIteration.category == category
+        ).order_by(ProductIteration.timestamp.desc()).first()
+
+        if not latest_iteration:
+            return None, "No analysis iteration found for cluster filtering"
+
+        cluster_conditions = [
+            DimensionProductIterationItem.cluster == ("Noise/Outlier" if c == -1 else f"Cluster {c}")
+            for c in selected_clusters
+        ]
+        # Pass query directly to .in_() — no .subquery() needed, avoids SAWarning
+        cluster_sys_ids_q = db.query(DimensionProductIterationItem.system_product_id).filter(
+            DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
+            or_(*cluster_conditions)
+        )
+        id_query = id_query.filter(Product.system_product_id.in_(cluster_sys_ids_q))
+
+    # Layer 3: SKU list — resolve qb_code → product_id then intersect by integer PK
+    if skus and len(skus) > 0:
+        sku_product_ids_q = db.query(Product.product_id).filter(
+            Product.group_id == group_id,
+            Product.qb_code.in_(skus)
+        )
+        id_query = id_query.filter(Product.product_id.in_(sku_product_ids_q))
+
+    return id_query, None
+
+
+def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None, skus=None):
+    """Swap two dimension columns using a single bulk UPDATE."""
+    from models.dimension.product import Product
+    from sqlalchemy import text
+
+    dimension_map = {'height': 'height', 'width': 'width', 'depth': 'depth'}
+    from_col = dimension_map.get(from_dimension)
+    to_col   = dimension_map.get(to_dimension)
+    if not from_col or not to_col:
+        return False, 0, "Invalid dimension names"
+
     db = SessionLocal()
     try:
-        # Build base query with top-level filters
-        query = db.query(Product).filter(Product.group_id == group_id)
-        
-        if brands:
-            query = query.filter(Product.brand.in_(brands))
-        if category:
-            query = query.filter(Product.category == category)
-        if types:
-            query = query.filter(Product.product_type.in_(types))
-        
-        # If specific clusters are selected, filter by those clusters only
-        if selected_clusters and len(selected_clusters) > 0:
-            from models.dimension.product_iteration_item import DimensionProductIterationItem
-            from models.dimension.product_iteration import ProductIteration
-            from sqlalchemy import or_
-            
-            # Get latest iteration for the category
-            latest_iteration = db.query(ProductIteration).filter(
-                ProductIteration.product_group_id == group_id,
-                ProductIteration.category == category
-            ).order_by(ProductIteration.timestamp.desc()).first()
-            
-            if latest_iteration:
-                # Build cluster conditions
-                cluster_conditions = []
-                for cluster in selected_clusters:
-                    if cluster == -1:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
-                    else:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
-                
-                if cluster_conditions:
-                    # Get system_product_ids from selected clusters
-                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
-                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
-                        or_(*cluster_conditions)
-                    ).subquery()
-                    
-                    # Filter products to only those in selected clusters
-                    query = query.filter(Product.system_product_id.in_(
-                        db.query(cluster_products.c.system_product_id)
-                    ))
-            else:
-                # No iteration found, cannot filter by clusters
-                return False, 0, "No analysis iteration found for cluster filtering"
-        
-        products = query.all()
-        
-        if not products:
-            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
-            return False, 0, f"No products found with the specified filters{cluster_msg}"
-        
-        # Map dimension names to column names
-        dimension_map = {
-            'height': 'height',
-            'width': 'width',
-            'depth': 'depth'
-        }
-        
-        from_col = dimension_map.get(from_dimension)
-        to_col = dimension_map.get(to_dimension)
-        
-        if not from_col or not to_col:
-            return False, 0, "Invalid dimension names"
-        
-        # Swap values for each product
-        count = 0
-        for product in products:
-            from_value = getattr(product, from_col)
-            to_value = getattr(product, to_col)
-            
-            # Swap the values
-            setattr(product, from_col, to_value)
-            setattr(product, to_col, from_value)
-            count += 1
-        
+        id_query, err = _build_product_id_subquery(
+            db, group_id, brands, category, types, selected_clusters, skus
+        )
+        if err:
+            return False, 0, err
+
+        # Materialise IDs once — used for both count and UPDATE
+        product_ids = tuple(r[0] for r in id_query.all())
+        if not product_ids:
+            return False, 0, "No products found with the specified filters"
+
+        # Single bulk UPDATE using a session variable to avoid MySQL left-to-right
+        # assignment clobbering the source value before it is read
+        db.execute(
+            text(f"""
+                UPDATE dimension_product
+                SET
+                    {from_col} = (@tmp := {from_col}),
+                    {from_col} = {to_col},
+                    {to_col}   = @tmp
+                WHERE product_id IN :ids
+            """),
+            {"ids": product_ids}
+        )
         db.commit()
-        return True, count, None
+        return True, len(product_ids), None
     except Exception as e:
         db.rollback()
         print(f"Error swapping dimensions: {e}")
@@ -764,78 +769,37 @@ def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimens
         db.close()
 
 
-def reset_dimensions(group_id, brands, category, types, selected_clusters=None):
-    """Reset dimension values to original values for filtered products"""
+def reset_dimensions(group_id, brands, category, types, selected_clusters=None, skus=None):
+    """Reset height/width/depth to ori_* values using a single bulk UPDATE."""
     from models.dimension.product import Product
-    
+    from sqlalchemy import text
+
     db = SessionLocal()
     try:
-        # Build base query with top-level filters
-        query = db.query(Product).filter(Product.group_id == group_id)
-        
-        if brands:
-            query = query.filter(Product.brand.in_(brands))
-        if category:
-            query = query.filter(Product.category == category)
-        if types:
-            query = query.filter(Product.product_type.in_(types))
-        
-        # If specific clusters are selected, filter by those clusters only
-        if selected_clusters and len(selected_clusters) > 0:
-            from models.dimension.product_iteration_item import DimensionProductIterationItem
-            from models.dimension.product_iteration import ProductIteration
-            from sqlalchemy import or_
-            
-            # Get latest iteration for the category
-            latest_iteration = db.query(ProductIteration).filter(
-                ProductIteration.product_group_id == group_id,
-                ProductIteration.category == category
-            ).order_by(ProductIteration.timestamp.desc()).first()
-            
-            if latest_iteration:
-                # Build cluster conditions
-                cluster_conditions = []
-                for cluster in selected_clusters:
-                    if cluster == -1:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
-                    else:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
-                
-                if cluster_conditions:
-                    # Get system_product_ids from selected clusters
-                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
-                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
-                        or_(*cluster_conditions)
-                    ).subquery()
-                    
-                    # Filter products to only those in selected clusters
-                    query = query.filter(Product.system_product_id.in_(
-                        db.query(cluster_products.c.system_product_id)
-                    ))
-            else:
-                # No iteration found, cannot filter by clusters
-                return False, 0, "No analysis iteration found for cluster filtering"
-        
-        products = query.all()
-        
-        if not products:
-            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
-            return False, 0, f"No products found with the specified filters{cluster_msg}"
-        
-        # Reset values for each product
-        count = 0
-        for product in products:
-            # Restore original dimensions
-            if hasattr(product, 'ori_height') and product.ori_height is not None:
-                product.height = product.ori_height
-            if hasattr(product, 'ori_width') and product.ori_width is not None:
-                product.width = product.ori_width
-            if hasattr(product, 'ori_depth') and product.ori_depth is not None:
-                product.depth = product.ori_depth
-            count += 1
-        
+        id_query, err = _build_product_id_subquery(
+            db, group_id, brands, category, types, selected_clusters, skus
+        )
+        if err:
+            return False, 0, err
+
+        product_ids = tuple(r[0] for r in id_query.all())
+        if not product_ids:
+            return False, 0, "No products found with the specified filters"
+
+        # Single bulk UPDATE — COALESCE keeps current value when ori_* is NULL
+        db.execute(
+            text("""
+                UPDATE dimension_product
+                SET
+                    height = COALESCE(ori_height, height),
+                    width  = COALESCE(ori_width,  width),
+                    depth  = COALESCE(ori_depth,  depth)
+                WHERE product_id IN :ids
+            """),
+            {"ids": product_ids}
+        )
         db.commit()
-        return True, count, None
+        return True, len(product_ids), None
     except Exception as e:
         db.rollback()
         print(f"Error resetting dimensions: {e}")

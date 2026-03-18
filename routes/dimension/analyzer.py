@@ -367,6 +367,7 @@ def api_swap_dimensions():
     from_dimension = payload.get("from_dimension")
     to_dimension = payload.get("to_dimension")
     selected_clusters = payload.get("selected_clusters") or []
+    skus = payload.get("skus") or []
     
     if not group_id or not from_dimension or not to_dimension:
         return jsonify({"ok": False, "message": "Group ID and both dimensions are required"})
@@ -375,7 +376,7 @@ def api_swap_dimensions():
         return jsonify({"ok": False, "message": "At least one filter (Brand, Category, or Type) is required"})
     
     success, count, error = analyzer.swap_dimensions(
-        group_id, brands, category, types, from_dimension, to_dimension, selected_clusters
+        group_id, brands, category, types, from_dimension, to_dimension, selected_clusters, skus
     )
     
     if success:
@@ -393,6 +394,7 @@ def api_reset_dimensions():
     category = payload.get("category")
     types = payload.get("types") or []
     selected_clusters = payload.get("selected_clusters") or []
+    skus = payload.get("skus") or []
     
     if not group_id:
         return jsonify({"ok": False, "message": "Group ID is required"})
@@ -401,7 +403,7 @@ def api_reset_dimensions():
         return jsonify({"ok": False, "message": "At least one filter (Brand, Category, or Type) is required"})
     
     success, count, error = analyzer.reset_dimensions(
-        group_id, brands, category, types, selected_clusters
+        group_id, brands, category, types, selected_clusters, skus
     )
     
     if success:
