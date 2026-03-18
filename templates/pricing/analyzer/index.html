@@ -22,7 +22,7 @@ body {
 .page { padding: 5px; }
 .row {
   display: grid;
-  grid-template-columns: repeat(6, 1fr) auto;
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -869,7 +869,6 @@ img.preview {
 <div>
 <label>Detection Algorithm(s) <span class="warn">*</span><span id="algoCount" class="label-count">(1 selected)</span></label>
 <select id="algoSelector" class="select-hidden" multiple>
-<option value="IQR">IQR (Threshold)</option>
 <option value="DBSCAN" selected>DBSCAN (Density/Pattern)</option>
 </select>
 <div class="multi-select" id="algoDropdown">
@@ -906,35 +905,15 @@ img.preview {
 </div>
 </div>
 <div>
-<label style="display:flex;align-items:center;justify-content:space-between;">Product Type (Optional)<span id="typeCount" class="label-count">(0 selected)</span></label>
+<label>Product Type (Optional)<span id="typeCount" class="label-count">(0 selected)</span></label>
 <select id="typeSelector" class="select-hidden" multiple></select>
 <div class="multi-select" id="typeDropdown">
 <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
 <div class="ms-menu hidden" id="typeMenu"></div>
 </div>
 </div>
-<div style="display:flex;align-items:flex-end;">
-<button id="filterResetBtn" title="Clear brand, category and product type filters" style="width:100%;background:#95a5a6;border-color:#95a5a6;font-size:12px;padding:8px 6px;">Clear Filters</button>
-</div>
 </div>
 
-<div id="iqrPanel" class="panel hidden">
-<div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
-<h3 style="margin:0;display:inline-block;min-width:200px;">IQR Algorithm Configuration</h3>
-<div style="display:flex;align-items:center;gap:10px;flex:1;">
-<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Height (H): <span id="hVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
-<input id="hMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
-</div>
-<div style="display:flex;align-items:center;gap:10px;flex:1;">
-<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Width (W): <span id="wVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
-<input id="wMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
-</div>
-<div style="display:flex;align-items:center;gap:10px;flex:1;">
-<label style="margin:0;font-size:11px;white-space:nowrap;min-width:80px;">Depth (D): <span id="dVal" class="pill" style="padding:2px 6px;font-size:11px;">1.5</span></label>
-<input id="dMult" type="range" min="0" max="10" step="0.5" value="1.5" style="flex:1;min-width:150px;" />
-</div>
-</div>
-</div>
 
 <div id="dbscanPanel" class="panel hidden">
 <div style="display:flex;align-items:center;gap:15px;">
@@ -1006,31 +985,6 @@ img.preview {
 <tbody id="iterationSummaryBody"></tbody>
 </table>
 </div>
-<div id="swapDimensionPanel" style="flex:0 0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-<h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:#e67e22;">🔄 Swap Dimensions</h3>
-<div style="display:flex;gap:8px;align-items:end;">
-<div style="flex:0 0 140px;">
-<label style="font-size:11px;font-weight:600;margin-bottom:3px;display:block;">From Dimension</label>
-<select id="swapFromDimension" style="width:100%;padding:6px;font-size:12px;border:1px solid #c9d4e7;border-radius:4px;">
-<option value="">Select Dimension</option>
-<option value="height">Height</option>
-<option value="width">Width</option>
-<option value="depth">Depth</option>
-</select>
-</div>
-<div style="flex:0 0 140px;">
-<label style="font-size:11px;font-weight:600;margin-bottom:3px;display:block;">To Dimension</label>
-<select id="swapToDimension" style="width:100%;padding:6px;font-size:12px;border:1px solid #c9d4e7;border-radius:4px;">
-<option value="">Select Dimension</option>
-<option value="height">Height</option>
-<option value="width">Width</option>
-<option value="depth">Depth</option>
-</select>
-</div>
-<button id="swapBtn" style="padding:6px 16px;font-size:12px;background:#3498db;border-color:#3498db;font-weight:600;white-space:nowrap;height:32px;">Swap</button>
-<button id="swapResetBtn" style="padding:6px 16px;font-size:12px;background:#95a5a6;border-color:#95a5a6;font-weight:600;white-space:nowrap;height:32px;">Reset</button>
-</div>
-</div>
 </div>
 </div>
 </div>
@@ -1097,7 +1051,7 @@ img.preview {
 </div>
 <div id="preview">
 <h3 style="margin-top:0;">Product Preview</h3>
-<p style="color:var(--muted);">Click any point in the 3D chart or select cluster to view product details.</p>
+<p style="color:var(--muted);">Click any point in the 3D chart to view product details.</p>
 </div>
 </div>
 </div>
@@ -1168,12 +1122,12 @@ const els = {
   typeMenu: document.getElementById('typeMenu'),
   iqrPanel: document.getElementById('iqrPanel'),
   dbscanPanel: document.getElementById('dbscanPanel'),
-  h: document.getElementById('hMult'),
-  w: document.getElementById('wMult'),
-  d: document.getElementById('dMult'),
-  hVal: document.getElementById('hVal'),
-  wVal: document.getElementById('wVal'),
-  dVal: document.getElementById('dVal'),
+  h: { value: 1.5 },
+  w: { value: 1.5 },
+  d: { value: 1.5 },
+  hVal: { textContent: '1.5' },
+  wVal: { textContent: '1.5' },
+  dVal: { textContent: '1.5' },
   eps: document.getElementById('dbscanEps'),
   minSamp: document.getElementById('dbscanMinSamples'),
   epsVal: document.getElementById('epsVal'),
@@ -1546,7 +1500,6 @@ function syncSelectFromCheckboxes(selectEl, menuEl, triggerEl, countEl, placehol
 
 function syncAlgoPanels() {
   const algos = selectedValues(els.algo);
-  els.iqrPanel.classList.toggle('hidden', !algos.includes('IQR'));
   els.dbscanPanel.classList.toggle('hidden', !algos.includes('DBSCAN'));
   updatePrompt();
 }
@@ -1571,7 +1524,7 @@ function updatePrompt() {
 
 async function loadGroups() {
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/product-groups');
+  const res = await fetch('/pricing/analyzer/api/product-groups');
   const data = await res.json();
   hideLoader();
   const options = [{label: 'Select Product Group', value: ''}].concat(data.groups);
@@ -1592,7 +1545,7 @@ async function loadOptionsForIteration(groupId, category) {
     category: category || null
   };
   
-  const res = await fetch('/dimension/analyzer/api/options', {
+  const res = await fetch('/pricing/analyzer/api/options', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -1630,7 +1583,7 @@ async function loadIterationHistoryBackground(groupId, category) {
       category: category
     };
     
-    const res = await fetch('/dimension/analyzer/api/iteration-history', {
+    const res = await fetch('/pricing/analyzer/api/iteration-history', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -1657,27 +1610,24 @@ async function loadOptions() {
     if (!isLoadingIteration) resetIteration();
     return;
   }
-
-  const prevBrands = selectedValues(els.brand);
+  
   const currentCategory = els.category.value;
-  const prevTypes = selectedValues(els.type);
-
+  
   const payload = {
     group_id: parseInt(groupId),
-    brands: prevBrands,
-    category: currentCategory || null,
-    types: prevTypes
+    brands: selectedValues(els.brand),
+    category: currentCategory || null
   };
-
+  
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/options', {
+  const res = await fetch('/pricing/analyzer/api/options', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
   });
   const data = await res.json();
   hideLoader();
-
+  
   if (!data.ok) {
     setSelectOptions(els.brand, []);
     setSelectOptions(els.category, []);
@@ -1685,9 +1635,9 @@ async function loadOptions() {
     updatePrompt();
     return;
   }
-
-  setSelectOptions(els.brand, data.brand_options || [], prevBrands);
-
+  
+  setSelectOptions(els.brand, data.brand_options || [], selectedValues(els.brand));
+  
   const categories = data.category_options || [];
   els.category.innerHTML = '<option value="">Select Category</option>';
   categories.forEach(item => {
@@ -1702,10 +1652,10 @@ async function loadOptions() {
     els.category.appendChild(opt);
   });
   renderCategoryDropdown();
-
-  setSelectOptions(els.type, data.type_options || [], prevTypes);
+  
+  setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
   updatePrompt();
-
+  
   // Load iteration history if category is selected
   if (currentCategory) {
     await loadIterationHistory();
@@ -1746,7 +1696,7 @@ async function loadIterationHistory() {
     category: category
   };
   
-  const res = await fetch('/dimension/analyzer/api/iteration-history', {
+  const res = await fetch('/pricing/analyzer/api/iteration-history', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -1800,7 +1750,7 @@ async function resetIterationData() {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/reset-iterations', {
+  const res = await fetch('/pricing/analyzer/api/reset-iterations', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -1824,7 +1774,7 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
   
   try {
     // Step 1: Load iteration data first
-    const res = await fetch('/dimension/analyzer/api/load-iteration', {
+    const res = await fetch('/pricing/analyzer/api/load-iteration', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({iteration_id: iterationId})
@@ -1842,7 +1792,7 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     
     // Step 2: Load groups if not already loaded
     if (els.group.options.length <= 1) {
-      const groupRes = await fetch('/dimension/analyzer/api/product-groups');
+      const groupRes = await fetch('/pricing/analyzer/api/product-groups');
       const groupData = await groupRes.json();
       const options = [{label: 'Select Product Group', value: ''}].concat(groupData.groups);
       setSelectOptions(els.group, options, []);
@@ -1930,7 +1880,7 @@ async function deleteIteration(iterationId) {
   }
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/delete-iteration', {
+  const res = await fetch('/pricing/analyzer/api/delete-iteration', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({iteration_id: iterationId})
@@ -1984,9 +1934,9 @@ async function runAnalysis() {
     types: types,
     algorithms: algorithms,
     algorithm_settings: selectedValues(els.algoSettings),
-    h_mult: parseFloat(els.h.value),
-    w_mult: parseFloat(els.w.value),
-    d_mult: parseFloat(els.d.value),
+    h_mult: 1.5,
+    w_mult: 1.5,
+    d_mult: 1.5,
     dbscan_eps: parseFloat(els.eps.value),
     dbscan_min_samples: parseInt(els.minSamp.value),
     analysis_mode: analysisMode,
@@ -1995,7 +1945,7 @@ async function runAnalysis() {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/analyze', {
+  const res = await fetch('/pricing/analyzer/api/analyze', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -2141,18 +2091,18 @@ function updateAnalysisToggleState() {
   }
 }
 
-function getDimensionGroup(product) {
-  const h = parseFloat(product.H) || 0;
-  const w = parseFloat(product.W) || 0;
-  const d = parseFloat(product.D) || 0;
+function getpricingGroup(product) {
+  const h = parseFloat(product.mfr_cost) || 0;
+  const w = parseFloat(product.shipping_cost) || 0;
+  const d = parseFloat(product.price) || 0;
   
-  // Determine dimension group based on size ordering
-  if (h >= w && w >= d) return 'H ≥ W ≥ D';
-  if (h >= d && d >= w) return 'H ≥ D ≥ W';
-  if (w >= h && h >= d) return 'W ≥ H ≥ D';
-  if (w >= d && d >= h) return 'W ≥ D ≥ H';
-  if (d >= h && h >= w) return 'D ≥ H ≥ W';
-  if (d >= w && w >= h) return 'D ≥ W ≥ H';
+  // Determine pricing group based on size ordering
+  if (h >= w && w >= d) return 'Mfr Cost ≥ Shipping Cost ≥ Price';
+  if (h >= d && d >= w) return 'Mfr Cost ≥ Price ≥ Shipping Cost';
+  if (w >= h && h >= d) return 'Shipping Cost ≥ Mfr Cost ≥ Price';
+  if (w >= d && d >= h) return 'Shipping Cost ≥ Price ≥ Mfr Cost';
+  if (d >= h && h >= w) return 'Price ≥ Mfr Cost ≥ Shipping Cost';
+  if (d >= w && w >= h) return 'Price ≥ Shipping Cost ≥ Mfr Cost';
   
   return 'Unknown';
 }
@@ -2196,7 +2146,7 @@ function displayClusterSummary() {
           manualNormals: 0,
           analyzedCount: 0,
           products: [],
-          dimensionGroups: {}
+          pricingGroups: {}
         };
       }
       
@@ -2209,16 +2159,16 @@ function displayClusterSummary() {
       }
       
       // Group by dimension ordering
-      const dimGroup = getDimensionGroup(d);
-      if (!clusterData[key].dimensionGroups[dimGroup]) {
-        clusterData[key].dimensionGroups[dimGroup] = {
+      const dimGroup = getpricingGroup(d);
+      if (!clusterData[key].pricingGroups[dimGroup]) {
+        clusterData[key].pricingGroups[dimGroup] = {
           name: dimGroup,
           count: 0,
           products: []
         };
       }
-      clusterData[key].dimensionGroups[dimGroup].count++;
-      clusterData[key].dimensionGroups[dimGroup].products.push(d);
+      clusterData[key].pricingGroups[dimGroup].count++;
+      clusterData[key].pricingGroups[dimGroup].products.push(d);
       
       // Count outliers (is_outlier_combined or final_status === 0)
       if (d.is_outlier_combined || d.final_status == 0) {
@@ -2259,7 +2209,7 @@ function displayClusterSummary() {
     tr.style.transition = 'all 0.2s';
     
     const clusterLabel = data.cluster === -1 ? 'Noise/Outlier' : `Cluster ${data.cluster}`;
-    const dimGroupCount = Object.keys(data.dimensionGroups).length;
+    const dimGroupCount = Object.keys(data.pricingGroups).length;
     
     // Get cluster color from chart
     const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
@@ -2298,7 +2248,7 @@ function displayClusterSummary() {
       </td>
       <td style="padding:5px 4px;text-align:center;border:none;font-weight:600;color:${clusterColor};font-size:10px;">
         <a href="#" class="cluster-name-link" data-cluster="${data.cluster}" style="color:${clusterColor};cursor:pointer;text-decoration:none;" onclick="return false;">${clusterLabel}</a>
-        <span class="cluster-name-toggle" data-cluster="${data.cluster}" style="cursor:pointer;text-decoration:none;margin-left:4px;" title="Show/Hide dimension groups">(${dimGroupCount})</span>
+        <span class="cluster-name-toggle" data-cluster="${data.cluster}" style="cursor:pointer;text-decoration:none;margin-left:4px;" title="Show/Hide pricing groups">(${dimGroupCount})</span>
       </td>
       <td style="padding:5px 4px;text-align:center;border:none;font-weight:600;color:${clusterColor};font-size:10px;">
         ${data.total} (${data.analyzedCount})
@@ -2309,16 +2259,16 @@ function displayClusterSummary() {
     tr.addEventListener('mouseleave', () => { tr.style.background = bgColor; });
     els.clusterSummaryBody.appendChild(tr);
     
-    // Add dimension groups rows (initially hidden)
-    const dimensionGroupsRow = document.createElement('tr');
-    dimensionGroupsRow.className = `dimension-groups-row cluster-${data.cluster}`;
-    dimensionGroupsRow.style.display = 'none';
-    dimensionGroupsRow.innerHTML = `
+    // Add pricing groups rows (initially hidden)
+    const pricingGroupsRow = document.createElement('tr');
+    pricingGroupsRow.className = `pricing-groups-row cluster-${data.cluster}`;
+    pricingGroupsRow.style.display = 'none';
+    pricingGroupsRow.innerHTML = `
       <td colspan="4" style="padding:0;border:none;">
         <div style="background:#f8fafc;border-left:3px solid ${clusterColor};margin:2px 0;">
           <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:10px;">
             <tbody>
-              ${Object.values(data.dimensionGroups).map((group, groupIdx) => {
+              ${Object.values(data.pricingGroups).map((group, groupIdx) => {
                 const groupBgColor = groupIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
                 const groupOutliers = group.products.filter(p => p.is_outlier_combined || p.final_status == 0).length;
                 const groupNormals = group.products.filter(p => p.final_status == 1).length;
@@ -2329,20 +2279,20 @@ function displayClusterSummary() {
                 const groupOutlierColor = isGroupFullyMarked ? '#e74c3c' : '#9ca3af';
                 
                 return `
-                  <tr style="background:${groupBgColor};transition:all 0.2s;" class="dimension-group-row" data-cluster="${data.cluster}" data-group="${group.name}">
+                  <tr style="background:${groupBgColor};transition:all 0.2s;" class="pricing-group-row" data-cluster="${data.cluster}" data-group="${group.name}">
                     <td style="padding:3px 4px;text-align:center;border:none;width:40px;">
-                      <input type="checkbox" class="dimension-group-visibility-toggle" data-cluster="${data.cluster}" data-group="${group.name}" style="width:14px;height:14px;cursor:pointer;">
+                      <input type="checkbox" class="pricing-group-visibility-toggle" data-cluster="${data.cluster}" data-group="${group.name}" style="width:14px;height:14px;cursor:pointer;">
                     </td>
                     <td style="padding:3px 4px;text-align:center;border:none;font-weight:600;color:#1f2937;font-size:9px;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-                      <a href="#" class="dimension-group-name-link" data-cluster="${data.cluster}" data-group="${group.name}" style="color:#1f2937;cursor:pointer;text-decoration:none;" onclick="return false;">${group.name}</a>
+                      <a href="#" class="pricing-group-name-link" data-cluster="${data.cluster}" data-group="${group.name}" style="color:#1f2937;cursor:pointer;text-decoration:none;" onclick="return false;">${group.name}</a>
                     </td>
                     <td style="padding:3px 4px;text-align:center;border:none;font-weight:600;color:#1f2937;font-size:9px;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">${group.count}</td>
                     <td style="padding:3px 4px;text-align:center;border:none;">
                       <div style="display:flex;gap:3px;justify-content:center;">
-                        <span class="grid-icon dimension-group-normal-btn" data-cluster="${data.cluster}" data-group="${group.name}" data-iteration="${targetIteration}" data-saved="${isTargetIterSaved}" title="Mark this dimension group as normal" style="margin:0;width:16px;height:16px;background:${groupNormalColor};color:#fff;font-weight:bold;font-size:9px;display:flex;align-items:center;justify-content:center;">
+                        <span class="grid-icon pricing-group-normal-btn" data-cluster="${data.cluster}" data-group="${group.name}" data-iteration="${targetIteration}" data-saved="${isTargetIterSaved}" title="Mark this pricing group as normal" style="margin:0;width:16px;height:16px;background:${groupNormalColor};color:#fff;font-weight:bold;font-size:9px;display:flex;align-items:center;justify-content:center;">
                           N
                         </span>
-                        <span class="grid-icon dimension-group-outlier-btn" data-cluster="${data.cluster}" data-group="${group.name}" data-iteration="${targetIteration}" data-saved="${isTargetIterSaved}" title="Mark all products in this dimension group as outliers" style="margin:0;width:16px;height:16px;background:${groupOutlierColor};color:#fff;font-weight:bold;font-size:9px;display:flex;align-items:center;justify-content:center;">
+                        <span class="grid-icon pricing-group-outlier-btn" data-cluster="${data.cluster}" data-group="${group.name}" data-iteration="${targetIteration}" data-saved="${isTargetIterSaved}" title="Mark all products in this pricing group as outliers" style="margin:0;width:16px;height:16px;background:${groupOutlierColor};color:#fff;font-weight:bold;font-size:9px;display:flex;align-items:center;justify-content:center;">
                           O
                         </span>
                       </div>
@@ -2355,7 +2305,7 @@ function displayClusterSummary() {
         </div>
       </td>
     `;
-    els.clusterSummaryBody.appendChild(dimensionGroupsRow);
+    els.clusterSummaryBody.appendChild(pricingGroupsRow);
   });
   
   // Combined handler for both cluster-name-link and cluster-name-toggle
@@ -2364,15 +2314,15 @@ function displayClusterSummary() {
     const clusterInfo = sortedClusters.find(c => c.cluster === cluster);
     if (clusterInfo) {
       renderClusterPreview(clusterInfo);
-      selectSingleCluster(cluster); // clears all dim-group checkboxes internally
+      selectSingleCluster(cluster);
     }
-    const dimensionGroupsRow = document.querySelector(`.dimension-groups-row.cluster-${clusterValue}`);
-    if (dimensionGroupsRow) {
-      const isVisible = dimensionGroupsRow.style.display !== 'none';
-      document.querySelectorAll('.dimension-groups-row').forEach(row => {
-        if (row !== dimensionGroupsRow) row.style.display = 'none';
+    const pricingGroupsRow = document.querySelector(`.pricing-groups-row.cluster-${clusterValue}`);
+    if (pricingGroupsRow) {
+      const isVisible = pricingGroupsRow.style.display !== 'none';
+      document.querySelectorAll('.pricing-groups-row').forEach(row => {
+        if (row !== pricingGroupsRow) row.style.display = 'none';
       });
-      dimensionGroupsRow.style.display = isVisible ? 'none' : 'table-row';
+      pricingGroupsRow.style.display = isVisible ? 'none' : 'table-row';
     }
   }
 
@@ -2392,73 +2342,35 @@ function displayClusterSummary() {
     });
   });
   
-  // Add event listeners to dimension group name links
-  document.querySelectorAll('.dimension-group-name-link').forEach(link => {
+  // Add event listeners to pricing group name links
+  document.querySelectorAll('.pricing-group-name-link').forEach(link => {
     link.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
       const cluster = parseInt(this.dataset.cluster);
       const groupName = this.dataset.group;
       // Uncheck all checkboxes in this cluster, check only the clicked one
-      document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${this.dataset.cluster}"]`).forEach(cb => {
+      document.querySelectorAll(`.pricing-group-visibility-toggle[data-cluster="${this.dataset.cluster}"]`).forEach(cb => {
         cb.checked = cb.dataset.group === groupName;
       });
-      // Trigger the same logic as checkbox change
-      const targetCb = document.querySelector(`.dimension-group-visibility-toggle[data-cluster="${cluster}"][data-group="${groupName}"]`);
-      if (targetCb) targetCb.dispatchEvent(new Event('change', { bubbles: false }));
-    });
-  });
-  
-  // Add event listeners to dimension group visibility toggles
-  document.querySelectorAll('.dimension-group-visibility-toggle').forEach(checkbox => {
-    checkbox.addEventListener('change', function(e) {
-      e.stopPropagation();
-      const cluster = parseInt(this.dataset.cluster);
       const clusterInfo = sortedClusters.find(c => c.cluster === cluster);
-      if (!clusterInfo) return;
-
-      // Collect all checked dimension groups within this cluster
-      const checkedGroups = Array.from(
-        document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${cluster}"]:checked`)
-      ).map(cb => cb.dataset.group);
-
-      if (checkedGroups.length > 0) {
-        // Ensure parent cluster checkbox is checked, hide all others
-        const parentCb = document.querySelector(`.cluster-visibility-toggle[data-cluster="${cluster}"]`);
-        if (parentCb) parentCb.checked = true;
-        document.querySelectorAll('.cluster-visibility-toggle').forEach(cb => {
-          if (parseInt(cb.dataset.cluster) !== cluster) {
-            cb.checked = false;
-            document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${cb.dataset.cluster}"]`)
-              .forEach(child => { child.checked = false; });
-            toggleClusterVisibility(parseInt(cb.dataset.cluster), false);
-          }
-        });
-        toggleClusterVisibility(cluster, true);
-        updateToggleAllCheckbox();
-        // Show combined products of all checked dimension groups
-        const allProducts = checkedGroups.flatMap(g => (clusterInfo.dimensionGroups[g] || {}).products || []);
-        const shown = allProducts.slice(0, 100);
-        currentClusterPreview = cluster;
-        els.preview.style.background = '#f8fafc';
-        els.preview.style.borderColor = '#2563eb';
-        els.preview.innerHTML = `
-          ${buildPreviewFiltersHtml(allProducts)}
-          <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
-          <div id="previewProductList">${buildProductsHtml(shown)}</div>
-        `;
-        attachPreviewListeners();
-        attachPreviewFilterListeners(allProducts);
-      } else {
-        // Last child unchecked — fall back to full cluster preview
-        updateToggleAllCheckbox();
-        renderClusterPreview(clusterInfo);
+      if (clusterInfo && clusterInfo.pricingGroups[groupName]) {
+        renderpricingGroupPreview(clusterInfo, groupName);
       }
     });
   });
   
-  // Add event listeners to dimension group normal buttons
-  document.querySelectorAll('.dimension-group-normal-btn').forEach(btn => {
+  // Add event listeners to pricing group visibility toggles
+  document.querySelectorAll('.pricing-group-visibility-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', function(e) {
+      e.stopPropagation();
+      // For now, pricing group visibility just affects preview
+      // Could be extended to filter chart data in the future
+    });
+  });
+  
+  // Add event listeners to pricing group normal buttons
+  document.querySelectorAll('.pricing-group-normal-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       const cluster = parseInt(this.dataset.cluster);
@@ -2469,18 +2381,18 @@ function displayClusterSummary() {
       
       if (isSaved) {
         if (isMarked) {
-          removeDimensionGroupNormal(cluster, groupName, iteration);
+          removepricingGroupNormal(cluster, groupName, iteration);
         } else {
-          setDimensionGroupAsNormal(cluster, groupName, iteration);
+          setpricingGroupAsNormal(cluster, groupName, iteration);
         }
       } else {
-        showMessage('Please save the current iteration before marking dimension groups.');
+        showMessage('Please save the current iteration before marking pricing groups.');
       }
     });
   });
   
-  // Add event listeners to dimension group outlier buttons
-  document.querySelectorAll('.dimension-group-outlier-btn').forEach(btn => {
+  // Add event listeners to pricing group outlier buttons
+  document.querySelectorAll('.pricing-group-outlier-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       const cluster = parseInt(this.dataset.cluster);
@@ -2491,12 +2403,12 @@ function displayClusterSummary() {
       
       if (isSaved) {
         if (isMarked) {
-          removeDimensionGroupOutlier(cluster, groupName, iteration);
+          removepricingGroupOutlier(cluster, groupName, iteration);
         } else {
-          setDimensionGroupAsOutlier(cluster, groupName, iteration);
+          setpricingGroupAsOutlier(cluster, groupName, iteration);
         }
       } else {
-        showMessage('Please save the current iteration before marking dimension groups as outliers.');
+        showMessage('Please save the current iteration before marking pricing groups as outliers.');
       }
     });
   });
@@ -2504,8 +2416,8 @@ function displayClusterSummary() {
   // Remove duplicate event listener section
   // (This section was causing conflicts and has been consolidated above)
   
-  // Add hover effects for dimension group rows
-  document.querySelectorAll('.dimension-group-row').forEach(row => {
+  // Add hover effects for pricing group rows
+  document.querySelectorAll('.pricing-group-row').forEach(row => {
     const originalBg = row.style.background;
     row.addEventListener('mouseenter', () => { row.style.background = '#e0f2fe'; });
     row.addEventListener('mouseleave', () => { row.style.background = originalBg; });
@@ -2556,36 +2468,8 @@ function displayClusterSummary() {
   document.querySelectorAll('.cluster-visibility-toggle').forEach(checkbox => {
     checkbox.addEventListener('change', function(e) {
       e.stopPropagation();
-      const cluster = parseInt(this.dataset.cluster);
-
-      if (!this.checked) {
-        // (a) Parent unchecked: uncheck all its children
-        document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${cluster}"]`)
-          .forEach(cb => { cb.checked = false; });
-      } else {
-        // (b) Parent checked: uncheck children of all OTHER parent clusters
-        document.querySelectorAll('.cluster-visibility-toggle').forEach(otherCb => {
-          if (parseInt(otherCb.dataset.cluster) !== cluster) {
-            document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${otherCb.dataset.cluster}"]`)
-              .forEach(cb => { cb.checked = false; });
-          }
-        });
-      }
-
-      toggleClusterVisibility(cluster, this.checked);
+      toggleClusterVisibility(parseInt(this.dataset.cluster), this.checked);
       updateToggleAllCheckbox();
-
-      // Update preview based on checked clusters
-      const checkedClusters = Array.from(document.querySelectorAll('.cluster-visibility-toggle:checked'))
-        .map(cb => parseInt(cb.dataset.cluster));
-      if (checkedClusters.length > 0) {
-        const selectedClusterInfos = checkedClusters
-          .map(c => sortedClusters.find(sc => sc.cluster === c))
-          .filter(Boolean);
-        renderMultiClusterPreview(selectedClusterInfos);
-      } else {
-        renderPreviewEmpty();
-      }
     });
   });
 
@@ -2601,9 +2485,9 @@ function displayClusterSummary() {
       const allCheckboxes = document.querySelectorAll('.cluster-visibility-toggle');
 
       // Update all checkboxes without triggering individual change events
-      allCheckboxes.forEach(cb => { cb.checked = isChecked; });
-      // Always uncheck all dimension group checkboxes on select/unselect all
-      document.querySelectorAll('.dimension-group-visibility-toggle').forEach(cb => { cb.checked = false; });
+      allCheckboxes.forEach(cb => {
+        cb.checked = isChecked;
+      });
 
       // Batch update chart visibility for all clusters at once
       const chartDiv = document.getElementById('chart');
@@ -2621,13 +2505,6 @@ function displayClusterSummary() {
 
       if (traceIndices.length > 0) {
         Plotly.restyle(chartDiv, update, traceIndices);
-      }
-
-      // Update preview
-      if (isChecked) {
-        renderMultiClusterPreview(sortedClusters);
-      } else {
-        renderPreviewEmpty();
       }
     });
     
@@ -2648,9 +2525,6 @@ function displayClusterSummary() {
     if (clusterInfo) {
       renderClusterPreview(clusterInfo);
     }
-  } else {
-    // Default: all clusters checked, show all in preview
-    renderMultiClusterPreview(sortedClusters);
   }
 }
 
@@ -2723,11 +2597,12 @@ function applyClusterFilter(targetCluster) {
 }
 
 function selectSingleCluster(targetCluster) {
-  // Uncheck all cluster checkboxes and all dimension group checkboxes
+  // Uncheck all cluster checkboxes first
   const allCheckboxes = document.querySelectorAll('.cluster-visibility-toggle');
-  allCheckboxes.forEach(checkbox => { checkbox.checked = false; });
-  document.querySelectorAll('.dimension-group-visibility-toggle').forEach(cb => { cb.checked = false; });
-
+  allCheckboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  
   // Check only the target cluster
   const targetCheckbox = document.querySelector(`.cluster-visibility-toggle[data-cluster="${targetCluster}"]`);
   if (targetCheckbox) {
@@ -2802,11 +2677,13 @@ function toggleClusterVisibility(cluster, isVisible) {
   }
 }
 
-async function setDimensionGroupAsNormal(cluster, groupName, iteration = null) {
-  const groupProducts = analysisData.filter(d => d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName).map(d => d.SKU);
+async function setpricingGroupAsNormal(cluster, groupName, iteration = null) {
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const groupProducts = sourceData.filter(d => d.dbscan_cluster === cluster && getpricingGroup(d) === groupName).map(d => d.SKU);
   
   if (groupProducts.length === 0) {
-    showMessage('No products found in this dimension group');
+    showMessage('No products found in this pricing group');
     return;
   }
   
@@ -2829,7 +2706,7 @@ async function setDimensionGroupAsNormal(cluster, groupName, iteration = null) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/set-cluster-normal', {
+  const res = await fetch('/pricing/analyzer/api/set-cluster-normal', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -2838,30 +2715,41 @@ async function setDimensionGroupAsNormal(cluster, groupName, iteration = null) {
   hideLoader();
   
   if (data.ok) {
-    analysisData.forEach(d => {
-      if (d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName) {
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster && getpricingGroup(d) === groupName) {
         d.is_outlier_combined = false;
         d.outlier_mode = null;
         d.final_status = 1;
-        d.analyzed_date = new Date().toISOString();
+        d.analyzed_date = new Date().toISOString(); // Update analyzed_date
       }
     });
     
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => d.final_status === 1).length,
+      outliers: displayData.filter(d => d.final_status === 0).length
+    };
+    displayResults(result);
+    
     showMessage(`Successfully marked ${groupProducts.length} products in ${groupName} as normal`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
   }
 }
 
-async function setDimensionGroupAsOutlier(cluster, groupName, iteration = null) {
-  const groupProducts = analysisData.filter(d => d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName).map(d => d.SKU);
+async function setpricingGroupAsOutlier(cluster, groupName, iteration = null) {
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const groupProducts = sourceData.filter(d => d.dbscan_cluster === cluster && getpricingGroup(d) === groupName).map(d => d.SKU);
   
   if (groupProducts.length === 0) {
-    showMessage('No products found in this dimension group');
+    showMessage('No products found in this pricing group');
     return;
   }
   
@@ -2885,7 +2773,7 @@ async function setDimensionGroupAsOutlier(cluster, groupName, iteration = null) 
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/set-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/set-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -2894,30 +2782,41 @@ async function setDimensionGroupAsOutlier(cluster, groupName, iteration = null) 
   hideLoader();
   
   if (data.ok) {
-    analysisData.forEach(d => {
-      if (d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName) {
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster && getpricingGroup(d) === groupName) {
         d.is_outlier_combined = true;
         d.outlier_mode = 1;
         d.final_status = 0;
-        d.analyzed_date = new Date().toISOString();
+        d.analyzed_date = new Date().toISOString(); // Update analyzed_date
       }
     });
     
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => d.final_status === 1).length,
+      outliers: displayData.filter(d => d.final_status === 0).length
+    };
+    displayResults(result);
+    
     showMessage(`Successfully marked ${groupProducts.length} products in ${groupName} as outliers`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
   }
 }
 
-async function removeDimensionGroupNormal(cluster, groupName, iteration = null) {
-  const groupProducts = analysisData.filter(d => d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName).map(d => d.SKU);
+async function removepricingGroupNormal(cluster, groupName, iteration = null) {
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const groupProducts = sourceData.filter(d => d.dbscan_cluster === cluster && getpricingGroup(d) === groupName).map(d => d.SKU);
   
   if (groupProducts.length === 0) {
-    showMessage('No products found in this dimension group');
+    showMessage('No products found in this pricing group');
     return;
   }
   
@@ -2938,7 +2837,7 @@ async function removeDimensionGroupNormal(cluster, groupName, iteration = null) 
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/remove-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/remove-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -2947,28 +2846,39 @@ async function removeDimensionGroupNormal(cluster, groupName, iteration = null) 
   hideLoader();
   
   if (data.ok) {
-    analysisData.forEach(d => {
-      if (d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName) {
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster && getpricingGroup(d) === groupName) {
         d.final_status = null;
-        d.analyzed_date = null;
+        d.analyzed_date = null; // Reset analyzed_date
       }
     });
     
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => d.final_status === 1).length,
+      outliers: displayData.filter(d => d.final_status === 0).length
+    };
+    displayResults(result);
+    
     showMessage(`Successfully removed normal status from ${groupProducts.length} products in ${groupName}`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
   }
 }
 
-async function removeDimensionGroupOutlier(cluster, groupName, iteration = null) {
-  const groupProducts = analysisData.filter(d => d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName).map(d => d.SKU);
+async function removepricingGroupOutlier(cluster, groupName, iteration = null) {
+  const dataScope = document.getElementById('globalBtn').classList.contains('active') ? 'global' : 'individual';
+  const sourceData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+  const groupProducts = sourceData.filter(d => d.dbscan_cluster === cluster && getpricingGroup(d) === groupName).map(d => d.SKU);
   
   if (groupProducts.length === 0) {
-    showMessage('No products found in this dimension group');
+    showMessage('No products found in this pricing group');
     return;
   }
   
@@ -2989,7 +2899,7 @@ async function removeDimensionGroupOutlier(cluster, groupName, iteration = null)
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/remove-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/remove-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -2998,19 +2908,28 @@ async function removeDimensionGroupOutlier(cluster, groupName, iteration = null)
   hideLoader();
   
   if (data.ok) {
-    analysisData.forEach(d => {
-      if (d.dbscan_cluster === cluster && getDimensionGroup(d) === groupName) {
+    sourceData.forEach(d => {
+      if (d.dbscan_cluster === cluster && getpricingGroup(d) === groupName) {
         d.is_outlier_combined = false;
         d.outlier_mode = null;
         d.final_status = null;
-        d.analyzed_date = null;
+        d.analyzed_date = null; // Reset analyzed_date
       }
     });
     
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    
+    const displayData = dataScope === 'global' && allIterationsData.length > 0 ? allIterationsData : analysisData;
+    const result = {
+      data: displayData,
+      total: displayData.length,
+      normals: displayData.filter(d => d.final_status === 1).length,
+      outliers: displayData.filter(d => d.final_status === 0).length
+    };
+    displayResults(result);
+    
     showMessage(`Successfully removed outlier status from ${groupProducts.length} products in ${groupName}`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
@@ -3044,7 +2963,7 @@ async function removeClusterNormal(cluster, iteration = null) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/remove-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/remove-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -3105,7 +3024,7 @@ async function removeClusterOutlier(cluster, iteration = null) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/remove-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/remove-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -3183,7 +3102,7 @@ async function setClusterAsNormal(cluster, iteration = null) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/set-cluster-normal', {
+  const res = await fetch('/pricing/analyzer/api/set-cluster-normal', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -3266,7 +3185,7 @@ async function setClusterAsOutlier(cluster, iteration = null) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/set-cluster-outlier', {
+  const res = await fetch('/pricing/analyzer/api/set-cluster-outlier', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -3526,7 +3445,7 @@ function exportBrandData(brand, category, type) {
   const payload = { data: filtered, export_type: type };
   
   showLoader();
-  fetch('/dimension/analyzer/api/export', {
+  fetch('/pricing/analyzer/api/export', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -3556,9 +3475,9 @@ function displayChart(data) {
   const outliers = data.filter(d => d.is_outlier_combined);
   
   const allData = data;
-  const max_width = Math.max(...allData.map(d => d.W));
-  const max_height = Math.max(...allData.map(d => d.H));
-  const max_depth = Math.max(...allData.map(d => d.D));
+  const max_width = Math.max(...allData.map(d => d.shipping_cost));
+  const max_height = Math.max(...allData.map(d => d.mfr_cost));
+  const max_depth = Math.max(...allData.map(d => d.price));
   
   const traces = [];
   
@@ -3584,9 +3503,9 @@ function displayChart(data) {
     const clusterLabel = cluster === 'none' ? 'Normal Products' : `Cluster ${cluster} (${clusterData.length})`;
     
     traces.push({
-      x: clusterData.map(d => d.W),
-      y: clusterData.map(d => d.H),
-      z: clusterData.map(d => d.D),
+      x: clusterData.map(d => d.shipping_cost),
+      y: clusterData.map(d => d.mfr_cost),
+      z: clusterData.map(d => d.price),
       mode: 'markers',
       type: 'scatter3d',
       name: clusterName,
@@ -3602,9 +3521,9 @@ function displayChart(data) {
       hovertemplate: '<b style="font-size:14px">%{text}</b><br><br>' +
                      '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
                      '<b>Type:</b> %{customdata.Type}<br>' +
-                     '<b>Cluster:</b> ' + clusterLabel + '<br><br><b style="color:#2c3e50">📏 Dimensions:</b><br>' +
-                     'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
-                     'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
+                     '<b>Cluster:</b> ' + clusterLabel + '<br><br><b style="color:#2c3e50">💰 Pricing:</b><br>' +
+                     'Mfr Cost: <b>$%{customdata.mfr_cost}</b><br>Shipping Cost: <b>$%{customdata.shipping_cost}</b><br>' +
+                     'Price: <b>$%{customdata.price}</b><br><extra></extra>',
       hoverlabel: { namelength: -1 },
       visible: true
     });
@@ -3612,9 +3531,9 @@ function displayChart(data) {
   
   if (outliers.length) {
     traces.push({
-      x: outliers.map(d => d.W),
-      y: outliers.map(d => d.H),
-      z: outliers.map(d => d.D),
+      x: outliers.map(d => d.shipping_cost),
+      y: outliers.map(d => d.mfr_cost),
+      z: outliers.map(d => d.price),
       mode: 'markers',
       type: 'scatter3d',
       name: 'Outlier Products',
@@ -3630,9 +3549,9 @@ function displayChart(data) {
       hovertemplate: '<b style="font-size:14px">⚠️ OUTLIER: %{text}</b><br><br>' +
                      '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
                      '<b>Type:</b> %{customdata.Type}<br>' +
-                     '<b>Cluster:</b> Noise/Outlier (' + outliers.length + ')<br><br><b style="color:#c0392b">📏 Dimensions:</b><br>' +
-                     'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
-                     'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
+                     '<b>Cluster:</b> Noise/Outlier (' + outliers.length + ')<br><br><b style="color:#c0392b">💰 Pricing:</b><br>' +
+                     'Mfr Cost: <b>$%{customdata.mfr_cost}</b><br>Shipping Cost: <b>$%{customdata.shipping_cost}</b><br>' +
+                     'Price: <b>$%{customdata.price}</b><br><extra></extra>',
       hoverlabel: { namelength: -1 },
       visible: true
     });
@@ -3641,21 +3560,21 @@ function displayChart(data) {
   const layout = {
     scene: {
       xaxis: {
-        title: { text: 'Width (W)' },
+        title: { text: 'Shipping Cost' },
         range: [0, max_width],
         gridcolor: '#ffffff',
         showbackground: true,
         backgroundcolor: '#f0f0f0'
       },
       yaxis: {
-        title: { text: 'Height (H)' },
+        title: { text: 'Mfr Cost' },
         range: [0, max_height],
         gridcolor: '#ffffff',
         showbackground: true,
         backgroundcolor: '#f0f0f0'
       },
       zaxis: {
-        title: { text: 'Depth (D)' },
+        title: { text: 'Price' },
         range: [0, max_depth],
         gridcolor: '#ffffff',
         showbackground: true,
@@ -3697,16 +3616,29 @@ function renderPreviewEmpty() {
   els.preview.style.borderColor = 'var(--line)';
   els.preview.innerHTML = `
     <h3 style="margin-top:0;">Product Preview</h3>
-    <p style="color:var(--muted);">Click any point in the 3D chart or select cluster to view product details.</p>
+    <p style="color:var(--muted);">Click any point in the 3D chart to view product details.</p>
   `;
 }
 
-function buildProductsHtml(products) {
-  let html = '';
+function renderpricingGroupPreview(clusterInfo, groupName) {
+  const clusterLabel = clusterInfo.cluster === -1 ? 'Noise/Outlier' : `Cluster ${clusterInfo.cluster}`;
+  const pricingGroup = clusterInfo.pricingGroups[groupName];
+  const products = pricingGroup.products.slice(0, 100);
+  
+  // Track the currently displayed cluster and pricing group
+  currentClusterPreview = clusterInfo.cluster;
+  
+  els.preview.style.background = '#f8fafc';
+  els.preview.style.borderColor = '#2563eb';
+  
+  let productsHtml = '';
   products.forEach(p => {
-    const normalColor = p.final_status == 1 ? '#27ae60' : '#9ca3af';
-    const outlierColor = p.final_status == 0 ? '#e74c3c' : '#9ca3af';
-    html += `
+    const isNormal = p.final_status == 1;
+    const isOutlier = p.final_status == 0;
+    const normalColor = isNormal ? '#27ae60' : '#9ca3af';
+    const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
+    
+    productsHtml += `
       <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
         <div style="flex-shrink:0;">
           ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
@@ -3721,250 +3653,104 @@ function buildProductsHtml(products) {
           </div>
           <div style="font-size:13px;color:#374151;">${p.Brand}</div>
           <div style="font-size:13px;color:#374151;">${p.Type}</div>
-          <div style="font-size:13px;color:#374151;"><strong>H</strong> : ${p.H}</div>
-          <div style="font-size:13px;color:#374151;"><strong>W</strong> : ${p.W}</div>
-          <div style="font-size:13px;color:#374151;"><strong>D</strong> : ${p.D}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Mfr Cost</strong> : $${p.mfr_cost}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Shipping Cost</strong> : $${p.shipping_cost}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Price</strong> : $${p.price}</div>
         </div>
       </div>
     `;
   });
-  return html;
-}
-
-function attachPreviewListeners() {
+  
+  els.preview.innerHTML = `
+    <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} > ${groupName}</h3>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:10px;">Products: ${products.length}${pricingGroup.products.length > 100 ? ' of ' + pricingGroup.products.length : ''}</div>
+    ${productsHtml}
+  `;
+  
+  // Add event listeners for N and O buttons
   document.querySelectorAll('.item-normal-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) { e.stopPropagation(); updateItemStatus(this.dataset.sku, 1); });
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const sku = this.dataset.sku;
+      updateItemStatus(sku, 1);
+    });
   });
+  
   document.querySelectorAll('.item-outlier-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) { e.stopPropagation(); updateItemStatus(this.dataset.sku, 0); });
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const sku = this.dataset.sku;
+      updateItemStatus(sku, 0);
+    });
   });
+  
   initLazyLoading();
 }
 
-function buildPreviewFiltersHtml(allProducts) {
-  const brands = [...new Set(allProducts.map(p => p.Brand).filter(Boolean))].sort();
-  const types  = [...new Set(allProducts.map(p => p.Type).filter(Boolean))].sort();
-  if (!brands.length && !types.length) return '';
-  return `
-    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;">
-      <div id="previewBrandDropdown" style="flex:1;position:relative;">
-        <div id="previewBrandTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewBrandLabel">All Brands</span><span>&#9660;</span></div>
-        <div id="previewBrandMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
-          <div style="padding:8px;"><input id="previewBrandSearch" type="text" placeholder="Search brand..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
-          <div id="previewBrandList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
-            <div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>
-            ${brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b}</div>`).join('')}
-          </div>
-        </div>
-        <input type="hidden" id="previewBrandFilter" value="">
-      </div>
-      <div id="previewTypeDropdown" style="flex:1;position:relative;">
-        <div id="previewTypeTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewTypeLabel">All Types</span><span>&#9660;</span></div>
-        <div id="previewTypeMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
-          <div style="padding:8px;"><input id="previewTypeSearch" type="text" placeholder="Search type..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
-          <div id="previewTypeList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
-            <div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>
-            ${types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t}</div>`).join('')}
-          </div>
-        </div>
-        <input type="hidden" id="previewTypeFilter" value="">
-      </div>
-    </div>
-  `;
-}
-
-function attachPreviewFilterListeners(allProducts) {
-  const brandInput  = document.getElementById('previewBrandFilter');
-  const typeInput   = document.getElementById('previewTypeFilter');
-  const brandTrigger = document.getElementById('previewBrandTrigger');
-  const brandMenu   = document.getElementById('previewBrandMenu');
-  const brandSearch = document.getElementById('previewBrandSearch');
-  const brandList   = document.getElementById('previewBrandList');
-  const brandLabel  = document.getElementById('previewBrandLabel');
-  const typeTrigger = document.getElementById('previewTypeTrigger');
-  const typeMenu    = document.getElementById('previewTypeMenu');
-  const typeSearch  = document.getElementById('previewTypeSearch');
-  const typeList    = document.getElementById('previewTypeList');
-  const typeLabel   = document.getElementById('previewTypeLabel');
-  if (!brandInput || !typeInput) return;
-
-  function closePreviewDropdowns() {
-    brandMenu.style.display = 'none';
-    typeMenu.style.display = 'none';
-  }
-
-  // Toggle brand dropdown (close type first)
-  brandTrigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const willOpen = brandMenu.style.display === 'none';
-    closePreviewDropdowns();
-    if (willOpen) { brandMenu.style.display = 'block'; brandSearch.value = ''; filterBrandList(''); brandSearch.focus(); }
-  });
-
-  // Toggle type dropdown (close brand first)
-  typeTrigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const willOpen = typeMenu.style.display === 'none';
-    closePreviewDropdowns();
-    if (willOpen) { typeMenu.style.display = 'block'; typeSearch.value = ''; filterTypeList(''); typeSearch.focus(); }
-  });
-
-  brandMenu.addEventListener('click', (e) => e.stopPropagation());
-  typeMenu.addEventListener('click', (e) => e.stopPropagation());
-  document.addEventListener('click', closePreviewDropdowns);
-
-  brandSearch.addEventListener('input', () => filterBrandList(brandSearch.value.trim().toLowerCase()));
-  typeSearch.addEventListener('input', () => filterTypeList(typeSearch.value.trim().toLowerCase()));
-
-  function filterBrandList(q) {
-    brandList.querySelectorAll('.pbr-opt').forEach(opt => {
-      opt.style.display = !q || opt.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  }
-
-  function filterTypeList(q) {
-    typeList.querySelectorAll('.pty-opt').forEach(opt => {
-      opt.style.display = !q || opt.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  }
-
-  function getFiltered(brand, type) {
-    return allProducts.filter(p =>
-      (!brand || p.Brand === brand) && (!type || p.Type === type)
-    );
-  }
-
-  function highlightSelected(list, value, optClass) {
-    list.querySelectorAll(`.${optClass}`).forEach(opt => {
-      opt.style.background = opt.dataset.value === value ? '#dbeafe' : '';
-      opt.style.fontWeight = opt.dataset.value === value ? '600' : '';
-      opt.style.color = opt.dataset.value === value ? '#1d4ed8' : '';
-    });
-  }
-
-  function refreshTypeList(brand) {
-    const current = typeInput.value;
-    const filtered = getFiltered(brand, '');
-    const types = [...new Set(filtered.map(p => p.Type).filter(Boolean))].sort();
-    typeList.innerHTML = `<div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>` +
-      types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${filtered.filter(p => p.Type === t).length})</div>`).join('');
-    if (current && !types.includes(current)) {
-      typeInput.value = '';
-      typeLabel.textContent = 'All Types';
-    }
-    highlightSelected(typeList, typeInput.value, 'pty-opt');
-    attachTypeListHover();
-  }
-
-  function refreshBrandList(type) {
-    const current = brandInput.value;
-    const filtered = getFiltered('', type);
-    const brands = [...new Set(filtered.map(p => p.Brand).filter(Boolean))].sort();
-    brandList.innerHTML = `<div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>` +
-      brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${filtered.filter(p => p.Brand === b).length})</div>`).join('');
-    if (current && !brands.includes(current)) {
-      brandInput.value = '';
-      brandLabel.textContent = 'All Brands';
-    }
-    highlightSelected(brandList, brandInput.value, 'pbr-opt');
-    attachBrandListHover();
-  }
-
-  function applyFilters() {
-    const brand = brandInput.value;
-    const type  = typeInput.value;
-    const all   = getFiltered(brand, type);
-    const shown = all.slice(0, 100);
-    document.getElementById('previewProductList').innerHTML = buildProductsHtml(shown);
-    document.getElementById('previewCount').textContent = `Products (${shown.length}${all.length > 100 ? ' of ' + all.length : ''})`;
-    attachPreviewListeners();
-  }
-
-  brandList.addEventListener('click', (e) => {
-    const opt = e.target.closest('.pbr-opt');
-    if (!opt) return;
-    brandInput.value = opt.dataset.value;
-    brandLabel.textContent = opt.dataset.value || 'All Brands';
-    brandMenu.style.display = 'none';
-    highlightSelected(brandList, brandInput.value, 'pbr-opt');
-    refreshTypeList(brandInput.value);
-    applyFilters();
-  });
-
-  typeList.addEventListener('click', (e) => {
-    const opt = e.target.closest('.pty-opt');
-    if (!opt) return;
-    typeInput.value = opt.dataset.value;
-    typeLabel.textContent = opt.dataset.value || 'All Types';
-    typeMenu.style.display = 'none';
-    highlightSelected(typeList, typeInput.value, 'pty-opt');
-    refreshBrandList(typeInput.value);
-    applyFilters();
-  });
-
-  function attachBrandListHover() {
-    brandList.querySelectorAll('.pbr-opt').forEach(opt => {
-      const isSelected = opt.dataset.value === brandInput.value;
-      opt.addEventListener('mouseover', () => { if (!isSelected) opt.style.background = '#f0f4ff'; });
-      opt.addEventListener('mouseout', () => { opt.style.background = opt.dataset.value === brandInput.value ? '#dbeafe' : ''; });
-    });
-  }
-
-  function attachTypeListHover() {
-    typeList.querySelectorAll('.pty-opt').forEach(opt => {
-      opt.addEventListener('mouseover', () => { if (opt.dataset.value !== typeInput.value) opt.style.background = '#f0f4ff'; });
-      opt.addEventListener('mouseout', () => { opt.style.background = opt.dataset.value === typeInput.value ? '#dbeafe' : ''; });
-    });
-  }
-
-  refreshBrandList('');
-  refreshTypeList('');
-}
-
-function renderDimensionGroupPreview(clusterInfo, groupName) {
-  const dimensionGroup = clusterInfo.dimensionGroups[groupName];
-  const allProducts = dimensionGroup.products;
-  const shown = allProducts.slice(0, 100);
-
+function renderClusterPreview(clusterInfo) {
+  const clusterLabel = clusterInfo.cluster === -1 ? 'Noise/Outlier' : `Cluster ${clusterInfo.cluster}`;
+  const products = clusterInfo.products.slice(0, 100);
+  
+  // Track the currently displayed cluster
   currentClusterPreview = clusterInfo.cluster;
+  
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
-
+  
+  let productsHtml = '';
+  products.forEach(p => {
+    const isNormal = p.final_status == 1;
+    const isOutlier = p.final_status == 0;
+    const normalColor = isNormal ? '#27ae60' : '#9ca3af';
+    const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
+    
+    productsHtml += `
+      <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
+        <div style="flex-shrink:0;">
+          ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+          <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
+            <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
+            <div style="display:flex;gap:4px;margin-left:auto;">
+              <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
+              <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
+            </div>
+          </div>
+          <div style="font-size:13px;color:#374151;">${p.Brand}</div>
+          <div style="font-size:13px;color:#374151;">${p.Type}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Mfr Cost</strong> : $${p.mfr_cost}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Shipping Cost</strong> : $${p.shipping_cost}</div>
+          <div style="font-size:13px;color:#374151;"><strong>Price</strong> : $${p.price}</div>
+        </div>
+      </div>
+    `;
+  });
+  
   els.preview.innerHTML = `
-    ${buildPreviewFiltersHtml(allProducts)}
-    <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
-    <div id="previewProductList">${buildProductsHtml(shown)}</div>
+    <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} - Products (${products.length}${clusterInfo.products.length > 100 ? ' of ' + clusterInfo.products.length : ''})</h3>
+    ${productsHtml}
   `;
-
-  attachPreviewListeners();
-  attachPreviewFilterListeners(allProducts);
+  
+  // Add event listeners for N and O buttons
+  document.querySelectorAll('.item-normal-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const sku = this.dataset.sku;
+      updateItemStatus(sku, 1);
+    });
+  });
+  
+  document.querySelectorAll('.item-outlier-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const sku = this.dataset.sku;
+      updateItemStatus(sku, 0);
+    });
+  });
+  
+  initLazyLoading();
 }
-
-function renderClusterPreview(clusterInfos) {
-  const LIMIT = 100;
-  const infos = Array.isArray(clusterInfos) ? clusterInfos : [clusterInfos];
-  const allProducts = [];
-  for (const ci of infos) {
-    for (const p of ci.products) allProducts.push(p);
-  }
-
-  currentClusterPreview = infos.length === 1 ? infos[0].cluster : null;
-  const shown = allProducts.slice(0, LIMIT);
-
-  els.preview.style.background = '#f8fafc';
-  els.preview.style.borderColor = '#2563eb';
-
-  els.preview.innerHTML = `
-    ${buildPreviewFiltersHtml(allProducts)}
-    <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > LIMIT ? ' of ' + allProducts.length : ''})</h3>
-    <div id="previewProductList">${buildProductsHtml(shown)}</div>
-  `;
-
-  attachPreviewListeners();
-  attachPreviewFilterListeners(allProducts);
-}
-
-const renderMultiClusterPreview = renderClusterPreview;
 
 function initLazyLoading() {
   const lazyImages = document.querySelectorAll('img.lazy-load');
@@ -3999,46 +3785,17 @@ function renderPreview(p) {
   els.preview.style.background = bgColor;
   els.preview.style.borderColor = borderColor;
   
-  let hOutlier = false;
-  let wOutlier = false;
-  let dOutlier = false;
-  
-  // Check if IQR bounds are available
-  const hasIQRBounds = (p.H_lower_bound != null && p.H_upper_bound != null);
-  
-  if (hasIQRBounds) {
-    hOutlier = p.H < p.H_lower_bound || p.H > p.H_upper_bound;
-    wOutlier = p.W < p.W_lower_bound || p.W > p.W_upper_bound;
-    dOutlier = p.D < p.D_lower_bound || p.D > p.D_upper_bound;
-  }
-  
-  const dimensionsHtml = `
+  const pricingHtml = `
     <div class="panel">
-      <h3 style="margin-top:0;">📏 Dimensions</h3>
-      <div style="${(isOutlier && hOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Height: ${p.H} Inch</div>
-      <div style="${(isOutlier && wOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Width: ${p.W} Inch</div>
-      <div style="${(isOutlier && dOutlier) ? 'color:#e74c3c;font-weight:600;' : ''}">Depth: ${p.D} Inch</div>
+      <h3 style="margin-top:0;">💰 Pricing</h3>
+      <div>Mfr Cost: $${p.mfr_cost}</div>
+      <div>Shipping Cost: $${p.shipping_cost}</div>
+      <div>Price: $${p.price}</div>
     </div>
   `;
   
-  // IQR Analysis - show if IQR data is available
+  // IQR Analysis section removed
   let iqrHtml = "";
-  if (p.H_IQR != null && p.W_IQR != null && p.D_IQR != null) {
-    iqrHtml = `
-      <div class="panel">
-        <h3 style="margin-top:0;">📊 IQR Analysis</h3>
-        <div>H_IQR: ${p.H_IQR.toFixed(2)}</div>
-        <div>W_IQR: ${p.W_IQR.toFixed(2)}</div>
-        <div>D_IQR: ${p.D_IQR.toFixed(2)}</div>
-      </div>`;
-  } else if (p.iqr_is_outlier != null) {
-    // Show IQR status even if detailed stats not available
-    iqrHtml = `
-      <div class="panel">
-        <h3 style="margin-top:0;">📊 IQR Analysis</h3>
-        <div>Status: <span style="${p.iqr_is_outlier ? 'color:#e74c3c;font-weight:600;' : 'color:#27ae60;font-weight:600;'}">${p.iqr_is_outlier ? 'Outlier' : 'Normal'}</span></div>
-      </div>`;
-  }
   
   // DBSCAN Analysis - show if DBSCAN data is available
   let dbscanHtml = "";
@@ -4058,26 +3815,14 @@ function renderPreview(p) {
   }
   
 
-  
-  // Outlier Range - show if outlier and bounds are available
+  // Outlier Range - show if outlier (DBSCAN only)
   let outlierRange = "";
-  if (isOutlier && hasIQRBounds) {
-    outlierRange = `
-      <div class="panel" style="border-color:#ef4444;background:#fff5f5;">
-        <h3 class="warn" style="margin-top:0;">⚠️ Outlier Analysis</h3>
-        <div style="${hOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Height Range: ${Math.max(0, p.H_lower_bound).toFixed(1)} - ${p.H_upper_bound.toFixed(1)} Inch</div>
-        <div style="${wOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Width Range: ${Math.max(0, p.W_lower_bound).toFixed(1)} - ${p.W_upper_bound.toFixed(1)} Inch</div>
-        <div style="${dOutlier ? 'color:#e74c3c;font-weight:600;' : ''}">Depth Range: ${Math.max(0, p.D_lower_bound).toFixed(1)} - ${p.D_upper_bound.toFixed(1)} Inch</div>
-        <div style="color:#e74c3c;font-weight:600;margin-top:8px;padding:8px;background:#fff5f5;border:1px solid #e74c3c;border-radius:4px;">⚠️ This product has dimensions outside the expected range!</div>
-      </div>
-    `;
-  }
   
   els.preview.innerHTML = `
     <h3 style="margin-top:0;${isOutlier ? "color:#e74c3c;" : ""}">${isOutlier ? "⚠️ OUTLIER: " : ""}<a href="${p.url_key || '#'}" target="_blank" style="color:inherit;text-decoration:underline;">${p.SKU}</a></h3>
     <div class="muted">${p.Brand} - ${p.Type}</div>
     ${p.imageUrl ? `<img class="preview" src="${p.imageUrl}" alt="${p.SKU}">` : ""}
-    ${dimensionsHtml}
+    ${pricingHtml}
     ${iqrHtml}
     ${dbscanHtml}
     ${outlierRange}
@@ -4103,7 +3848,7 @@ async function exportData(type) {
     algorithms: selectedValues(els.algo)
   };
   
-  const res = await fetch('/dimension/analyzer/api/get-all-outliers', {
+  const res = await fetch('/pricing/analyzer/api/get-all-outliers', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -4141,7 +3886,7 @@ async function exportData(type) {
   }
   
   // Export combined data
-  const exportRes = await fetch('/dimension/analyzer/api/export', {
+  const exportRes = await fetch('/pricing/analyzer/api/export', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({data: combinedData, export_type: type})
@@ -4181,7 +3926,7 @@ function openGridPage() {
   params.append('iteration_id', selectedIterationId);
   params.append('final_status', '0');
   
-  const url = `/grid?${params.toString()}`;
+  const url = `/pricing/grid?${params.toString()}`;
   window.open(url, '_blank');
 }
 
@@ -4194,7 +3939,7 @@ function openGridPageAll() {
   const params = new URLSearchParams();
   params.append('iteration_id', selectedIterationId);
   
-  const url = `/grid?${params.toString()}`;
+  const url = `/pricing/grid?${params.toString()}`;
   window.open(url, '_blank');
 }
 
@@ -4208,7 +3953,7 @@ function openGridPageNormal() {
   params.append('iteration_id', selectedIterationId);
   params.append('final_status', '1');
   
-  const url = `/grid?${params.toString()}`;
+  const url = `/pricing/grid?${params.toString()}`;
   window.open(url, '_blank');
 }
 
@@ -4240,7 +3985,7 @@ function openGridPageBrand(brand, category, finalStatus) {
   }
   params.append('skip_status', '0');
   
-  const url = `/grid?${params.toString()}`;
+  const url = `/pricing/grid?${params.toString()}`;
   window.open(url, '_blank');
 }
 
@@ -4256,21 +4001,13 @@ els.category.addEventListener('change', async () => {
 });
 els.type.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
 els.algo.addEventListener('change', () => { syncAlgoPanels(); });
-els.h.addEventListener('input', () => { els.hVal.textContent = els.h.value; });
-els.w.addEventListener('input', () => { els.wVal.textContent = els.w.value; });
-els.d.addEventListener('input', () => { els.dVal.textContent = els.d.value; });
+els.h.addEventListener = () => {};
+els.w.addEventListener = () => {};
+els.d.addEventListener = () => {};
 els.eps.addEventListener('input', () => { els.epsVal.textContent = els.eps.value; });
 els.minSamp.addEventListener('input', () => { els.minSampVal.textContent = els.minSamp.value; });
 els.analyze.addEventListener('click', () => runAnalysis());
 els.reset.addEventListener('click', resetIterationData);
-document.getElementById('filterResetBtn').addEventListener('click', async () => {
-  setSelectOptions(els.brand, [], []);
-  els.category.value = '';
-  renderCategoryDropdown();
-  setSelectOptions(els.type, [], []);
-  resetIteration();
-  await loadOptions();
-});
 
 document.getElementById('analyzeAllExportBtn').addEventListener('click', () => runAnalyzeAllExport());
 
@@ -4436,7 +4173,7 @@ async function submitExportAnalysis() {
       algorithm_settings: algorithmSettings
     };
     
-    const res = await fetch('/dimension/analyzer/api/analyze-all-export', {
+    const res = await fetch('/pricing/analyzer/api/analyze-all-export', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -4711,228 +4448,6 @@ document.getElementById('exportAlgoSettingsTrigger').addEventListener('click', (
   updatePrompt();
 })();
 
-// Swap Dimension functionality
-const swapFromDimension = document.getElementById('swapFromDimension');
-const swapToDimension = document.getElementById('swapToDimension');
-const swapBtn = document.getElementById('swapBtn');
-const swapResetBtn = document.getElementById('swapResetBtn');
-
-// Disable selected option in the other dropdown
-swapFromDimension.addEventListener('change', function() {
-  const selectedValue = this.value;
-  Array.from(swapToDimension.options).forEach(opt => {
-    if (opt.value && opt.value === selectedValue) {
-      opt.disabled = true;
-    } else {
-      opt.disabled = false;
-    }
-  });
-  // Reset to dimension if it's now disabled
-  if (swapToDimension.value === selectedValue) {
-    swapToDimension.value = '';
-  }
-});
-
-swapToDimension.addEventListener('change', function() {
-  const selectedValue = this.value;
-  Array.from(swapFromDimension.options).forEach(opt => {
-    if (opt.value && opt.value === selectedValue) {
-      opt.disabled = true;
-    } else {
-      opt.disabled = false;
-    }
-  });
-  // Reset from dimension if it's now disabled
-  if (swapFromDimension.value === selectedValue) {
-    swapFromDimension.value = '';
-  }
-});
-
-swapResetBtn.addEventListener('click', async function() {
-  const groupId = els.group.value;
-  const brands = selectedValues(els.brand);
-  const category = els.category.value;
-  const types = selectedValues(els.type);
-  
-  if (!groupId) {
-    showMessage('Please select Product Group');
-    return;
-  }
-  
-  if (!brands.length && !category && !types.length) {
-    showMessage('Please select at least one filter: Brand, Category, or Product Type');
-    return;
-  }
-  
-  // Get selected clusters from cluster summary
-  const selectedClusters = getSelectedClusters();
-  
-  // Build confirmation message with selected details
-  let confirmMessage = `Are you sure you want to reset dimensions to original values?\n\n`;
-  confirmMessage += `Selected filters:\n`;
-  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
-  if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
-  if (category) confirmMessage += `• Category: ${category}\n`;
-  if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
-  
-  if (selectedClusters.length > 0) {
-    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
-    confirmMessage += `\nThis will restore original dimension values for products in the selected clusters only.`;
-  } else {
-    confirmMessage += `\nThis will restore original dimension values for all products matching the above filters.`;
-  }
-  
-  if (!confirm(confirmMessage)) {
-    return;
-  }
-  
-  const payload = {
-    group_id: parseInt(groupId),
-    brands: brands,
-    category: category,
-    types: types,
-    selected_clusters: selectedClusters
-  };
-  
-  showLoader();
-  const res = await fetch('/dimension/analyzer/api/reset-dimensions', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  hideLoader();
-  
-  if (data.ok) {
-    showMessage(`Successfully reset dimensions for ${data.count} products`);
-    // Reset dropdowns
-    swapFromDimension.value = '';
-    swapToDimension.value = '';
-    Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
-    Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
-    
-    // Reload the current iteration if one is selected to show updated data
-    if (selectedIterationId) {
-      const currentSelectedClusters = getSelectedClusters();
-      await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
-      
-      // If there's a cluster preview currently displayed, refresh it with updated data
-      refreshCurrentClusterPreview();
-    } else {
-      // Reload options to refresh data
-      await loadOptions();
-    }
-  } else {
-    showMessage('Failed to reset dimensions: ' + (data.message || 'Unknown error'));
-  }
-});
-
-swapBtn.addEventListener('click', async function() {
-  const fromDim = swapFromDimension.value;
-  const toDim = swapToDimension.value;
-  const groupId = els.group.value;
-  const brands = selectedValues(els.brand);
-  const category = els.category.value;
-  const types = selectedValues(els.type);
-  
-  if (!fromDim || !toDim) {
-    showMessage('Please select both dimensions to swap');
-    return;
-  }
-  
-  if (!groupId) {
-    showMessage('Please select Product Group');
-    return;
-  }
-  
-  if (!brands.length && !category && !types.length) {
-    showMessage('Please select at least one filter: Brand, Category, or Product Type');
-    return;
-  }
-  
-  // Get selected clusters from cluster summary
-  const selectedClusters = getSelectedClusters();
-  
-  const fromLabel = swapFromDimension.options[swapFromDimension.selectedIndex].text;
-  const toLabel = swapToDimension.options[swapToDimension.selectedIndex].text;
-  
-  // Build confirmation message with selected details
-  let confirmMessage = `Are you sure you want to swap ${fromLabel} with ${toLabel}?\n\n`;
-  confirmMessage += `Selected filters:\n`;
-  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
-  if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
-  if (category) confirmMessage += `• Category: ${category}\n`;
-  if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
-  
-  if (selectedClusters.length > 0) {
-    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
-    confirmMessage += `\nThis will swap dimension values for products in the selected clusters only.`;
-  } else {
-    confirmMessage += `\nThis will swap dimension values for all products matching the above filters.`;
-  }
-  
-  if (!confirm(confirmMessage)) {
-    return;
-  }
-  
-  const payload = {
-    group_id: parseInt(groupId),
-    brands: brands,
-    category: category,
-    types: types,
-    from_dimension: fromDim,
-    to_dimension: toDim,
-    selected_clusters: selectedClusters
-  };
-  
-  showLoader();
-  const res = await fetch('/dimension/analyzer/api/swap-dimensions', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  hideLoader();
-  
-  if (data.ok) {
-    showMessage(`Successfully swapped ${fromLabel} with ${toLabel} for ${data.count} products`);
-    // Reset dropdowns
-    swapFromDimension.value = '';
-    swapToDimension.value = '';
-    Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
-    Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
-    
-    // Reload the current iteration if one is selected to show updated data
-    if (selectedIterationId) {
-      const currentSelectedClusters = getSelectedClusters();
-      await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
-      
-      // If there's a cluster preview currently displayed, refresh it with updated data
-      refreshCurrentClusterPreview();
-    } else {
-      // Reload options to refresh data
-      await loadOptions();
-    }
-  } else {
-    showMessage('Failed to swap dimensions: ' + (data.message || 'Unknown error'));
-  }
-});
-
-function getSelectedClusters() {
-  // Get selected clusters from cluster summary checkboxes
-  const selectedClusters = [];
-  const checkedBoxes = document.querySelectorAll('.cluster-visibility-toggle:checked');
-  
-  // Only return clusters if there are checked boxes (specific selection)
-  // If no boxes are checked, return empty array (use top filters only)
-  checkedBoxes.forEach(checkbox => {
-    const cluster = parseInt(checkbox.dataset.cluster);
-    selectedClusters.push(cluster);
-  });
-  
-  return selectedClusters;
-}
-
 async function updateItemStatus(sku, finalStatus) {
   if (!selectedIterationId) {
     showMessage('Please select an iteration first');
@@ -4969,7 +4484,7 @@ async function updateItemStatus(sku, finalStatus) {
   };
   
   showLoader();
-  const res = await fetch('/dimension/analyzer/api/update-item-status', {
+  const res = await fetch('/pricing/analyzer/api/update-item-status', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)

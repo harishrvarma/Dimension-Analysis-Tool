@@ -5,7 +5,7 @@ from sqlalchemy.orm import relationship
 
 
 class ProductGroup(Base):
-    __tablename__ = "dimension_product_group"
+    __tablename__ = "pricing_product_group"
 
     group_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     name = Column(String(255), nullable=False)
@@ -13,4 +13,4 @@ class ProductGroup(Base):
     created_date = Column(DateTime, nullable=True, default=None)
     default_selected = Column(TINYINT(1), nullable=False, default=0, server_default="0", comment="Yes=1, No=0")
 
-    products = relationship("models.dimension.product.Product", back_populates="group")
+    products = relationship("models.pricing.product.Product", back_populates="group")

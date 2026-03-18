@@ -1,24 +1,24 @@
 from flask import Blueprint, jsonify, render_template, request
-from services.dimension import grid
+from services.pricing import grid
 
 
-grid_bp = Blueprint("grid_bp", __name__, url_prefix="/grid")
+pricing_grid_bp = Blueprint("pricing_grid_bp", __name__, url_prefix="/pricing/grid")
 
 
-@grid_bp.get("")
-@grid_bp.get("/")
+@pricing_grid_bp.get("")
+@pricing_grid_bp.get("/")
 def grid_page():
-    return render_template("dimension/grid/index.html", active_page="dimension_report")
+    return render_template("pricing/grid/index.html", active_page="pricing_report")
 
 
-@grid_bp.get("/api/product-groups")
+@pricing_grid_bp.get("/api/product-groups")
 def api_product_groups():
     """Get all product groups with default selection"""
     groups, default_group_id = grid.get_product_groups()
     return jsonify({"groups": groups, "default_group_id": default_group_id})
 
 
-@grid_bp.post("/api/options")
+@pricing_grid_bp.post("/api/options")
 def api_options():
     """Get brands and categories based on filters"""
     payload = request.get_json(silent=True) or {}
@@ -54,7 +54,7 @@ def api_options():
     })
 
 
-@grid_bp.post("/api/iteration-filters")
+@pricing_grid_bp.post("/api/iteration-filters")
 def api_iteration_filters():
     """Get brands and categories from iteration"""
     payload = request.get_json(silent=True) or {}
@@ -71,7 +71,7 @@ def api_iteration_filters():
     return jsonify({"ok": True, "filters": filters})
 
 
-@grid_bp.post("/api/grid-data")
+@pricing_grid_bp.post("/api/grid-data")
 def api_grid_data():
     """Load grid data based on filters"""
     payload = request.get_json(silent=True) or {}
@@ -101,7 +101,7 @@ def api_grid_data():
     })
 
 
-@grid_bp.post("/api/update-skip-status")
+@pricing_grid_bp.post("/api/update-skip-status")
 def api_update_skip_status():
     """Update skip status for a single product"""
     payload = request.get_json(silent=True) or {}
@@ -112,7 +112,7 @@ def api_update_skip_status():
         return jsonify({"ok": False, "message": "Product ID is required."})
 
     from models.base.base import SessionLocal
-    from repositories.dimension.product_repository import ProductRepository
+    from repositories.pricing.product_repository import ProductRepository
 
     db = SessionLocal()
     try:
@@ -127,7 +127,7 @@ def api_update_skip_status():
         db.close()
 
 
-@grid_bp.post("/api/export-data")
+@pricing_grid_bp.post("/api/export-data")
 def api_export_data():
     """Export grid data to CSV"""
     payload = request.get_json(silent=True) or {}
@@ -142,7 +142,7 @@ def api_export_data():
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow(['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-                     'Name', 'Height', 'Width', 'Depth', 'EPS', 'Sample', 'Final Status', 
+                     'Name', 'Mfr Cost', 'Shipping Cost', 'Price', 'EPS', 'Sample', 'Final Status', 
                      'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
                      'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History'])
 
@@ -165,7 +165,7 @@ def api_export_data():
 
             writer.writerow([
                 row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['height'], row['width'], row['depth'], row['eps'], row['sample'], row['final_status'],
+                row['mfr_cost'], row['shipping_cost'], row['price'], row['eps'], row['sample'], row['final_status'],
                 row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
                 row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
                 skip_display, history_text
@@ -181,7 +181,7 @@ def api_export_data():
     return output
 
 
-@grid_bp.post("/api/export-xls")
+@pricing_grid_bp.post("/api/export-xls")
 def api_export_xls():
     """Export grid data to XLS with red background for outlier dimensions"""
     payload = request.get_json(silent=True) or {}
@@ -193,7 +193,6 @@ def api_export_xls():
     from flask import make_response
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import PatternFill
     except ImportError:
         return jsonify({"ok": False, "message": "openpyxl not installed"}), 500
 
@@ -201,18 +200,14 @@ def api_export_xls():
     ws = wb.active
     ws.title = "Grid Export"
 
-    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
-
     headers = ['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-               'Name', 'Height', 'Width', 'Depth', 'EPS', 'Sample', 'Final Status',
+               'Name', 'Mfr Cost', 'Shipping Cost', 'Price', 'EPS', 'Sample', 'Final Status',
                'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
                'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History']
     ws.append(headers)
 
     page = 1
     chunk_size = 5000
-    current_row = 2
-    cells_to_color = []
 
     while True:
         data, _ = grid.load_grid_data(group_id, payload.get("brands"), payload.get("categories"),
@@ -231,27 +226,15 @@ def api_export_xls():
 
             ws.append([
                 row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['height'], row['width'], row['depth'], row['eps'], row['sample'], row['final_status'],
+                row['mfr_cost'], row['shipping_cost'], row['price'], row['eps'], row['sample'], row['final_status'],
                 row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
                 row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
                 skip_display, history_text
             ])
 
-            if row['iqr_height_status'] == 0:
-                cells_to_color.append((current_row, 7))
-            if row['iqr_width_status'] == 0:
-                cells_to_color.append((current_row, 8))
-            if row['iqr_depth_status'] == 0:
-                cells_to_color.append((current_row, 9))
-
-            current_row += 1
-
         if len(data) < chunk_size:
             break
         page += 1
-
-    for row_num, col_num in cells_to_color:
-        ws.cell(row=row_num, column=col_num).fill = red_fill
 
     output = BytesIO()
     wb.save(output)
@@ -263,7 +246,7 @@ def api_export_xls():
     return response
 
 
-@grid_bp.post("/api/save-skip-status")
+@pricing_grid_bp.post("/api/save-skip-status")
 def api_save_skip_status():
     """Save skip status for selected products"""
     payload = request.get_json(silent=True) or {}
@@ -273,7 +256,7 @@ def api_save_skip_status():
         return jsonify({"ok": False, "message": "No items to save."})
 
     from models.base.base import SessionLocal
-    from models.dimension.product import Product
+    from models.pricing.product import Product
 
     db = SessionLocal()
     try:

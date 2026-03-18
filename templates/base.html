@@ -100,7 +100,7 @@
       border-bottom: none;
     }
     .page {
-      padding: 18px 20px;
+      padding: 5px;
     }
     .center-body {
       min-height: calc(100vh - 90px);
@@ -135,7 +135,17 @@
         </div>
         <div class="dropdown-menu" id="dimensionDropdown">
           <a href="/dimension/analyzer" onclick="updateBrand('Dimension Analyzer')">Analyzer</a>
-          <a href="/dimension/report" onclick="updateBrand('Dimension Report')">Report</a>
+          <a href="/grid" onclick="updateBrand('Dimension Report')">Report</a>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <div class="dropdown-toggle {% if active_page in ['pricing_analyzer', 'pricing_report'] %}active{% endif %}" onclick="toggleDropdown(event, 'pricingDropdown', 'pricingArrow')">
+          Pricing
+        </div>
+        <div class="dropdown-menu" id="pricingDropdown">
+          <a href="/pricing/analyzer" onclick="updateBrand('Pricing Analyzer')">Analyzer</a>
+          <a href="/pricing/grid" onclick="updateBrand('Pricing Report')">Report</a>
         </div>
       </div>
       
@@ -145,7 +155,7 @@
         </div>
         <div class="dropdown-menu" id="priceMatchDropdown">
           <a href="/item-match" onclick="updateBrand('Price Match Analyzer')">Analyzer</a>
-          <a href="/matching-items" onclick="updateBrand('Matching Items Grid')">Report</a>
+          <a href="/matching-items" onclick="updateBrand('Matching Items Report')">Report</a>
         </div>
       </div>
       

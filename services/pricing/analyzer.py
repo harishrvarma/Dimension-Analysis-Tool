@@ -1,9 +1,9 @@
 from models.base.base import SessionLocal
-from repositories.dimension.product_repository import ProductRepository
-from repositories.dimension.product_group_repository import ProductGroupRepository
-from repositories.dimension.product_iteration_repository import ProductIterationRepository
-from models.dimension.product import Product
-from constants import ALGO_IQR, ALGO_DBSCAN
+from repositories.pricing.product_repository import ProductRepository
+from repositories.pricing.product_group_repository import ProductGroupRepository
+from repositories.pricing.product_iteration_repository import ProductIterationRepository
+from models.pricing.product import Product
+from constants import ALGO_DBSCAN
 import pandas as pd
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -36,12 +36,12 @@ def get_product_groups():
         db.close()
 
 
-def get_brands_for_group(group_id, category=None, types=None):
+def get_brands_for_group(group_id):
     """Get brands with product counts and analysis status for a specific product group"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-        df = repo.get_brands_for_group(group_id, category=category, types=types)
+        df = repo.get_brands_for_group(group_id)
         if df.empty:
             return []
         return [
@@ -57,12 +57,12 @@ def get_brands_for_group(group_id, category=None, types=None):
         db.close()
 
 
-def get_categories_for_group(group_id, brands=None, types=None):
-    """Get categories for a group with analysis status, optionally filtered by brands and types"""
+def get_categories_for_group(group_id, brands=None):
+    """Get categories for a group with analysis status, optionally filtered by brands"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-        df = repo.get_categories_for_group(group_id, brands, types=types)
+        df = repo.get_categories_for_group(group_id, brands)
         if df.empty:
             return []
         return [
@@ -117,9 +117,6 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
                 'category': 'Category',
                 'product_type': 'Type',
                 'name': 'Name',
-                'height': 'H',
-                'width': 'W',
-                'depth': 'D',
                 'base_image_url': 'imageUrl',
                 'product_url': 'url_key'
             })
@@ -127,109 +124,20 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
             # Keep system_product_id and product_id as is (don't rename)
             
             # Ensure numeric columns
-            for col in ['H', 'W', 'D']:
+            for col in ['mfr_cost', 'shipping_cost', 'price']:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
             
             if 'weight' in df.columns:
                 df['weight'] = pd.to_numeric(df['weight'], errors='coerce')
             
-            # Remove rows with missing dimension data
-            df = df.dropna(subset=['H', 'W', 'D'])
+            # Remove rows with missing pricing data
+            df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
         
         return df
     finally:
         db.close()
 
-
-def calculate_iqr_bounds(data_subset, dimensions=['H', 'W', 'D'], multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5}):
-    """Calculate IQR bounds with configurable multipliers"""
-    iqr_stats = {}
-    
-    for dim in dimensions:
-        Q1 = data_subset[dim].quantile(0.25)
-        Q3 = data_subset[dim].quantile(0.75)
-        IQR = Q3 - Q1
-        
-        multiplier = multipliers.get(dim, 1.5)
-        
-        lower_bound = Q1 - (multiplier * IQR)
-        upper_bound = Q3 + (multiplier * IQR)
-
-        # Clip bounds to actual min/max of data
-        min_val = data_subset[dim].min()
-        max_val = data_subset[dim].max()
-        
-        if lower_bound < min_val:
-            lower_bound = min_val
-        if upper_bound > max_val:
-            upper_bound = max_val
-        
-        iqr_stats[dim] = {
-            'Q1': Q1,
-            'Q3': Q3,
-            'IQR': IQR,
-            'lower_bound': lower_bound,
-            'upper_bound': upper_bound,
-            'multiplier': multiplier
-        }
-    
-    return iqr_stats
-
-
-def detect_outliers_iqr(df_subset, iqr_stats):
-    """Detect outliers based on IQR bounds"""
-    is_outlier = pd.Series([False] * len(df_subset), index=df_subset.index)
-    
-    for dim in ['H', 'W', 'D']:
-        lower = iqr_stats[dim]['lower_bound']
-        upper = iqr_stats[dim]['upper_bound']
-        is_outlier |= (df_subset[dim] < lower) | (df_subset[dim] > upper)
-    
-    return is_outlier
-
-
-def calculate_dynamic_iqr(filtered_df, multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5}):
-    """Calculate IQR dynamically based on filtered data"""
-    df_enriched = filtered_df.copy()
-    
-    # Initialize IQR columns
-    for dim in ['H', 'W', 'D']:
-        df_enriched[f'{dim}_IQR'] = 0.0
-        df_enriched[f'{dim}_Q1'] = 0.0
-        df_enriched[f'{dim}_Q3'] = 0.0
-        df_enriched[f'{dim}_lower_bound'] = 0.0
-        df_enriched[f'{dim}_upper_bound'] = 0.0
-        df_enriched[f'{dim}_multiplier'] = multipliers[dim]
-    
-    unique_types = df_enriched['Type'].unique()
-    
-    if len(unique_types) > 1:
-        for product_type in unique_types:
-            type_mask = df_enriched['Type'] == product_type
-            type_data = df_enriched[type_mask]
-            
-            if len(type_data) >= 4:
-                iqr_stats = calculate_iqr_bounds(type_data, multipliers=multipliers)
-                
-                for dim in ['H', 'W', 'D']:
-                    df_enriched.loc[type_mask, f'{dim}_IQR'] = iqr_stats[dim]['IQR']
-                    df_enriched.loc[type_mask, f'{dim}_Q1'] = iqr_stats[dim]['Q1']
-                    df_enriched.loc[type_mask, f'{dim}_Q3'] = iqr_stats[dim]['Q3']
-                    df_enriched.loc[type_mask, f'{dim}_lower_bound'] = iqr_stats[dim]['lower_bound']
-                    df_enriched.loc[type_mask, f'{dim}_upper_bound'] = iqr_stats[dim]['upper_bound']
-    else:
-        if len(df_enriched) >= 4:
-            iqr_stats = calculate_iqr_bounds(df_enriched, multipliers=multipliers)
-            
-            for dim in ['H', 'W', 'D']:
-                df_enriched[f'{dim}_IQR'] = iqr_stats[dim]['IQR']
-                df_enriched[f'{dim}_Q1'] = iqr_stats[dim]['Q1']
-                df_enriched[f'{dim}_Q3'] = iqr_stats[dim]['Q3']
-                df_enriched[f'{dim}_lower_bound'] = iqr_stats[dim]['lower_bound']
-                df_enriched[f'{dim}_upper_bound'] = iqr_stats[dim]['upper_bound']
-    
-    return df_enriched
 
 
 
@@ -237,7 +145,7 @@ def calculate_dynamic_iqr(filtered_df, multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5
 #     """Detect outliers using DBSCAN"""
 #     df_dbscan = filtered_df.copy()
     
-#     X = df_dbscan[['H', 'W', 'D']].values
+#     X = df_dbscan[['mfr_cost', 'shipping_cost', 'price']].values
     
 #     scaler = StandardScaler()
 #     X_scaled = scaler.fit_transform(X)
@@ -258,7 +166,7 @@ def calculate_dynamic_iqr(filtered_df, multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5
 #     df_dbscan = filtered_df.copy()
 
 #     # Ensure required columns exist
-#     required_cols = ['H', 'W', 'D']
+#     required_cols = ['mfr_cost', 'shipping_cost', 'price']
 #     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
 #     if missing_cols:
 #         raise ValueError(f"Missing required columns: {missing_cols}")
@@ -272,7 +180,7 @@ def calculate_dynamic_iqr(filtered_df, multipliers={'H': 1.5, 'W': 1.5, 'D': 1.5
 #     df_dbscan['W_D'] = df_dbscan['W'] / df_dbscan['D']
 
 #     # Final feature set
-#     #features = ['H', 'W', 'D', 'H_W', 'H_D', 'W_D']
+#     #features = ['mfr_cost', 'shipping_cost', 'price', 'H_W', 'H_D', 'W_D']
 #     features = ['H_W', 'H_D', 'W_D']
 #     X = df_dbscan[features].values
 
@@ -298,9 +206,9 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
     """Detect outliers using DBSCAN.
 
     algorithm_settings controls which feature groups are used:
-    - shape: ratios (H/W, W/D, H/D)
-    - size: raw dimensions (H, W, D)
-    - volume: H*W*D
+    - shape: ratios (mfr_cost/shipping_cost, shipping_cost/price, mfr_cost/price)
+    - size: raw values (mfr_cost, shipping_cost, price)
+    - volume: mfr_cost*shipping_cost*price
 
     If algorithm_settings is missing/empty/invalid, defaults to all.
     """
@@ -308,7 +216,7 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
     df_dbscan = filtered_df.copy()
 
     # Ensure required columns exist
-    required_cols = ['H', 'W', 'D']
+    required_cols = ['mfr_cost', 'shipping_cost', 'price']
     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
@@ -316,8 +224,8 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
     # Remove rows with NaN values
     df_dbscan = df_dbscan.dropna(subset=required_cols)
 
-    # Remove non-positive dimensions (avoid divide-by-zero and invalid volume)
-    df_dbscan = df_dbscan[(df_dbscan[['H', 'W', 'D']] > 0).all(axis=1)]
+    # Remove non-positive values (avoid divide-by-zero and invalid calculations)
+    df_dbscan = df_dbscan[(df_dbscan[['mfr_cost', 'shipping_cost', 'price']] > 0).all(axis=1)]
 
     # Normalize settings
     valid_settings = {'shape', 'size', 'volume'}
@@ -336,16 +244,16 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
     features = []
 
     if 'size' in settings:
-        features.extend(['H', 'W', 'D'])
+        features.extend(['mfr_cost', 'shipping_cost', 'price'])
 
     if 'shape' in settings:
-        df_dbscan['H_W'] = df_dbscan['H'] / (df_dbscan['W'] + eps_val)
-        df_dbscan['W_D'] = df_dbscan['W'] / (df_dbscan['D'] + eps_val)
-        df_dbscan['H_D'] = df_dbscan['H'] / (df_dbscan['D'] + eps_val)
-        features.extend(['H_W', 'W_D', 'H_D'])
+        df_dbscan['mfr_shipping'] = df_dbscan['mfr_cost'] / (df_dbscan['shipping_cost'] + eps_val)
+        df_dbscan['shipping_price'] = df_dbscan['shipping_cost'] / (df_dbscan['price'] + eps_val)
+        df_dbscan['mfr_price'] = df_dbscan['mfr_cost'] / (df_dbscan['price'] + eps_val)
+        features.extend(['mfr_shipping', 'shipping_price', 'mfr_price'])
 
     if 'volume' in settings:
-        df_dbscan['Volume'] = df_dbscan['H'] * df_dbscan['W'] * df_dbscan['D']
+        df_dbscan['Volume'] = df_dbscan['mfr_cost'] * df_dbscan['shipping_cost'] * df_dbscan['price']
         features.append('Volume')
 
     # De-duplicate (preserve order)
@@ -373,7 +281,7 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
 
 def get_iteration_history(group_id, category):
     """Get iteration history from database - only by group_id and category"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
     
     db = SessionLocal()
     try:
@@ -387,10 +295,10 @@ def reset_iterations(group_id, category=None):
     """Reset all iterations for a product group, optionally filtered by category.
     If category is None, resets all iterations for the entire group.
     """
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product_iteration_item import DimensionProductIterationItem
-    from models.dimension.product import Product
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product_iteration_item import PricingProductIterationItem
+    from models.pricing.product import Product
     
     db = SessionLocal()
     try:
@@ -408,14 +316,14 @@ def reset_iterations(group_id, category=None):
         # Get all system_product_ids from those iterations
         system_product_ids = [
             row[0] for row in
-            db.query(DimensionProductIterationItem.system_product_id)
-            .filter(DimensionProductIterationItem.iteration_id.in_(iteration_ids))
+            db.query(PricingProductIterationItem.system_product_id)
+            .filter(PricingProductIterationItem.iteration_id.in_(iteration_ids))
             .distinct().all()
         ]
         
         # Delete iteration items first
-        db.query(DimensionProductIterationItem).filter(
-            DimensionProductIterationItem.iteration_id.in_(iteration_ids)
+        db.query(PricingProductIterationItem).filter(
+            PricingProductIterationItem.iteration_id.in_(iteration_ids)
         ).delete(synchronize_session=False)
         
         # Delete iterations
@@ -423,7 +331,7 @@ def reset_iterations(group_id, category=None):
             ProductIteration.iteration_id.in_(iteration_ids)
         ).delete(synchronize_session=False)
         
-        # Reset dimension_product fields for affected products
+        # Reset pricing_product fields for affected products
         if system_product_ids:
             db.query(Product).filter(
                 Product.system_product_id.in_(system_product_ids)
@@ -448,17 +356,17 @@ def reset_iterations(group_id, category=None):
 
 
 def set_cluster_as_normal(skus, iteration_id, brands, category, eps, sample, group_id):
-    """Mark cluster products as normal in dimension tables and update product table"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product import Product
+    """Mark cluster products as normal in pricing tables and update product table"""
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product import Product
     
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         iter_repo = ProductIterationRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        item_repo = PricingProductIterationItemRepository(db)
         
         iteration = db.query(ProductIteration).filter(
             ProductIteration.iteration_id == iteration_id
@@ -476,7 +384,7 @@ def set_cluster_as_normal(skus, iteration_id, brands, category, eps, sample, gro
         if not system_product_ids:
             return False, "No products found"
         
-        # Update final_status and analyzed_date in dimension_product_iteration_item table
+        # Update final_status and analyzed_date in pricing_product_iteration_item table
         item_repo.update_items_final_status(iteration_id, system_product_ids, final_status=1)
         
         # Update product table for selected group
@@ -503,17 +411,17 @@ def set_cluster_as_normal(skus, iteration_id, brands, category, eps, sample, gro
 
 
 def set_cluster_as_outlier(skus, iteration_id, brands, category, eps, sample, group_id):
-    """Mark cluster products as outliers in dimension tables"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product import Product
+    """Mark cluster products as outliers in pricing tables"""
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product import Product
     
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         iter_repo = ProductIterationRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        item_repo = PricingProductIterationItemRepository(db)
         
         # Check if iteration exists
         iteration = db.query(ProductIteration).filter(
@@ -532,7 +440,7 @@ def set_cluster_as_outlier(skus, iteration_id, brands, category, eps, sample, gr
         if not system_product_ids:
             return False, "No products found"
         
-        # Update final_status and analyzed_date in dimension_product_iteration_item table
+        # Update final_status and analyzed_date in pricing_product_iteration_item table
         item_repo.update_items_final_status(iteration_id, system_product_ids, final_status=0)
         
         # Update product table for selected group
@@ -559,17 +467,17 @@ def set_cluster_as_outlier(skus, iteration_id, brands, category, eps, sample, gr
 
 
 def remove_cluster_outlier(skus, iteration_id, brands, category, group_id):
-    """Remove outlier status from cluster products in dimension tables"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product import Product
+    """Remove outlier status from cluster products in pricing tables"""
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product import Product
     
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         iter_repo = ProductIterationRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        item_repo = PricingProductIterationItemRepository(db)
         
         iteration = db.query(ProductIteration).filter(
             ProductIteration.iteration_id == iteration_id
@@ -615,14 +523,14 @@ def remove_cluster_outlier(skus, iteration_id, brands, category, group_id):
 
 def update_item_status(sku, final_status, iteration_id, group_id, category, eps, sample):
     """Update final_status for a specific iteration item"""
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product import Product
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product import Product
     from datetime import datetime
     
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        item_repo = PricingProductIterationItemRepository(db)
         
         # Get system_product_id from qb_code
         product = db.query(Product).filter(Product.qb_code == sku).first()
@@ -631,14 +539,14 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         
         system_product_id = product.system_product_id
         
-        # Update dimension_product_iteration_item table
+        # Update pricing_product_iteration_item table
         item_repo.update_items_final_status(
             iteration_id, 
             [system_product_id], 
             final_status=final_status
         )
         
-        # Update dimension_product table
+        # Update pricing_product table
         if final_status is None:
             # Reset to null
             product_update = {
@@ -672,183 +580,11 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         db.close()
 
 
-def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None):
-    """Swap dimension values for filtered products"""
-    from models.dimension.product import Product
-    
-    db = SessionLocal()
-    try:
-        # Build base query with top-level filters
-        query = db.query(Product).filter(Product.group_id == group_id)
-        
-        if brands:
-            query = query.filter(Product.brand.in_(brands))
-        if category:
-            query = query.filter(Product.category == category)
-        if types:
-            query = query.filter(Product.product_type.in_(types))
-        
-        # If specific clusters are selected, filter by those clusters only
-        if selected_clusters and len(selected_clusters) > 0:
-            from models.dimension.product_iteration_item import DimensionProductIterationItem
-            from models.dimension.product_iteration import ProductIteration
-            from sqlalchemy import or_
-            
-            # Get latest iteration for the category
-            latest_iteration = db.query(ProductIteration).filter(
-                ProductIteration.product_group_id == group_id,
-                ProductIteration.category == category
-            ).order_by(ProductIteration.timestamp.desc()).first()
-            
-            if latest_iteration:
-                # Build cluster conditions
-                cluster_conditions = []
-                for cluster in selected_clusters:
-                    if cluster == -1:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
-                    else:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
-                
-                if cluster_conditions:
-                    # Get system_product_ids from selected clusters
-                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
-                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
-                        or_(*cluster_conditions)
-                    ).subquery()
-                    
-                    # Filter products to only those in selected clusters
-                    query = query.filter(Product.system_product_id.in_(
-                        db.query(cluster_products.c.system_product_id)
-                    ))
-            else:
-                # No iteration found, cannot filter by clusters
-                return False, 0, "No analysis iteration found for cluster filtering"
-        
-        products = query.all()
-        
-        if not products:
-            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
-            return False, 0, f"No products found with the specified filters{cluster_msg}"
-        
-        # Map dimension names to column names
-        dimension_map = {
-            'height': 'height',
-            'width': 'width',
-            'depth': 'depth'
-        }
-        
-        from_col = dimension_map.get(from_dimension)
-        to_col = dimension_map.get(to_dimension)
-        
-        if not from_col or not to_col:
-            return False, 0, "Invalid dimension names"
-        
-        # Swap values for each product
-        count = 0
-        for product in products:
-            from_value = getattr(product, from_col)
-            to_value = getattr(product, to_col)
-            
-            # Swap the values
-            setattr(product, from_col, to_value)
-            setattr(product, to_col, from_value)
-            count += 1
-        
-        db.commit()
-        return True, count, None
-    except Exception as e:
-        db.rollback()
-        print(f"Error swapping dimensions: {e}")
-        return False, 0, str(e)
-    finally:
-        db.close()
-
-
-def reset_dimensions(group_id, brands, category, types, selected_clusters=None):
-    """Reset dimension values to original values for filtered products"""
-    from models.dimension.product import Product
-    
-    db = SessionLocal()
-    try:
-        # Build base query with top-level filters
-        query = db.query(Product).filter(Product.group_id == group_id)
-        
-        if brands:
-            query = query.filter(Product.brand.in_(brands))
-        if category:
-            query = query.filter(Product.category == category)
-        if types:
-            query = query.filter(Product.product_type.in_(types))
-        
-        # If specific clusters are selected, filter by those clusters only
-        if selected_clusters and len(selected_clusters) > 0:
-            from models.dimension.product_iteration_item import DimensionProductIterationItem
-            from models.dimension.product_iteration import ProductIteration
-            from sqlalchemy import or_
-            
-            # Get latest iteration for the category
-            latest_iteration = db.query(ProductIteration).filter(
-                ProductIteration.product_group_id == group_id,
-                ProductIteration.category == category
-            ).order_by(ProductIteration.timestamp.desc()).first()
-            
-            if latest_iteration:
-                # Build cluster conditions
-                cluster_conditions = []
-                for cluster in selected_clusters:
-                    if cluster == -1:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == "Noise/Outlier")
-                    else:
-                        cluster_conditions.append(DimensionProductIterationItem.cluster == f"Cluster {cluster}")
-                
-                if cluster_conditions:
-                    # Get system_product_ids from selected clusters
-                    cluster_products = db.query(DimensionProductIterationItem.system_product_id).filter(
-                        DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
-                        or_(*cluster_conditions)
-                    ).subquery()
-                    
-                    # Filter products to only those in selected clusters
-                    query = query.filter(Product.system_product_id.in_(
-                        db.query(cluster_products.c.system_product_id)
-                    ))
-            else:
-                # No iteration found, cannot filter by clusters
-                return False, 0, "No analysis iteration found for cluster filtering"
-        
-        products = query.all()
-        
-        if not products:
-            cluster_msg = " in selected clusters" if selected_clusters and len(selected_clusters) > 0 else ""
-            return False, 0, f"No products found with the specified filters{cluster_msg}"
-        
-        # Reset values for each product
-        count = 0
-        for product in products:
-            # Restore original dimensions
-            if hasattr(product, 'ori_height') and product.ori_height is not None:
-                product.height = product.ori_height
-            if hasattr(product, 'ori_width') and product.ori_width is not None:
-                product.width = product.ori_width
-            if hasattr(product, 'ori_depth') and product.ori_depth is not None:
-                product.depth = product.ori_depth
-            count += 1
-        
-        db.commit()
-        return True, count, None
-    except Exception as e:
-        db.rollback()
-        print(f"Error resetting dimensions: {e}")
-        return False, 0, str(e)
-    finally:
-        db.close()
-
-
 def load_saved_iteration(iteration_id):
     """Load saved iteration filters and complete data for display - optimized"""
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product_iteration_item import DimensionProductIterationItem
-    from models.dimension.product import Product
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product_iteration_item import PricingProductIterationItem
+    from models.pricing.product import Product
     from sqlalchemy import text
     
     db = SessionLocal()
@@ -866,25 +602,25 @@ def load_saved_iteration(iteration_id):
         # Optimized single query to get all required data
         query = text("""
             SELECT 
-                dpii.system_product_id,
-                dpii.status,
-                dpii.final_status,
-                dpii.outlier_mode,
-                dpii.cluster,
-                dpii.analyzed_date,
+                ppii.system_product_id,
+                ppii.status,
+                ppii.final_status,
+                ppii.outlier_mode,
+                ppii.cluster,
+                ppii.analyzed_date,
                 p.qb_code,
                 p.brand,
                 p.category,
                 p.product_type,
                 p.name,
-                p.height,
-                p.width,
-                p.depth,
+                p.mfr_cost,
+                p.shipping_cost,
+                p.price,
                 p.base_image_url,
                 p.product_url
-            FROM dimension_product_iteration_item dpii
-            INNER JOIN dimension_product p ON dpii.system_product_id = p.system_product_id
-            WHERE dpii.iteration_id = :iteration_id
+            FROM pricing_product_iteration_item ppii
+            INNER JOIN pricing_product p ON ppii.system_product_id = p.system_product_id
+            WHERE ppii.iteration_id = :iteration_id
         """)
         
         items = db.execute(query, {'iteration_id': iteration_id}).fetchall()
@@ -917,9 +653,9 @@ def load_saved_iteration(iteration_id):
                 'Category': item.category,
                 'Type': item.product_type,
                 'Name': item.name,
-                'H': float(item.height) if item.height else None,
-                'W': float(item.width) if item.width else None,
-                'D': float(item.depth) if item.depth else None,
+                'mfr_cost': float(item.mfr_cost) if item.mfr_cost else None,
+                'shipping_cost': float(item.shipping_cost) if item.shipping_cost else None,
+                'price': float(item.price) if item.price else None,
                 'imageUrl': item.base_image_url,
                 'url_key': item.product_url,
                 'system_product_id': item.system_product_id,
@@ -957,15 +693,15 @@ def load_saved_iteration(iteration_id):
 
 def delete_iteration(iteration_id):
     """Delete iteration and its items"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from models.dimension.product_iteration import ProductIteration
-    from models.dimension.product_iteration_item import DimensionProductIterationItem
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from models.pricing.product_iteration import ProductIteration
+    from models.pricing.product_iteration_item import PricingProductIterationItem
     
     db = SessionLocal()
     try:
         # Delete iteration items
-        db.query(DimensionProductIterationItem).filter(
-            DimensionProductIterationItem.iteration_id == iteration_id
+        db.query(PricingProductIterationItem).filter(
+            PricingProductIterationItem.iteration_id == iteration_id
         ).delete(synchronize_session=False)
         
         # Delete iteration
@@ -992,75 +728,27 @@ def get_all_previous_outliers(group_id, brands, category, types, current_iterati
         if df.empty:
             return []
         
-        # Rename columns to match frontend format
+        # Rename display columns only (keep mfr_cost/shipping_cost/price as-is)
         df = df.rename(columns={
             'qb_code': 'SKU',
             'brand': 'Brand',
             'category': 'Category',
             'product_type': 'Type',
             'name': 'Name',
-            'height': 'H',
-            'width': 'W',
-            'depth': 'D',
             'base_image_url': 'imageUrl',
             'product_url': 'url_key'
         })
         
-        # Add is_outlier_combined flag
-        df['is_outlier_combined'] = True
-        
         # Process only selected algorithms
         for idx, row in df.iterrows():
-            # IQR status - only if IQR is selected
-            if 'IQR' in algorithms and pd.notna(row.get('iqr_status')):
-                df.at[idx, 'iqr_is_outlier'] = (row['iqr_status'] == 0)
-            
-            # DBSCAN status - only if DBSCAN is selected
+            # DBSCAN status
             if 'DBSCAN' in algorithms:
                 if pd.notna(row.get('dbs_status')):
                     df.at[idx, 'dbscan_is_outlier'] = (row['dbs_status'] == 0)
                     df.at[idx, 'dbscan_cluster'] = -1 if row['dbs_status'] == 0 else 0
                 else:
-                    # If no dbs_status (manually marked), treat as outlier
                     df.at[idx, 'dbscan_is_outlier'] = True
                     df.at[idx, 'dbscan_cluster'] = -1
-        
-        # Calculate IQR bounds only if IQR is selected
-        if 'IQR' in algorithms:
-            all_products_df = load_products_filtered(group_id, brands, category, types, iteration=1, for_save=False, for_display=False)
-            
-            if not all_products_df.empty and len(all_products_df) >= 4:
-                multipliers = {'H': 1.5, 'W': 1.5, 'D': 1.5}
-                unique_types = df['Type'].unique()
-                
-                if len(unique_types) > 1:
-                    for product_type in unique_types:
-                        type_mask = df['Type'] == product_type
-                        type_data = all_products_df[all_products_df['Type'] == product_type]
-                        
-                        if len(type_data) >= 4:
-                            iqr_stats = calculate_iqr_bounds(type_data, multipliers=multipliers)
-                            
-                            for idx in df[type_mask].index:
-                                if pd.notna(df.at[idx, 'iqr_status']):
-                                    for dim in ['H', 'W', 'D']:
-                                        df.at[idx, f'{dim}_lower_bound'] = iqr_stats[dim]['lower_bound']
-                                        df.at[idx, f'{dim}_upper_bound'] = iqr_stats[dim]['upper_bound']
-                                        df.at[idx, f'{dim}_IQR'] = iqr_stats[dim]['IQR']
-                                        df.at[idx, f'{dim}_Q1'] = iqr_stats[dim]['Q1']
-                                        df.at[idx, f'{dim}_Q3'] = iqr_stats[dim]['Q3']
-                else:
-                    if len(all_products_df) >= 4:
-                        iqr_stats = calculate_iqr_bounds(all_products_df, multipliers=multipliers)
-                        
-                        for idx in df.index:
-                            if pd.notna(df.at[idx, 'iqr_status']):
-                                for dim in ['H', 'W', 'D']:
-                                    df.at[idx, f'{dim}_lower_bound'] = iqr_stats[dim]['lower_bound']
-                                    df.at[idx, f'{dim}_upper_bound'] = iqr_stats[dim]['upper_bound']
-                                    df.at[idx, f'{dim}_IQR'] = iqr_stats[dim]['IQR']
-                                    df.at[idx, f'{dim}_Q1'] = iqr_stats[dim]['Q1']
-                                    df.at[idx, f'{dim}_Q3'] = iqr_stats[dim]['Q3']
         
         # Replace NaN with None for JSON serialization
         df = df.replace({pd.NA: None, np.nan: None})
@@ -1095,9 +783,9 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
                     'Category': p.category,
                     'Type': p.product_type,
                     'Name': p.name,
-                    'H': float(p.height) if p.height else None,
-                    'W': float(p.width) if p.width else None,
-                    'D': float(p.depth) if p.depth else None,
+                    'mfr_cost': float(p.mfr_cost) if p.mfr_cost else None,
+                    'shipping_cost': float(p.shipping_cost) if p.shipping_cost else None,
+                    'price': float(p.price) if p.price else None,
                     'imageUrl': p.base_image_url,
                     'url_key': p.product_url,
                     'system_product_id': p.system_product_id,
@@ -1107,72 +795,19 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
             
             df = pd.DataFrame(product_data)
             # Remove rows with missing dimension data
-            df = df.dropna(subset=['H', 'W', 'D'])
+            df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
         
         if df.empty or len(df) < 4:
             return None, "Seems less than 4 products available."
         
-        multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
+        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
-        
-        # IQR Analysis
-        if 'IQR' in algorithms:
-            df_iqr = calculate_dynamic_iqr(df_combined.copy(), multipliers=multipliers)
-            df_iqr['iqr_is_outlier'] = False
-            unique_types = df_iqr['Type'].unique()
-            
-            if len(unique_types) > 1:
-                for product_type in unique_types:
-                    type_mask = df_iqr['Type'] == product_type
-                    type_data = df_iqr[type_mask]
-                    
-                    if len(type_data) >= 4:
-                        iqr_stats = {}
-                        for dim in ['H', 'W', 'D']:
-                            iqr_stats[dim] = {
-                                'Q1': type_data[f'{dim}_Q1'].iloc[0],
-                                'Q3': type_data[f'{dim}_Q3'].iloc[0],
-                                'IQR': type_data[f'{dim}_IQR'].iloc[0],
-                                'lower_bound': type_data[f'{dim}_lower_bound'].iloc[0],
-                                'upper_bound': type_data[f'{dim}_upper_bound'].iloc[0]
-                            }
-                        
-                        outlier_mask = detect_outliers_iqr(type_data, iqr_stats)
-                        df_iqr.loc[type_mask, 'iqr_is_outlier'] = outlier_mask
-            else:
-                if len(df_iqr) >= 4:
-                    iqr_stats = {}
-                    for dim in ['H', 'W', 'D']:
-                        iqr_stats[dim] = {
-                            'Q1': df_iqr[f'{dim}_Q1'].iloc[0],
-                            'Q3': df_iqr[f'{dim}_Q3'].iloc[0],
-                            'IQR': df_iqr[f'{dim}_IQR'].iloc[0],
-                            'lower_bound': df_iqr[f'{dim}_lower_bound'].iloc[0],
-                            'upper_bound': df_iqr[f'{dim}_upper_bound'].iloc[0]
-                        }
-                    
-                    outlier_mask = detect_outliers_iqr(df_iqr, iqr_stats)
-                    df_iqr['iqr_is_outlier'] = outlier_mask
-            
-            df_combined['is_outlier_combined'] = df_iqr['iqr_is_outlier'].values
-            df_combined['iqr_is_outlier'] = df_iqr['iqr_is_outlier'].values
-            
-            iqr_cols = [col for col in df_iqr.columns if col.startswith('iqr_') or col.endswith('_IQR') or 
-                        'Q1' in col or 'Q3' in col or 'bound' in col]
-            for col in iqr_cols:
-                df_combined[col] = df_iqr[col]
         
         # DBSCAN Analysis
         if 'DBSCAN' in algorithms:
             is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples, algorithm_settings=algorithm_settings)
-            
-            if 'IQR' in algorithms:
-                df_combined['is_outlier_combined'] = df_combined['is_outlier_combined'] & is_outlier_dbscan
-            else:
-                df_combined['is_outlier_combined'] = is_outlier_dbscan
-            
-            # Set dbscan_cluster from the newly calculated results
+            df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['dbscan_cluster'] = df_dbscan['dbscan_cluster']
             df_combined['dbscan_is_outlier'] = df_dbscan['dbscan_is_outlier']
 
@@ -1186,11 +821,8 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
         df_combined = df_combined.replace({pd.NA: None, np.nan: None})
         records = df_combined.to_dict('records')
         for record in records:
-            # Ensure is_outlier_combined is a proper boolean
             if 'is_outlier_combined' in record:
                 record['is_outlier_combined'] = bool(record['is_outlier_combined'])
-            if 'iqr_is_outlier' in record:
-                record['iqr_is_outlier'] = bool(record['iqr_is_outlier'])
         
         return {
             'data': records,
@@ -1373,22 +1005,13 @@ def update_product_table_aggregated(brands, category):
                 product_updates[system_product_id]['outlier_mode'] = 0
             
             # Update algorithm-specific status
-            if algo_id == ALGO_IQR:
-                product_updates[system_product_id]['iqr_status'] = final_status
-            elif algo_id == ALGO_DBSCAN:
+            if algo_id == ALGO_DBSCAN:
                 product_updates[system_product_id]['dbs_status'] = final_status
         
-        # Calculate final_status based on all algorithms
+        # Calculate final_status based on DBSCAN
         for system_product_id, update_data in product_updates.items():
-            iqr_status = update_data.get('iqr_status')
             dbs_status = update_data.get('dbs_status')
-            
-            # If both algorithms present, use OR logic (if either is outlier, final is outlier)
-            if iqr_status is not None and dbs_status is not None:
-                update_data['final_status'] = 0 if (iqr_status == 0 or dbs_status == 0) else 1
-            elif iqr_status is not None:
-                update_data['final_status'] = iqr_status
-            elif dbs_status is not None:
+            if dbs_status is not None:
                 update_data['final_status'] = dbs_status
             
             # Reset outlier_mode if final status is normal
@@ -1416,27 +1039,19 @@ def get_global_aggregate_data(group_id, brands, category, types, algorithms):
         if df.empty:
             return []
         
-        # Rename columns to match frontend format
+        # Rename display columns only (keep mfr_cost/shipping_cost/price as-is)
         df = df.rename(columns={
             'qb_code': 'SKU',
             'brand': 'Brand',
             'category': 'Category',
             'product_type': 'Type',
             'name': 'Name',
-            'height': 'H',
-            'width': 'W',
-            'depth': 'D',
             'base_image_url': 'imageUrl',
             'product_url': 'url_key'
         })
-        
-        # Determine is_outlier_combined based on final_status
         df['is_outlier_combined'] = df['final_status'] == 0
         
         # Add algorithm-specific outlier flags
-        if 'IQR' in algorithms:
-            df['iqr_is_outlier'] = df['iqr_status'] == 0
-        
         if 'DBSCAN' in algorithms:
             df['dbscan_is_outlier'] = df['dbs_status'] == 0
             # Set cluster to -1 for outliers, 0 for normal (simplified for global view)
@@ -1545,83 +1160,37 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Seems less than 4 products available'}
         
-        # Rename columns to match analysis function expectations
+        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
         df = df.rename(columns={
             'qb_code': 'SKU',
             'brand': 'Brand',
             'category': 'Category',
             'product_type': 'Type',
             'name': 'Name',
-            'height': 'H',
-            'width': 'W',
-            'depth': 'D',
             'base_image_url': 'imageUrl',
             'product_url': 'url_key'
         })
         
         # Ensure numeric columns
-        for col in ['H', 'W', 'D']:
+        for col in ['mfr_cost', 'shipping_cost', 'price']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Remove rows with missing dimension data
-        df = df.dropna(subset=['H', 'W', 'D'])
+        # Remove rows with missing pricing data
+        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
         
         # Run analysis
-        multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
+        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
-        
-        # IQR Analysis
-        if ALGO_IQR in algorithms:
-            df_iqr = calculate_dynamic_iqr(df_combined.copy(), multipliers=multipliers)
-            df_iqr['iqr_is_outlier'] = False
-            unique_types = df_iqr['Type'].unique()
-            
-            if len(unique_types) > 1:
-                for product_type in unique_types:
-                    type_mask = df_iqr['Type'] == product_type
-                    type_data = df_iqr[type_mask]
-                    
-                    if len(type_data) >= 4:
-                        iqr_stats = {}
-                        for dim in ['H', 'W', 'D']:
-                            iqr_stats[dim] = {
-                                'Q1': type_data[f'{dim}_Q1'].iloc[0],
-                                'Q3': type_data[f'{dim}_Q3'].iloc[0],
-                                'IQR': type_data[f'{dim}_IQR'].iloc[0],
-                                'lower_bound': type_data[f'{dim}_lower_bound'].iloc[0],
-                                'upper_bound': type_data[f'{dim}_upper_bound'].iloc[0]
-                            }
-                        outlier_mask = detect_outliers_iqr(type_data, iqr_stats)
-                        df_iqr.loc[type_mask, 'iqr_is_outlier'] = outlier_mask
-            else:
-                if len(df_iqr) >= 4:
-                    iqr_stats = {}
-                    for dim in ['H', 'W', 'D']:
-                        iqr_stats[dim] = {
-                            'Q1': df_iqr[f'{dim}_Q1'].iloc[0],
-                            'Q3': df_iqr[f'{dim}_Q3'].iloc[0],
-                            'IQR': df_iqr[f'{dim}_IQR'].iloc[0],
-                            'lower_bound': df_iqr[f'{dim}_lower_bound'].iloc[0],
-                            'upper_bound': df_iqr[f'{dim}_upper_bound'].iloc[0]
-                        }
-                    outlier_mask = detect_outliers_iqr(df_iqr, iqr_stats)
-                    df_iqr['iqr_is_outlier'] = outlier_mask
-            
-            df_combined['is_outlier_combined'] = df_iqr['iqr_is_outlier'].values
         
         # DBSCAN Analysis
         if ALGO_DBSCAN in algorithms:
             is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples)
-            
-            if ALGO_IQR in algorithms:
-                df_combined['is_outlier_combined'] = df_combined['is_outlier_combined'] & is_outlier_dbscan
-            else:
-                df_combined['is_outlier_combined'] = is_outlier_dbscan
+            df_combined['is_outlier_combined'] = is_outlier_dbscan
         
         # Calculate statistics
         total = len(df_combined)
@@ -1641,7 +1210,6 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
                 # Prepare product update
                 update = {
                     'system_product_id': row['system_product_id'],
-                    'iqr_status': status if ALGO_IQR in algorithms else None,
                     'dbs_status': status if ALGO_DBSCAN in algorithms else None,
                     'final_status': status,
                     'outlier_mode': 0 if is_outlier else None
@@ -1683,15 +1251,15 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
 
 def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db=False):
     """Process a single combination with new dimension tables flow"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product_iteration import ProductIteration
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product_iteration import ProductIteration
     
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         dim_iter_repo = ProductIterationRepository(db)
-        dim_item_repo = DimensionProductIterationItemRepository(db)
+        dim_item_repo = PricingProductIterationItemRepository(db)
         
         # Parse product types
         product_types = combination['product_type'].split('|') if '|' in combination['product_type'] else [combination['product_type']]
@@ -1702,95 +1270,28 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data'}
         
-        # Rename columns
+        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
         df = df.rename(columns={
             'qb_code': 'SKU', 'brand': 'Brand', 'category': 'Category',
-            'product_type': 'Type', 'name': 'Name', 'height': 'H',
-            'width': 'W', 'depth': 'D', 'base_image_url': 'imageUrl',
-            'product_url': 'url_key'
+            'product_type': 'Type', 'name': 'Name',
+            'base_image_url': 'imageUrl', 'product_url': 'url_key'
         })
         
-        for col in ['H', 'W', 'D']:
+        for col in ['mfr_cost', 'shipping_cost', 'price']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna(subset=['H', 'W', 'D'])
+        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
         
         # Run analysis
-        multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
+        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         df_combined['cluster'] = None
         
-        # Calculate and save IQR status only if save_to_db is True
-        if save_to_db:
-            df_iqr = calculate_dynamic_iqr(df_combined.copy(), multipliers=multipliers)
-            df_iqr['iqr_is_outlier'] = False
-            df_iqr['H_is_outlier'] = False
-            df_iqr['W_is_outlier'] = False
-            df_iqr['D_is_outlier'] = False
-            
-            unique_types = df_iqr['Type'].unique()
-            
-            if len(unique_types) > 1:
-                for product_type in unique_types:
-                    type_mask = df_iqr['Type'] == product_type
-                    type_data = df_iqr[type_mask]
-                    
-                    if len(type_data) >= 4:
-                        iqr_stats = {}
-                        for dim in ['H', 'W', 'D']:
-                            iqr_stats[dim] = {
-                                'Q1': type_data[f'{dim}_Q1'].iloc[0],
-                                'Q3': type_data[f'{dim}_Q3'].iloc[0],
-                                'IQR': type_data[f'{dim}_IQR'].iloc[0],
-                                'lower_bound': type_data[f'{dim}_lower_bound'].iloc[0],
-                                'upper_bound': type_data[f'{dim}_upper_bound'].iloc[0]
-                            }
-                        
-                        outlier_mask = detect_outliers_iqr(type_data, iqr_stats)
-                        df_iqr.loc[type_mask, 'iqr_is_outlier'] = outlier_mask
-                        
-                        # Per-dimension outliers
-                        for dim in ['H', 'W', 'D']:
-                            dim_outlier = (type_data[dim] < iqr_stats[dim]['lower_bound']) | (type_data[dim] > iqr_stats[dim]['upper_bound'])
-                            df_iqr.loc[type_mask, f'{dim}_is_outlier'] = dim_outlier
-            else:
-                if len(df_iqr) >= 4:
-                    iqr_stats = {}
-                    for dim in ['H', 'W', 'D']:
-                        iqr_stats[dim] = {
-                            'Q1': df_iqr[f'{dim}_Q1'].iloc[0],
-                            'Q3': df_iqr[f'{dim}_Q3'].iloc[0],
-                            'IQR': df_iqr[f'{dim}_IQR'].iloc[0],
-                            'lower_bound': df_iqr[f'{dim}_lower_bound'].iloc[0],
-                            'upper_bound': df_iqr[f'{dim}_upper_bound'].iloc[0]
-                        }
-                    
-                    outlier_mask = detect_outliers_iqr(df_iqr, iqr_stats)
-                    df_iqr['iqr_is_outlier'] = outlier_mask
-                    
-                    # Per-dimension outliers
-                    for dim in ['H', 'W', 'D']:
-                        dim_outlier = (df_iqr[dim] < iqr_stats[dim]['lower_bound']) | (df_iqr[dim] > iqr_stats[dim]['upper_bound'])
-                        df_iqr[f'{dim}_is_outlier'] = dim_outlier
-            
-            iqr_updates = []
-            for _, row in df_iqr.iterrows():
-                iqr_updates.append({
-                    'system_product_id': row['system_product_id'],
-                    'iqr_status': 0 if row.get('iqr_is_outlier', False) else 1,
-                    'iqr_height_status': 0 if row.get('H_is_outlier', False) else 1,
-                    'iqr_width_status': 0 if row.get('W_is_outlier', False) else 1,
-                    'iqr_depth_status': 0 if row.get('D_is_outlier', False) else 1
-                })
-            
-            if iqr_updates:
-                repo.update_products_iqr_fields(iqr_updates)
-        
-        # DBSCAN Analysis (only DBSCAN for now as per requirements)
+        # DBSCAN Analysis
         if ALGO_DBSCAN in algorithms:
             is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(
                 df_combined.copy(),
@@ -1895,11 +1396,11 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
 
 def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, analysis_mode, save_to_db, selected_iteration_id=None, algorithm_settings=None):
     """Analyze products and save to dimension tables"""
-    from repositories.dimension.product_iteration_repository import ProductIterationRepository
-    from repositories.dimension.product_iteration_item_repository import DimensionProductIterationItemRepository
-    from models.dimension.product_iteration_item import DimensionProductIterationItem
-    from models.dimension.product import Product
-    from models.dimension.product_iteration import ProductIteration
+    from repositories.pricing.product_iteration_repository import ProductIterationRepository
+    from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
+    from models.pricing.product_iteration_item import PricingProductIterationItem
+    from models.pricing.product import Product
+    from models.pricing.product_iteration import ProductIteration
     import time
     import uuid
     
@@ -1907,7 +1408,7 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
     try:
         repo = ProductRepository(db)
         iter_repo = ProductIterationRepository(db)
-        item_repo = DimensionProductIterationItemRepository(db)
+        item_repo = PricingProductIterationItemRepository(db)
         
         brand = brands[0] if brands and len(brands) > 0 else None
         product_types = types if types and len(types) > 0 else None
@@ -1930,18 +1431,17 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data'}
         
-        # Rename columns
+        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
         df = df.rename(columns={
             'qb_code': 'SKU', 'brand': 'Brand', 'category': 'Category',
-            'product_type': 'Type', 'name': 'Name', 'height': 'H',
-            'width': 'W', 'depth': 'D', 'base_image_url': 'imageUrl',
-            'product_url': 'url_key'
+            'product_type': 'Type', 'name': 'Name',
+            'base_image_url': 'imageUrl', 'product_url': 'url_key'
         })
         
-        for col in ['H', 'W', 'D']:
+        for col in ['mfr_cost', 'shipping_cost', 'price']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna(subset=['H', 'W', 'D'])
+        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
@@ -1950,71 +1450,6 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         df_combined['cluster'] = None
-        
-        # Calculate and save IQR status only if save_to_db is True AND analysis_mode is 'all'
-        if save_to_db and analysis_mode == 'all':
-            multipliers = {'H': h_mult, 'W': w_mult, 'D': d_mult}
-            df_iqr = calculate_dynamic_iqr(df_combined.copy(), multipliers=multipliers)
-            df_iqr['iqr_is_outlier'] = False
-            df_iqr['H_is_outlier'] = False
-            df_iqr['W_is_outlier'] = False
-            df_iqr['D_is_outlier'] = False
-            
-            unique_types = df_iqr['Type'].unique()
-            
-            if len(unique_types) > 1:
-                for product_type in unique_types:
-                    type_mask = df_iqr['Type'] == product_type
-                    type_data = df_iqr[type_mask]
-                    
-                    if len(type_data) >= 4:
-                        iqr_stats = {}
-                        for dim in ['H', 'W', 'D']:
-                            iqr_stats[dim] = {
-                                'Q1': type_data[f'{dim}_Q1'].iloc[0],
-                                'Q3': type_data[f'{dim}_Q3'].iloc[0],
-                                'IQR': type_data[f'{dim}_IQR'].iloc[0],
-                                'lower_bound': type_data[f'{dim}_lower_bound'].iloc[0],
-                                'upper_bound': type_data[f'{dim}_upper_bound'].iloc[0]
-                            }
-                        
-                        outlier_mask = detect_outliers_iqr(type_data, iqr_stats)
-                        df_iqr.loc[type_mask, 'iqr_is_outlier'] = outlier_mask
-                        
-                        # Per-dimension outliers
-                        for dim in ['H', 'W', 'D']:
-                            dim_outlier = (type_data[dim] < iqr_stats[dim]['lower_bound']) | (type_data[dim] > iqr_stats[dim]['upper_bound'])
-                            df_iqr.loc[type_mask, f'{dim}_is_outlier'] = dim_outlier
-            else:
-                if len(df_iqr) >= 4:
-                    iqr_stats = {}
-                    for dim in ['H', 'W', 'D']:
-                        iqr_stats[dim] = {
-                            'Q1': df_iqr[f'{dim}_Q1'].iloc[0],
-                            'Q3': df_iqr[f'{dim}_Q3'].iloc[0],
-                            'IQR': df_iqr[f'{dim}_IQR'].iloc[0],
-                            'lower_bound': df_iqr[f'{dim}_lower_bound'].iloc[0],
-                            'upper_bound': df_iqr[f'{dim}_upper_bound'].iloc[0]
-                        }
-                    
-                    outlier_mask = detect_outliers_iqr(df_iqr, iqr_stats)
-                    df_iqr['iqr_is_outlier'] = outlier_mask
-                    
-                    # Per-dimension outliers
-                    for dim in ['H', 'W', 'D']:
-                        dim_outlier = (df_iqr[dim] < iqr_stats[dim]['lower_bound']) | (df_iqr[dim] > iqr_stats[dim]['upper_bound'])
-                        df_iqr[f'{dim}_is_outlier'] = dim_outlier
-            
-            iqr_updates = []
-            for _, row in df_iqr.iterrows():
-                iqr_updates.append({
-                    'system_product_id': row['system_product_id'],
-                    'iqr_status': 0 if row.get('iqr_is_outlier', False) else 1,
-                    'iqr_height_status': 0 if row.get('H_is_outlier', False) else 1,
-                    'iqr_width_status': 0 if row.get('W_is_outlier', False) else 1,
-                    'iqr_depth_status': 0 if row.get('D_is_outlier', False) else 1
-                })
-            
         
         if ALGO_DBSCAN in algorithms:
             is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(
@@ -2040,13 +1475,13 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 # For 'all' mode: Create NEW iteration with all products
                 unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
                 
-                # Get counts from dimension_product table (same as analyze_all_export)
+                # Get counts from pricing_product table (same as analyze_all_export)
                 # Total items: all products matching filters
                 total_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     total_items_query = total_items_query.filter(Product.brand.in_(brands))
@@ -2060,9 +1495,9 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 analyzed_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
                     Product.final_status.isnot(None),
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
@@ -2076,9 +1511,9 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 pending_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
                     Product.final_status.is_(None),
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     pending_items_query = pending_items_query.filter(Product.brand.in_(brands))
@@ -2144,13 +1579,13 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 # For 'pending' mode: Create NEW iteration with only pending products
                 unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
                 
-                # Get counts from dimension_product table
+                # Get counts from pricing_product table
                 # Total items: all products matching filters
                 total_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     total_items_query = total_items_query.filter(Product.brand.in_(brands))
@@ -2164,9 +1599,9 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 analyzed_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
                     Product.final_status.isnot(None),
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
@@ -2180,9 +1615,9 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 pending_items_query = db.query(Product).filter(
                     Product.group_id == group_id,
                     Product.final_status.is_(None),
-                    Product.height.isnot(None),
-                    Product.width.isnot(None),
-                    Product.depth.isnot(None)
+                    Product.mfr_cost.isnot(None),
+                    Product.shipping_cost.isnot(None),
+                    Product.price.isnot(None)
                 )
                 if brands and len(brands) > 0:
                     pending_items_query = pending_items_query.filter(Product.brand.in_(brands))

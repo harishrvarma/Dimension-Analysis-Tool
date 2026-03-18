@@ -736,7 +736,7 @@
 
     async function loadProductGroups() {
       showLoader();
-      const res = await fetch("/grid/api/product-groups");
+      const res = await fetch("/pricing/grid/api/product-groups");
       const data = await res.json();
       hideLoader();
       els.group.innerHTML = '<option value="">Select Product Group</option>';
@@ -789,7 +789,7 @@
         final_status: selectedValues(els.status),
         skip_status: selectedValues(els.skip)
       };
-      const res = await fetch("/grid/api/options", {
+      const res = await fetch("/pricing/grid/api/options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -947,7 +947,7 @@
         skip_status: selectedValues(els.skip)
       };
 
-      const res = await fetch("/grid/api/export-data", {
+      const res = await fetch("/pricing/grid/api/export-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -985,7 +985,7 @@
         skip_status: selectedValues(els.skip)
       };
 
-      const res = await fetch("/grid/api/export-xls", {
+      const res = await fetch("/pricing/grid/api/export-xls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -1024,7 +1024,7 @@
         sort_direction: sortDirection
       };
 
-      const res = await fetch("/grid/api/grid-data", {
+      const res = await fetch("/pricing/grid/api/grid-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -1055,7 +1055,7 @@
     async function toggleSkipStatus(productId, currentStatus) {
       showLoader();
       const newStatus = currentStatus === 1 ? 0 : 1;
-      const res = await fetch('/grid/api/update-skip-status', {
+      const res = await fetch('/pricing/grid/api/update-skip-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_id: productId, skip_status: newStatus })
@@ -1095,9 +1095,9 @@
         { key: 'category', label: 'Category' },
         { key: 'product_type', label: 'Type' },
         { key: 'name', label: 'Name' },
-        { key: 'height', label: 'Height' },
-        { key: 'width', label: 'Width' },
-        { key: 'depth', label: 'Depth' },
+        { key: 'mfr_cost', label: 'Mfr Cost' },
+        { key: 'shipping_cost', label: 'Shipping Cost' },
+        { key: 'price', label: 'Price' },
         { key: 'eps', label: 'EPS' },
         { key: 'sample', label: 'Sample' },
         { key: 'final_status', label: 'Final Status' },
@@ -1152,7 +1152,7 @@
             if (value !== '-' && (row.iteration_id || urlParams.get('iteration_id'))) {
               const iterationId = row.iteration_id || urlParams.get('iteration_id');
               const clusterValue = value === 'Noise/Outlier' ? '-1' : value.replace('Cluster ', '');
-              value = `<a href="/dimension/analyzer?iteration_id=${iterationId}&cluster=${clusterValue}" target="_blank" style="color: #2563eb; text-decoration: underline; cursor: pointer;">${value}</a>`;
+              value = `<a href="/pricing/analyzer?iteration_id=${iterationId}&cluster=${clusterValue}" target="_blank" style="color: #2563eb; text-decoration: underline; cursor: pointer;">${value}</a>`;
             }
           } else if (col.key === 'skip_status') {
             const isActive = (row.skip_status === 1 || row.skip_status === '1');
@@ -1162,15 +1162,12 @@
             const imageUrl = row.base_image_url || '';
             const escapedUrl = imageUrl.replace(/'/g, "&apos;");
             value = `<span class="qb-code-cell" onmouseenter="showImageTooltip(event, '${escapedUrl}')" onmouseleave="hideImageTooltip()"><a href="${row.product_url}" target="_blank">${value}</a></span>`;
-          } else if (col.key === 'height') {
+          } else if (col.key === 'mfr_cost') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
-            if (row.iqr_height_status === 0) cellClass = 'bg-red';
-          } else if (col.key === 'width') {
+          } else if (col.key === 'shipping_cost') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
-            if (row.iqr_width_status === 0) cellClass = 'bg-red';
-          } else if (col.key === 'depth') {
+          } else if (col.key === 'price') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
-            if (row.iqr_depth_status === 0) cellClass = 'bg-red';
           } else if (col.key === 'final_status') {
             cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';
             if (row.iteration_history && row.iteration_history.length > 0) {
@@ -1312,7 +1309,7 @@
 
       // If iteration_id is provided, fetch filters from iteration
       if (iterationId) {
-        const iterRes = await fetch('/grid/api/iteration-filters', {
+        const iterRes = await fetch('/pricing/grid/api/iteration-filters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ iteration_id: parseInt(iterationId) })
@@ -1459,7 +1456,7 @@
         skip_status: parseInt(skipStatus)
       }));
 
-      const res = await fetch('/grid/api/save-skip-status', {
+      const res = await fetch('/pricing/grid/api/save-skip-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skip_items: skipItems })
