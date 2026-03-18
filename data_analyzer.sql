@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: mysql8.0volume:3306
--- Generation Time: Mar 13, 2026 at 01:34 PM
+-- Generation Time: Mar 18, 2026 at 09:40 AM
 -- Server version: 8.0.27
 -- PHP Version: 8.0.15
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `analysis_db`
+-- Database: `data_analyzer`
 --
 
 -- --------------------------------------------------------
@@ -233,6 +233,123 @@ CREATE TABLE `matching_system_product` (
   `product_type` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product`
+--
+
+CREATE TABLE `pricing_product` (
+  `product_id` int NOT NULL,
+  `group_id` int NOT NULL,
+  `system_product_id` varchar(100) DEFAULT NULL,
+  `brand` varchar(255) DEFAULT NULL,
+  `brand_id` int DEFAULT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `category_id` int DEFAULT NULL,
+  `product_type` varchar(255) DEFAULT NULL,
+  `qb_code` varchar(100) DEFAULT NULL,
+  `name` varchar(500) DEFAULT NULL,
+  `mfr_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `shipping_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `ori_height` float DEFAULT NULL,
+  `ori_width` float DEFAULT NULL,
+  `ori_depth` float DEFAULT NULL,
+  `height` float DEFAULT NULL,
+  `width` float DEFAULT NULL,
+  `depth` float DEFAULT NULL,
+  `weight` float DEFAULT NULL,
+  `base_image_url` varchar(1000) DEFAULT NULL,
+  `product_url` varchar(1000) DEFAULT NULL,
+  `created_date` datetime DEFAULT NULL,
+  `dbs_status` tinyint DEFAULT NULL,
+  `final_status` tinyint DEFAULT NULL,
+  `skip_status` tinyint DEFAULT NULL,
+  `skip_status_updated_date` datetime DEFAULT NULL,
+  `analyzed_date` datetime DEFAULT NULL,
+  `dimension_status` varchar(50) DEFAULT NULL,
+  `dimension_failed` varchar(50) DEFAULT NULL,
+  `iteration_closed` int DEFAULT NULL,
+  `outlier_mode` tinyint DEFAULT NULL COMMENT '0=Autometic, 1=Manually',
+  `eps` decimal(10,2) DEFAULT NULL,
+  `sample` int DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_group`
+--
+
+CREATE TABLE `pricing_product_group` (
+  `group_id` int NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `product_count` int DEFAULT NULL,
+  `created_date` datetime DEFAULT NULL,
+  `default_selected` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Yes=1, No=0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_iteration`
+--
+
+CREATE TABLE `pricing_product_iteration` (
+  `iteration_id` int NOT NULL,
+  `product_group_id` int NOT NULL,
+  `algorithm` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `brand` varchar(255) DEFAULT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `product_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `eps` decimal(10,2) DEFAULT NULL,
+  `sample` int DEFAULT NULL,
+  `total_items` int DEFAULT NULL,
+  `analyzed_items` int DEFAULT NULL,
+  `pending_items` int DEFAULT NULL,
+  `outlier_items` int DEFAULT NULL,
+  `timestamp` datetime NOT NULL,
+  `unique_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_iteration_item`
+--
+
+CREATE TABLE `pricing_product_iteration_item` (
+  `id` int NOT NULL,
+  `system_product_id` varchar(100) NOT NULL,
+  `brand` varchar(255) DEFAULT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `cluster` varchar(50) DEFAULT NULL,
+  `cluster_items` int DEFAULT NULL,
+  `cluster_items_per` decimal(10,2) DEFAULT NULL,
+  `outlier_mode` tinyint DEFAULT NULL COMMENT '0=Auto, 1=Manual',
+  `status` tinyint DEFAULT NULL COMMENT '0=Outlier, 1=Normal',
+  `final_status` tinyint DEFAULT NULL,
+  `iteration_id` int NOT NULL,
+  `product_type` varchar(255) DEFAULT NULL,
+  `analyzed_date` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_tmp`
+--
+
+CREATE TABLE `pricing_product_tmp` (
+  `web_id` varchar(20) NOT NULL,
+  `mfr_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `freight_charge` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `wg_charge` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `shipping_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 --
 -- Indexes for dumped tables
 --
@@ -315,6 +432,41 @@ ALTER TABLE `matching_system_product`
   ADD KEY `idx_msp_system_product_id` (`system_product_id`);
 
 --
+-- Indexes for table `pricing_product`
+--
+ALTER TABLE `pricing_product`
+  ADD PRIMARY KEY (`product_id`),
+  ADD KEY `group_id` (`group_id`),
+  ADD KEY `idx_product_system_product_id` (`system_product_id`);
+
+--
+-- Indexes for table `pricing_product_group`
+--
+ALTER TABLE `pricing_product_group`
+  ADD PRIMARY KEY (`group_id`);
+
+--
+-- Indexes for table `pricing_product_iteration`
+--
+ALTER TABLE `pricing_product_iteration`
+  ADD PRIMARY KEY (`iteration_id`),
+  ADD KEY `product_group_id` (`product_group_id`);
+
+--
+-- Indexes for table `pricing_product_iteration_item`
+--
+ALTER TABLE `pricing_product_iteration_item`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `system_product_id` (`system_product_id`),
+  ADD KEY `dimension_product_iteration_item_ibfk_1` (`iteration_id`);
+
+--
+-- Indexes for table `pricing_product_tmp`
+--
+ALTER TABLE `pricing_product_tmp`
+  ADD PRIMARY KEY (`web_id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -379,6 +531,30 @@ ALTER TABLE `matching_system_product`
   MODIFY `product_id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `pricing_product`
+--
+ALTER TABLE `pricing_product`
+  MODIFY `product_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pricing_product_group`
+--
+ALTER TABLE `pricing_product_group`
+  MODIFY `group_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pricing_product_iteration`
+--
+ALTER TABLE `pricing_product_iteration`
+  MODIFY `iteration_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pricing_product_iteration_item`
+--
+ALTER TABLE `pricing_product_iteration_item`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- Constraints for dumped tables
 --
 
@@ -412,6 +588,25 @@ ALTER TABLE `matching_score_attributes`
 --
 ALTER TABLE `matching_system_product`
   ADD CONSTRAINT `matching_system_product_ibfk_1` FOREIGN KEY (`competitor_product_id`) REFERENCES `matching_competitor_product` (`competitor_product_id`);
+
+--
+-- Constraints for table `pricing_product`
+--
+ALTER TABLE `pricing_product`
+  ADD CONSTRAINT `pricing_product_ibfk_1` FOREIGN KEY (`group_id`) REFERENCES `pricing_product_group` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `pricing_product_iteration`
+--
+ALTER TABLE `pricing_product_iteration`
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_1` FOREIGN KEY (`product_group_id`) REFERENCES `pricing_product_group` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `pricing_product_iteration_item`
+--
+ALTER TABLE `pricing_product_iteration_item`
+  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_1` FOREIGN KEY (`iteration_id`) REFERENCES `pricing_product_iteration` (`iteration_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_2` FOREIGN KEY (`system_product_id`) REFERENCES `pricing_product` (`system_product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
