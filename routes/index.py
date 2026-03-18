@@ -7,6 +7,8 @@ from routes.dimension.analyzer import analyzer_bp
 from routes.item_match import item_match_bp
 from routes.matching_items import matching_items_bp
 from routes.database.import_csv import import_bp
+from routes.pricing.grid import pricing_grid_bp
+from routes.pricing.analyzer import pricing_analyzer_bp
 
 # Home blueprint
 home_bp = Blueprint("home_bp", __name__)
@@ -30,3 +32,5 @@ def register_blueprints(app):
     app.register_blueprint(import_bp)
     app.register_blueprint(item_match_bp)
     app.register_blueprint(matching_items_bp)
+    app.register_blueprint(pricing_grid_bp)
+    app.register_blueprint(pricing_analyzer_bp)

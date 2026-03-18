@@ -1,5 +1,5 @@
 from models.base.base_repository import BaseRepository
-from models.dimension.product import Product
+from models.pricing.product import Product
 import pandas as pd
 
 
@@ -15,70 +15,79 @@ class ProductRepository(BaseRepository):
             .first()
         )
 
-    def get_brands_for_group(self, group_id: int, category: str = None, types: list = None):
-        """Get brands filtered by group, optionally by category and types"""
-        conditions = ["group_id = :group_id", "brand IS NOT NULL",
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
-        params = {'group_id': group_id}
-
-        if category:
-            conditions.append("category = :category")
-            params['category'] = category
-
-        if types and len(types) > 0:
-            placeholders = ','.join([f':type{i}' for i in range(len(types))])
-            conditions.append(f"product_type IN ({placeholders})")
-            for i, t in enumerate(types):
-                params[f'type{i}'] = t
-
-        where_clause = " AND ".join(conditions)
-        query = f"""
-            SELECT brand, COUNT(*) as product_count,
+    def get_brands_for_group(self, group_id: int):
+        """Get brands and their product counts with analysis status for a specific product group"""
+        query = """
+            SELECT 
+                brand, 
+                COUNT(*) as product_count,
                 SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
-            FROM dimension_product
-            WHERE {where_clause}
-            GROUP BY brand ORDER BY brand
+            FROM pricing_product
+            WHERE group_id = :group_id 
+            AND brand IS NOT NULL
+            AND mfr_cost IS NOT NULL 
+            AND shipping_cost IS NOT NULL 
+            AND price IS NOT NULL
+            GROUP BY brand
+            ORDER BY brand
         """
-        result = self.fetch_all(query, params)
+        result = self.fetch_all(query, {"group_id": group_id})
+        
         if result:
-            return pd.DataFrame(result, columns=['brand', 'product_count', 'analyzed_count'])
+            df = pd.DataFrame(result, columns=['brand', 'product_count', 'analyzed_count'])
+            return df
         return pd.DataFrame()
 
-    def get_categories_for_group(self, group_id: int, brands: list = None, types: list = None):
-        """Get categories filtered by group, optionally by brands and types"""
-        conditions = ["group_id = :group_id", "category IS NOT NULL",
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
-        params = {'group_id': group_id}
-
+    def get_categories_for_group(self, group_id: int, brands: list = None):
+        """Get categories for a group with analysis status, optionally filtered by brands"""
         if brands and len(brands) > 0:
             placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
-            conditions.append(f"brand IN ({placeholders})")
+            query = f"""
+                SELECT 
+                    category, 
+                    COUNT(*) as product_count,
+                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
+                FROM pricing_product
+                WHERE group_id = :group_id 
+                AND brand IN ({placeholders})
+                AND category IS NOT NULL
+                AND mfr_cost IS NOT NULL 
+                AND shipping_cost IS NOT NULL 
+                AND price IS NOT NULL
+                GROUP BY category
+                ORDER BY product_count DESC, category
+            """
+            params = {'group_id': group_id}
             for i, brand in enumerate(brands):
                 params[f'brand{i}'] = brand
-
-        if types and len(types) > 0:
-            placeholders = ','.join([f':type{i}' for i in range(len(types))])
-            conditions.append(f"product_type IN ({placeholders})")
-            for i, t in enumerate(types):
-                params[f'type{i}'] = t
-
-        where_clause = " AND ".join(conditions)
-        query = f"""
-            SELECT category, COUNT(*) as product_count,
-                SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
-            FROM dimension_product
-            WHERE {where_clause}
-            GROUP BY category ORDER BY product_count DESC, category
-        """
+        else:
+            query = """
+                SELECT 
+                    category, 
+                    COUNT(*) as product_count,
+                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
+                FROM pricing_product
+                WHERE group_id = :group_id 
+                AND category IS NOT NULL
+                AND mfr_cost IS NOT NULL 
+                AND shipping_cost IS NOT NULL 
+                AND price IS NOT NULL
+                GROUP BY category
+                ORDER BY product_count DESC, category
+            """
+            params = {'group_id': group_id}
+        
         result = self.fetch_all(query, params)
+        
         if result:
-            return pd.DataFrame(result, columns=['category', 'product_count', 'analyzed_count'])
+            df = pd.DataFrame(result, columns=['category', 'product_count', 'analyzed_count'])
+            return df
         return pd.DataFrame()
 
     def get_types_for_group(self, group_id: int, brands: list = None, category: str = None):
         """Get product types for a group with analysis status, optionally filtered by brands and category"""
         conditions = ["group_id = :group_id", "product_type IS NOT NULL", 
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
         params = {'group_id': group_id}
         
         if brands and len(brands) > 0:
@@ -97,7 +106,7 @@ class ProductRepository(BaseRepository):
                 product_type, 
                 COUNT(*) as product_count,
                 SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             GROUP BY product_type
             ORDER BY product_count DESC, product_type
@@ -114,7 +123,7 @@ class ProductRepository(BaseRepository):
                                category: str = None, types: list = None):
         """Load product data from database with filters"""
         conditions = ["group_id = :group_id", 
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL",
+                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
@@ -143,15 +152,15 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 name,
-                height,
-                width,
-                depth,
+                mfr_cost,
+                shipping_cost,
+                price,
                 weight,
                 base_image_url,
                 product_url,
                 outlier_mode,
                 system_product_id
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
         """
@@ -161,7 +170,7 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
+                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -169,9 +178,9 @@ class ProductRepository(BaseRepository):
     def get_brands_for_chart(self, group_id: int):
         query = """
             SELECT brand, COUNT(*) as count
-            FROM dimension_product
+            FROM pricing_product
             WHERE group_id = :group_id AND brand IS NOT NULL
-            AND height IS NOT NULL AND width IS NOT NULL AND depth IS NOT NULL
+            AND mfr_cost IS NOT NULL AND shipping_cost IS NOT NULL AND price IS NOT NULL
             GROUP BY brand
             ORDER BY brand
         """
@@ -179,7 +188,7 @@ class ProductRepository(BaseRepository):
         return [{"label": f"{r[0]} ({r[1]})", "value": r[0]} for r in result] if result else []
 
     def get_categories_for_chart(self, group_id: int, brands):
-        conditions = ["group_id = :group_id", "category IS NOT NULL", "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        conditions = ["group_id = :group_id", "category IS NOT NULL", "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
         params = {"group_id": group_id}
         
         if brands:
@@ -191,7 +200,7 @@ class ProductRepository(BaseRepository):
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT category, COUNT(*) as count
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             GROUP BY category
             ORDER BY category
@@ -200,7 +209,7 @@ class ProductRepository(BaseRepository):
         return [{"label": f"{r[0]} ({r[1]})", "value": r[0]} for r in result] if result else []
 
     def get_types_for_chart(self, group_id: int, brands, category):
-        conditions = ["group_id = :group_id", "product_type IS NOT NULL", "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL"]
+        conditions = ["group_id = :group_id", "product_type IS NOT NULL", "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
         params = {"group_id": group_id}
         
         if brands:
@@ -216,7 +225,7 @@ class ProductRepository(BaseRepository):
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT product_type, COUNT(*) as count
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             GROUP BY product_type
             ORDER BY product_type
@@ -236,7 +245,7 @@ class ProductRepository(BaseRepository):
                                    category: str = None, types: list = None, for_display=False):
         """Load products for specific iteration"""
         conditions = ["group_id = :group_id", 
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL",
+                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
@@ -271,15 +280,15 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 name,
-                height,
-                width,
-                depth,
+                mfr_cost,
+                shipping_cost,
+                price,
                 weight,
                 base_image_url,
                 product_url,
                 outlier_mode,
                 system_product_id
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
         """
@@ -289,7 +298,7 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
+                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -306,13 +315,7 @@ class ProductRepository(BaseRepository):
                 if update.get('iteration_closed') is not None:
                     product.iteration_closed = update.get('iteration_closed')
                 
-                # Update IQR fields (set to None if not in update or explicitly None)
-                product.iqr_status = update.get('iqr_status')
-                product.iqr_height_status = update.get('iqr_height_status')
-                product.iqr_width_status = update.get('iqr_width_status')
-                product.iqr_depth_status = update.get('iqr_depth_status')
-                
-                # Update DBSCAN field (set to None if not in update or explicitly None)
+                # Update DBSCAN field
                 product.dbs_status = update.get('dbs_status')
                 
                 # Update final status
@@ -330,7 +333,7 @@ class ProductRepository(BaseRepository):
     def get_iteration_history(self, group_id: int, brands: list, category: str, types: list):
         """Get iteration history for a category from product_iteration table"""
         from sqlalchemy import func, and_, case
-        from models.dimension.product_iteration import ProductIteration
+        from models.pricing.product_iteration import ProductIteration
         
         # Build brand filter
         brand_str = ', '.join(brands) if brands and len(brands) > 0 else None
@@ -377,7 +380,7 @@ class ProductRepository(BaseRepository):
     def reset_iterations(self, group_id: int, brands: list, category: str, types: list):
         """Reset iterations for a category in both product and product_iteration tables"""
         from sqlalchemy import text
-        from repositories.dimension.product_iteration_repository import ProductIterationRepository
+        from repositories.pricing.product_iteration_repository import ProductIterationRepository
         
         # Delete from product_iteration table
         iteration_repo = ProductIterationRepository(self.db)
@@ -401,12 +404,8 @@ class ProductRepository(BaseRepository):
         
         where_clause = " AND ".join(conditions)
         query = f"""
-            UPDATE dimension_product
+            UPDATE pricing_product
             SET iteration_closed = NULL,
-                iqr_status = NULL,
-                iqr_height_status = NULL,
-                iqr_width_status = NULL,
-                iqr_depth_status = NULL,
                 dbs_status = NULL,
                 final_status = NULL,
                 outlier_mode = NULL,
@@ -454,20 +453,16 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 name,
-                height,
-                width,
-                depth,
+                mfr_cost,
+                shipping_cost,
+                price,
                 weight,
                 base_image_url,
                 product_url,
-                iqr_status,
-                iqr_height_status,
-                iqr_width_status,
-                iqr_depth_status,
                 dbs_status,
                 outlier_mode,
                 iteration_closed
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
         """
@@ -477,8 +472,8 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url',
-                'iqr_status', 'iqr_height_status', 'iqr_width_status', 'iqr_depth_status', 'dbs_status', 'outlier_mode', 'iteration_closed'
+                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url',
+                'dbs_status', 'outlier_mode', 'iteration_closed'
             ])
             return df
         return pd.DataFrame()
@@ -499,7 +494,7 @@ class ProductRepository(BaseRepository):
         if iteration is not None:
             params['iteration_closed'] = iteration
             query = f"""
-                UPDATE dimension_product
+                UPDATE pricing_product
                 SET final_status = :final_status,
                     outlier_mode = :outlier_mode,
                     iteration_closed = :iteration_closed,
@@ -508,7 +503,7 @@ class ProductRepository(BaseRepository):
             """
         else:
             query = f"""
-                UPDATE dimension_product
+                UPDATE pricing_product
                 SET final_status = :final_status,
                     outlier_mode = :outlier_mode,
                     analyzed_date = NOW()
@@ -529,7 +524,7 @@ class ProductRepository(BaseRepository):
         for chunk_start in range(0, len(product_updates), CHUNK_SIZE):
             chunk = product_updates[chunk_start:chunk_start + CHUNK_SIZE]
             ids = []
-            dbs_cases, iqr_cases, final_cases, mode_cases = [], [], [], []
+            dbs_cases, final_cases, mode_cases = [], [], []
             params = {}
 
             for i, update in enumerate(chunk):
@@ -542,9 +537,6 @@ class ProductRepository(BaseRepository):
                 if 'dbs_status' in update:
                     params[f'dbs{i}'] = update['dbs_status']
                     dbs_cases.append(f'WHEN :sid{i} THEN :dbs{i}')
-                if 'iqr_status' in update:
-                    params[f'iqr{i}'] = update['iqr_status']
-                    iqr_cases.append(f'WHEN :sid{i} THEN :iqr{i}')
                 if 'final_status' in update:
                     params[f'fin{i}'] = update['final_status']
                     final_cases.append(f'WHEN :sid{i} THEN :fin{i}')
@@ -560,14 +552,12 @@ class ProductRepository(BaseRepository):
 
             if dbs_cases:
                 set_parts.append(f"dbs_status = CASE system_product_id {' '.join(dbs_cases)} ELSE dbs_status END")
-            if iqr_cases:
-                set_parts.append(f"iqr_status = CASE system_product_id {' '.join(iqr_cases)} ELSE iqr_status END")
             if final_cases:
                 set_parts.append(f"final_status = CASE system_product_id {' '.join(final_cases)} ELSE final_status END")
             if mode_cases:
                 set_parts.append(f"outlier_mode = CASE system_product_id {' '.join(mode_cases)} ELSE outlier_mode END")
 
-            query = f"UPDATE dimension_product SET {', '.join(set_parts)} WHERE system_product_id IN ({id_placeholders})"
+            query = f"UPDATE pricing_product SET {', '.join(set_parts)} WHERE system_product_id IN ({id_placeholders})"
             self.db.execute(text(query), params)
 
         self.db.commit()
@@ -575,7 +565,7 @@ class ProductRepository(BaseRepository):
     def get_global_aggregate_data(self, group_id: int, brands: list, category: str, types: list, algorithms: list):
         """Get global aggregate data from product table for all saved iterations"""
         conditions = ["group_id = :group_id", "category = :category", 
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL",
+                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id, 'category': category}
         
@@ -600,18 +590,17 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 name,
-                height,
-                width,
-                depth,
+                mfr_cost,
+                shipping_cost,
+                price,
                 weight,
                 base_image_url,
                 product_url,
-                iqr_status,
                 dbs_status,
                 final_status,
                 outlier_mode,
                 system_product_id
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
         """
@@ -621,8 +610,8 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'weight', 'base_image_url', 'product_url',
-                'iqr_status', 'dbs_status', 'final_status', 'outlier_mode', 'system_product_id'
+                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url',
+                'dbs_status', 'final_status', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -630,7 +619,7 @@ class ProductRepository(BaseRepository):
     def get_basic_groups(self, group_id: int, brands: list = None, category: str = None, types: list = None):
         """Get all basic groups (Brand + Category + Product_Type combinations) with counts"""
         conditions = ["group_id = :group_id", 
-                      "height IS NOT NULL", "width IS NOT NULL", "depth IS NOT NULL",
+                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
@@ -657,7 +646,7 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 COUNT(*) as total_count
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             GROUP BY brand, category, product_type
             ORDER BY brand, category, product_type
@@ -699,12 +688,8 @@ class ProductRepository(BaseRepository):
         
         where_clause = " AND ".join(conditions)
         query = f"""
-            UPDATE dimension_product
-            SET iqr_status = NULL,
-                iqr_height_status = NULL,
-                iqr_width_status = NULL,
-                iqr_depth_status = NULL,
-                dbs_status = NULL,
+            UPDATE pricing_product
+            SET dbs_status = NULL,
                 final_status = NULL,
                 outlier_mode = NULL,
                 iteration_closed = NULL,
@@ -718,7 +703,7 @@ class ProductRepository(BaseRepository):
 
     def load_products_by_ids(self, system_product_ids):
         """Load products by system_product_ids"""
-        from models.dimension.product import Product
+        from models.pricing.product import Product
         
         try:
             products = self.db.query(Product).filter(
@@ -734,9 +719,9 @@ class ProductRepository(BaseRepository):
                     'category': p.category,
                     'product_type': p.product_type,
                     'name': p.name,
-                    'height': p.height,
-                    'width': p.width,
-                    'depth': p.depth,
+                    'mfr_cost': p.mfr_cost,
+                    'shipping_cost': p.shipping_cost,
+                    'price': p.price,
                     'base_image_url': p.base_image_url,
                     'product_url': p.product_url
                 })
@@ -745,36 +730,6 @@ class ProductRepository(BaseRepository):
         except Exception as e:
             print(f"Error loading products by IDs: {e}")
             return pd.DataFrame()
-
-    def update_products_iqr_fields(self, iqr_updates: list):
-        """Update products with IQR status fields only"""
-        from sqlalchemy import text
-        
-        if not iqr_updates:
-            return
-        
-        for update in iqr_updates:
-            system_product_id = update.get('system_product_id')
-            if not system_product_id:
-                continue
-            
-            params = {'system_product_id': system_product_id}
-            set_clauses = []
-            
-            for field in ['iqr_status', 'iqr_height_status', 'iqr_width_status', 'iqr_depth_status']:
-                if field in update:
-                    set_clauses.append(f'{field} = :{field}')
-                    params[field] = update[field]
-            
-            if set_clauses:
-                query = f"""
-                    UPDATE dimension_product
-                    SET {', '.join(set_clauses)}
-                    WHERE system_product_id = :system_product_id
-                """
-                self.db.execute(text(query), params)
-        
-        self.db.commit()
 
     def get_all_products_for_export(self, filters=None, record_type='all', product_group_id=None):
         """Get all products with required fields for export analysis
@@ -785,9 +740,9 @@ class ProductRepository(BaseRepository):
             product_group_id: Product group ID to filter by
         """
         conditions = [
-            "height IS NOT NULL",
-            "width IS NOT NULL",
-            "depth IS NOT NULL",
+            "mfr_cost IS NOT NULL",
+            "shipping_cost IS NOT NULL",
+            "price IS NOT NULL",
             "brand IS NOT NULL",
             "category IS NOT NULL",
             "product_type IS NOT NULL"
@@ -831,12 +786,12 @@ class ProductRepository(BaseRepository):
                 category,
                 product_type,
                 name,
-                height,
-                width,
-                depth,
+                mfr_cost,
+                shipping_cost,
+                price,
                 base_image_url,
                 product_url
-            FROM dimension_product
+            FROM pricing_product
             WHERE {where_clause}
             ORDER BY brand, category, product_type
         """
@@ -846,7 +801,7 @@ class ProductRepository(BaseRepository):
         if result:
             df = pd.DataFrame(result, columns=[
                 'system_product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'height', 'width', 'depth', 'base_image_url', 'product_url'
+                'name', 'mfr_cost', 'shipping_cost', 'price', 'base_image_url', 'product_url'
             ])
             return df
         return pd.DataFrame()
@@ -875,7 +830,7 @@ class ProductRepository(BaseRepository):
             
             if final_status is not None:
                 query = """
-                    UPDATE dimension_product
+                    UPDATE pricing_product
                     SET final_status = :final_status,
                         dbs_status = :dbs_status,
                         eps = :eps,
@@ -886,7 +841,7 @@ class ProductRepository(BaseRepository):
                 """
             else:
                 query = """
-                    UPDATE dimension_product
+                    UPDATE pricing_product
                     SET final_status = NULL,
                         dbs_status = NULL,
                         eps = :eps,
@@ -907,12 +862,12 @@ class ProductRepository(BaseRepository):
                 COUNT(*) as total,
                 SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed,
                 SUM(CASE WHEN final_status IS NULL THEN 1 ELSE 0 END) as pending
-            FROM dimension_product
+            FROM pricing_product
             WHERE group_id = :group_id
             AND category IS NOT NULL
-            AND height IS NOT NULL 
-            AND width IS NOT NULL 
-            AND depth IS NOT NULL
+            AND mfr_cost IS NOT NULL 
+            AND shipping_cost IS NOT NULL 
+            AND price IS NOT NULL
             GROUP BY category
         """
         result = self.fetch_all(query, {"group_id": product_group_id})

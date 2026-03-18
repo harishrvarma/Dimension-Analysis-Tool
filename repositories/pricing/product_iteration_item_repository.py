@@ -1,13 +1,13 @@
-from models.dimension.product_iteration_item import DimensionProductIterationItem
+from models.pricing.product_iteration_item import PricingProductIterationItem
 from datetime import datetime
 import time
 import random
 
 
-class DimensionProductIterationItemRepository:
+class PricingProductIterationItemRepository:
     def __init__(self, db):
         self.db = db
-        self.model = DimensionProductIterationItem
+        self.model = PricingProductIterationItem
 
     def save_items(self, items_data):
         """Save multiple iteration items using bulk insert"""
@@ -32,7 +32,7 @@ class DimensionProductIterationItemRepository:
                 }
                 for data in items_data
             ]
-            self.db.bulk_insert_mappings(DimensionProductIterationItem, mappings)
+            self.db.bulk_insert_mappings(PricingProductIterationItem, mappings)
             self.db.commit()
             return True
         except Exception as e:
@@ -43,8 +43,8 @@ class DimensionProductIterationItemRepository:
     def delete_by_iteration_id(self, iteration_id):
         """Delete all items for a specific iteration"""
         try:
-            self.db.query(DimensionProductIterationItem).filter(
-                DimensionProductIterationItem.iteration_id == iteration_id
+            self.db.query(PricingProductIterationItem).filter(
+                PricingProductIterationItem.iteration_id == iteration_id
             ).delete(synchronize_session=False)
             self.db.commit()
             return True
@@ -59,14 +59,14 @@ class DimensionProductIterationItemRepository:
         
         try:
             results = self.db.query(
-                DimensionProductIterationItem.system_product_id,
-                func.avg(DimensionProductIterationItem.status).label('avg_status'),
-                func.avg(DimensionProductIterationItem.outlier_mode).label('avg_outlier_mode'),
-                func.count(DimensionProductIterationItem.id).label('count')
+                PricingProductIterationItem.system_product_id,
+                func.avg(PricingProductIterationItem.status).label('avg_status'),
+                func.avg(PricingProductIterationItem.outlier_mode).label('avg_outlier_mode'),
+                func.count(PricingProductIterationItem.id).label('count')
             ).filter(
-                DimensionProductIterationItem.system_product_id.in_(system_product_ids)
+                PricingProductIterationItem.system_product_id.in_(system_product_ids)
             ).group_by(
-                DimensionProductIterationItem.system_product_id
+                PricingProductIterationItem.system_product_id
             ).all()
             
             aggregated = {}
@@ -101,8 +101,8 @@ class DimensionProductIterationItemRepository:
     def get_iteration_summary(self, brand, category):
         """Get iteration summary for brand and category"""
         from sqlalchemy import func
-        from models.dimension.product_iteration import ProductIteration
-        from models.dimension.product import Product
+        from models.pricing.product_iteration import ProductIteration
+        from models.pricing.product import Product
         
         try:
             results = self.db.query(
@@ -110,8 +110,8 @@ class DimensionProductIterationItemRepository:
                 ProductIteration.eps,
                 ProductIteration.sample
             ).join(
-                DimensionProductIterationItem,
-                ProductIteration.iteration_id == DimensionProductIterationItem.iteration_id
+                PricingProductIterationItem,
+                ProductIteration.iteration_id == PricingProductIterationItem.iteration_id
             ).filter(
                 ProductIteration.brand == brand,
                 ProductIteration.category == category
@@ -128,53 +128,53 @@ class DimensionProductIterationItemRepository:
                 iter_id = row.iteration_id
                 
                 # Get counts for this iteration, excluding skipped products
-                total = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                total = self.db.query(func.count(PricingProductIterationItem.id)).join(
                     Product,
-                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                    PricingProductIterationItem.system_product_id == Product.system_product_id
                 ).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.iteration_id == iter_id,
                     (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
                 # Normal: where final_status = 1 or (final_status = null and status = 1)
-                normal = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
                     Product,
-                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                    PricingProductIterationItem.system_product_id == Product.system_product_id
                 ).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id,
-                    ((DimensionProductIterationItem.final_status == 1) | 
-                     ((DimensionProductIterationItem.final_status.is_(None)) & (DimensionProductIterationItem.status == 1))),
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    ((PricingProductIterationItem.final_status == 1) | 
+                     ((PricingProductIterationItem.final_status.is_(None)) & (PricingProductIterationItem.status == 1))),
                     (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
                 # Outlier: where final_status = 0 or (final_status = null and status = 0)
-                outlier = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
                     Product,
-                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                    PricingProductIterationItem.system_product_id == Product.system_product_id
                 ).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id,
-                    ((DimensionProductIterationItem.final_status == 0) | 
-                     ((DimensionProductIterationItem.final_status.is_(None)) & (DimensionProductIterationItem.status == 0))),
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    ((PricingProductIterationItem.final_status == 0) | 
+                     ((PricingProductIterationItem.final_status.is_(None)) & (PricingProductIterationItem.status == 0))),
                     (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
                 # Manual Outlier: only final_status = 0 (subset of outlier count)
-                manual_outlier = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                manual_outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
                     Product,
-                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                    PricingProductIterationItem.system_product_id == Product.system_product_id
                 ).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id,
-                    DimensionProductIterationItem.final_status == 0,
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 0,
                     (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
                 # Manual Normal: only final_status = 1 (subset of normal count)
-                manual_normal = self.db.query(func.count(DimensionProductIterationItem.id)).join(
+                manual_normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
                     Product,
-                    DimensionProductIterationItem.system_product_id == Product.system_product_id
+                    PricingProductIterationItem.system_product_id == Product.system_product_id
                 ).filter(
-                    DimensionProductIterationItem.iteration_id == iter_id,
-                    DimensionProductIterationItem.final_status == 1,
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 1,
                     (Product.skip_status.is_(None)) | (Product.skip_status != 1)
                 ).scalar() or 0
                 
@@ -199,9 +199,9 @@ class DimensionProductIterationItemRepository:
         """Update status and outlier_mode for specific items"""
         from datetime import datetime
         try:
-            self.db.query(DimensionProductIterationItem).filter(
-                DimensionProductIterationItem.iteration_id == iteration_id,
-                DimensionProductIterationItem.system_product_id.in_(system_product_ids)
+            self.db.query(PricingProductIterationItem).filter(
+                PricingProductIterationItem.iteration_id == iteration_id,
+                PricingProductIterationItem.system_product_id.in_(system_product_ids)
             ).update({
                 'status': status,
                 'outlier_mode': outlier_mode
@@ -223,9 +223,9 @@ class DimensionProductIterationItemRepository:
             else:
                 update_data['analyzed_date'] = None
             
-            self.db.query(DimensionProductIterationItem).filter(
-                DimensionProductIterationItem.iteration_id == iteration_id,
-                DimensionProductIterationItem.system_product_id.in_(system_product_ids)
+            self.db.query(PricingProductIterationItem).filter(
+                PricingProductIterationItem.iteration_id == iteration_id,
+                PricingProductIterationItem.system_product_id.in_(system_product_ids)
             ).update(update_data, synchronize_session=False)
             self.db.commit()
             return True
@@ -239,19 +239,19 @@ class DimensionProductIterationItemRepository:
         status_type: 'normal' (status=1 and final_status=NULL) or 'outlier' (status=0 and final_status=NULL)
         """
         try:
-            query = self.db.query(DimensionProductIterationItem.system_product_id).filter(
-                DimensionProductIterationItem.iteration_id == iteration_id
+            query = self.db.query(PricingProductIterationItem.system_product_id).filter(
+                PricingProductIterationItem.iteration_id == iteration_id
             )
             
             if status_type == 'normal':
                 query = query.filter(
-                    DimensionProductIterationItem.status == 1,
-                    DimensionProductIterationItem.final_status.is_(None)
+                    PricingProductIterationItem.status == 1,
+                    PricingProductIterationItem.final_status.is_(None)
                 )
             elif status_type == 'outlier':
                 query = query.filter(
-                    DimensionProductIterationItem.status == 0,
-                    DimensionProductIterationItem.final_status.is_(None)
+                    PricingProductIterationItem.status == 0,
+                    PricingProductIterationItem.final_status.is_(None)
                 )
             
             results = query.all()
@@ -265,14 +265,14 @@ class DimensionProductIterationItemRepository:
         final_status: None (pending), 0 (outlier), 1 (normal)
         """
         try:
-            query = self.db.query(DimensionProductIterationItem.system_product_id).filter(
-                DimensionProductIterationItem.iteration_id == iteration_id
+            query = self.db.query(PricingProductIterationItem.system_product_id).filter(
+                PricingProductIterationItem.iteration_id == iteration_id
             )
             
             if final_status is None:
-                query = query.filter(DimensionProductIterationItem.final_status.is_(None))
+                query = query.filter(PricingProductIterationItem.final_status.is_(None))
             else:
-                query = query.filter(DimensionProductIterationItem.final_status == final_status)
+                query = query.filter(PricingProductIterationItem.final_status == final_status)
             
             results = query.all()
             return [r[0] for r in results]
