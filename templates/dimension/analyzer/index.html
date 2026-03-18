@@ -1779,7 +1779,7 @@ async function resetIterationData() {
   
   // Build a clear confirm message based on what is selected
   const groupName = els.group.options[els.group.selectedIndex].text.split('(')[0].trim();
-  let scopeLines = [`Product Group: ${groupName}`];
+  let scopeLines = [];
   if (brands.length) scopeLines.push(`Brand(s): ${brands.join(', ')}`);
   if (category) scopeLines.push(`Category: ${category}`);
   if (types.length) scopeLines.push(`Product Type(s): ${types.join(', ')}`);
@@ -2423,7 +2423,7 @@ function displayClusterSummary() {
       ).map(cb => cb.dataset.group);
 
       if (checkedGroups.length > 0) {
-        // Ensure parent cluster checkbox is checked, hide all others
+        // Ensure parent cluster checkbox is checked, uncheck all others — no per-cluster Plotly calls
         const parentCb = document.querySelector(`.cluster-visibility-toggle[data-cluster="${cluster}"]`);
         if (parentCb) parentCb.checked = true;
         document.querySelectorAll('.cluster-visibility-toggle').forEach(cb => {
@@ -2431,10 +2431,15 @@ function displayClusterSummary() {
             cb.checked = false;
             document.querySelectorAll(`.dimension-group-visibility-toggle[data-cluster="${cb.dataset.cluster}"]`)
               .forEach(child => { child.checked = false; });
-            toggleClusterVisibility(parseInt(cb.dataset.cluster), false);
           }
         });
-        toggleClusterVisibility(cluster, true);
+        // Single batched Plotly update for all traces at once
+        selectSingleCluster(cluster);
+        // selectSingleCluster unchecks all dim-group checkboxes — restore the checked ones
+        checkedGroups.forEach(g => {
+          const cb = document.querySelector(`.dimension-group-visibility-toggle[data-cluster="${cluster}"][data-group="${g}"]`);
+          if (cb) cb.checked = true;
+        });
         updateToggleAllCheckbox();
         // Show combined products of all checked dimension groups
         const allProducts = checkedGroups.flatMap(g => (clusterInfo.dimensionGroups[g] || {}).products || []);
@@ -3702,11 +3707,11 @@ function renderPreviewEmpty() {
 }
 
 function buildProductsHtml(products) {
-  let html = '';
+  const parts = [];
   products.forEach(p => {
     const normalColor = p.final_status == 1 ? '#27ae60' : '#9ca3af';
     const outlierColor = p.final_status == 0 ? '#e74c3c' : '#9ca3af';
-    html += `
+    parts.push(`
       <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
         <div style="flex-shrink:0;">
           ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
@@ -3726,25 +3731,34 @@ function buildProductsHtml(products) {
           <div style="font-size:13px;color:#374151;"><strong>D</strong> : ${p.D}</div>
         </div>
       </div>
-    `;
+    `);
   });
-  return html;
+  return parts.join('');
 }
 
 function attachPreviewListeners() {
-  document.querySelectorAll('.item-normal-btn').forEach(btn => {
+  const list = document.getElementById('previewProductList');
+  if (!list) return;
+  list.querySelectorAll('.item-normal-btn').forEach(btn => {
     btn.addEventListener('click', function(e) { e.stopPropagation(); updateItemStatus(this.dataset.sku, 1); });
   });
-  document.querySelectorAll('.item-outlier-btn').forEach(btn => {
+  list.querySelectorAll('.item-outlier-btn').forEach(btn => {
     btn.addEventListener('click', function(e) { e.stopPropagation(); updateItemStatus(this.dataset.sku, 0); });
   });
   initLazyLoading();
 }
 
 function buildPreviewFiltersHtml(allProducts) {
-  const brands = [...new Set(allProducts.map(p => p.Brand).filter(Boolean))].sort();
-  const types  = [...new Set(allProducts.map(p => p.Type).filter(Boolean))].sort();
-  if (!brands.length && !types.length) return '';
+  // Build counts in one pass
+  const brandCounts = Object.create(null);
+  const typeCounts  = Object.create(null);
+  allProducts.forEach(p => {
+    if (p.Brand) brandCounts[p.Brand] = (brandCounts[p.Brand] || 0) + 1;
+    if (p.Type)  typeCounts[p.Type]   = (typeCounts[p.Type]   || 0) + 1;
+  });
+  const brands = Object.keys(brandCounts).sort();
+  const types  = Object.keys(typeCounts).sort();
+  if (brands.length <= 1 && types.length <= 1) return '';
   return `
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;">
       <div id="previewBrandDropdown" style="flex:1;position:relative;">
@@ -3753,7 +3767,7 @@ function buildPreviewFiltersHtml(allProducts) {
           <div style="padding:8px;"><input id="previewBrandSearch" type="text" placeholder="Search brand..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
           <div id="previewBrandList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
             <div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>
-            ${brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b}</div>`).join('')}
+            ${brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${brandCounts[b]})</div>`).join('')}
           </div>
         </div>
         <input type="hidden" id="previewBrandFilter" value="">
@@ -3764,7 +3778,7 @@ function buildPreviewFiltersHtml(allProducts) {
           <div style="padding:8px;"><input id="previewTypeSearch" type="text" placeholder="Search type..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
           <div id="previewTypeList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
             <div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>
-            ${types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t}</div>`).join('')}
+            ${types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${typeCounts[t]})</div>`).join('')}
           </div>
         </div>
         <input type="hidden" id="previewTypeFilter" value="">
@@ -3788,12 +3802,33 @@ function attachPreviewFilterListeners(allProducts) {
   const typeLabel   = document.getElementById('previewTypeLabel');
   if (!brandInput || !typeInput) return;
 
+  // Precompute brand→products and type→products maps once (O(n) instead of O(n²))
+  const brandMap = Object.create(null); // brand → [products]
+  const typeMap  = Object.create(null); // type  → [products]
+  allProducts.forEach(p => {
+    if (p.Brand) { (brandMap[p.Brand] = brandMap[p.Brand] || []).push(p); }
+    if (p.Type)  { (typeMap[p.Type]   = typeMap[p.Type]   || []).push(p); }
+  });
+
   function closePreviewDropdowns() {
     brandMenu.style.display = 'none';
     typeMenu.style.display = 'none';
   }
 
-  // Toggle brand dropdown (close type first)
+  // Single delegated close listener on the preview panel (not document) — no leak
+  const previewEl = document.getElementById('preview');
+  const _closeOnOutside = (e) => {
+    if (!e.target.closest('#previewBrandDropdown') && !e.target.closest('#previewTypeDropdown')) {
+      closePreviewDropdowns();
+    }
+  };
+  // Replace any previous listener by storing on the element
+  if (previewEl._previewCloseListener) {
+    document.removeEventListener('click', previewEl._previewCloseListener);
+  }
+  previewEl._previewCloseListener = _closeOnOutside;
+  document.addEventListener('click', _closeOnOutside);
+
   brandTrigger.addEventListener('click', (e) => {
     e.stopPropagation();
     const willOpen = brandMenu.style.display === 'none';
@@ -3801,7 +3836,6 @@ function attachPreviewFilterListeners(allProducts) {
     if (willOpen) { brandMenu.style.display = 'block'; brandSearch.value = ''; filterBrandList(''); brandSearch.focus(); }
   });
 
-  // Toggle type dropdown (close brand first)
   typeTrigger.addEventListener('click', (e) => {
     e.stopPropagation();
     const willOpen = typeMenu.style.display === 'none';
@@ -3811,7 +3845,6 @@ function attachPreviewFilterListeners(allProducts) {
 
   brandMenu.addEventListener('click', (e) => e.stopPropagation());
   typeMenu.addEventListener('click', (e) => e.stopPropagation());
-  document.addEventListener('click', closePreviewDropdowns);
 
   brandSearch.addEventListener('input', () => filterBrandList(brandSearch.value.trim().toLowerCase()));
   typeSearch.addEventListener('input', () => filterTypeList(typeSearch.value.trim().toLowerCase()));
@@ -3829,9 +3862,13 @@ function attachPreviewFilterListeners(allProducts) {
   }
 
   function getFiltered(brand, type) {
-    return allProducts.filter(p =>
-      (!brand || p.Brand === brand) && (!type || p.Type === type)
-    );
+    // Use precomputed maps: intersect brand-set ∩ type-set instead of scanning allProducts
+    if (!brand && !type) return allProducts;
+    if (brand && !type) return brandMap[brand] || [];
+    if (!brand && type) return typeMap[type] || [];
+    // Both filters: iterate the smaller set
+    const brandSet = new Set((brandMap[brand] || []).map(p => p.SKU));
+    return (typeMap[type] || []).filter(p => brandSet.has(p.SKU));
   }
 
   function highlightSelected(list, value, optClass) {
@@ -3844,11 +3881,14 @@ function attachPreviewFilterListeners(allProducts) {
 
   function refreshTypeList(brand) {
     const current = typeInput.value;
-    const filtered = getFiltered(brand, '');
-    const types = [...new Set(filtered.map(p => p.Type).filter(Boolean))].sort();
+    // Count types within the brand subset using precomputed maps
+    const subset = brand ? (brandMap[brand] || []) : allProducts;
+    const typeCounts = Object.create(null);
+    subset.forEach(p => { if (p.Type) typeCounts[p.Type] = (typeCounts[p.Type] || 0) + 1; });
+    const types = Object.keys(typeCounts).sort();
     typeList.innerHTML = `<div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>` +
-      types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${filtered.filter(p => p.Type === t).length})</div>`).join('');
-    if (current && !types.includes(current)) {
+      types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${typeCounts[t]})</div>`).join('');
+    if (current && !typeCounts[current]) {
       typeInput.value = '';
       typeLabel.textContent = 'All Types';
     }
@@ -3858,11 +3898,14 @@ function attachPreviewFilterListeners(allProducts) {
 
   function refreshBrandList(type) {
     const current = brandInput.value;
-    const filtered = getFiltered('', type);
-    const brands = [...new Set(filtered.map(p => p.Brand).filter(Boolean))].sort();
+    // Count brands within the type subset using precomputed maps
+    const subset = type ? (typeMap[type] || []) : allProducts;
+    const brandCounts = Object.create(null);
+    subset.forEach(p => { if (p.Brand) brandCounts[p.Brand] = (brandCounts[p.Brand] || 0) + 1; });
+    const brands = Object.keys(brandCounts).sort();
     brandList.innerHTML = `<div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>` +
-      brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${filtered.filter(p => p.Brand === b).length})</div>`).join('');
-    if (current && !brands.includes(current)) {
+      brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${brandCounts[b]})</div>`).join('');
+    if (current && !brandCounts[current]) {
       brandInput.value = '';
       brandLabel.textContent = 'All Brands';
     }
@@ -3917,8 +3960,11 @@ function attachPreviewFilterListeners(allProducts) {
     });
   }
 
-  refreshBrandList('');
-  refreshTypeList('');
+  // Don't call refreshBrandList/refreshTypeList on initial attach —
+  // buildPreviewFiltersHtml already rendered the correct lists.
+  // Only attach hover effects to the already-rendered options.
+  attachBrandListHover();
+  attachTypeListHover();
 }
 
 function renderDimensionGroupPreview(clusterInfo, groupName) {
@@ -4764,34 +4810,39 @@ swapResetBtn.addEventListener('click', async function() {
     return;
   }
   
-  // Get selected clusters from cluster summary
+  // 4-step filter: top filters → selected clusters → dimension groups → preview brand/type
   const selectedClusters = getSelectedClusters();
+  const finalSkus = getFinalSkus(selectedClusters);
+  const selectedDimGroups = getSelectedDimensionGroups();
   
-  // Build confirmation message with selected details
-  let confirmMessage = `Are you sure you want to reset dimensions to original values?\n\n`;
+  const brandInput = document.getElementById('previewBrandFilter');
+  const typeInput  = document.getElementById('previewTypeFilter');
+  const resetCount = finalSkus.length > 0 ? finalSkus.length : analysisData.filter(p =>
+    (!brands.length || brands.includes(p.Brand)) &&
+    (!category || p.Category === category) &&
+    (!types.length || types.includes(p.Type)) &&
+    (!selectedClusters.length || selectedClusters.includes(p.dbscan_cluster))
+  ).length;
+  let confirmMessage = `Are you sure you want to reset dimensions to original values?\n`;
+  confirmMessage += `This will restore original dimension values for ${resetCount} products.\n\n`;
   confirmMessage += `Selected filters:\n`;
-  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
   if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
   if (category) confirmMessage += `• Category: ${category}\n`;
   if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
+  if (selectedClusters.length > 0) confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
+  if (selectedDimGroups.length > 0) confirmMessage += `• Dimension Groups: ${selectedDimGroups.join(', ')}\n`;
+  if (brandInput && brandInput.value) confirmMessage += `• Preview Brand Filter: ${brandInput.value}\n`;
+  if (typeInput  && typeInput.value)  confirmMessage += `• Preview Type Filter: ${typeInput.value}\n`;
   
-  if (selectedClusters.length > 0) {
-    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
-    confirmMessage += `\nThis will restore original dimension values for products in the selected clusters only.`;
-  } else {
-    confirmMessage += `\nThis will restore original dimension values for all products matching the above filters.`;
-  }
-  
-  if (!confirm(confirmMessage)) {
-    return;
-  }
+  if (!confirm(confirmMessage)) return;
   
   const payload = {
     group_id: parseInt(groupId),
     brands: brands,
     category: category,
     types: types,
-    selected_clusters: selectedClusters
+    selected_clusters: selectedClusters,
+    skus: finalSkus
   };
   
   showLoader();
@@ -4805,21 +4856,16 @@ swapResetBtn.addEventListener('click', async function() {
   
   if (data.ok) {
     showMessage(`Successfully reset dimensions for ${data.count} products`);
-    // Reset dropdowns
     swapFromDimension.value = '';
     swapToDimension.value = '';
     Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
     Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
     
-    // Reload the current iteration if one is selected to show updated data
     if (selectedIterationId) {
       const currentSelectedClusters = getSelectedClusters();
       await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
-      
-      // If there's a cluster preview currently displayed, refresh it with updated data
       refreshCurrentClusterPreview();
     } else {
-      // Reload options to refresh data
       await loadOptions();
     }
   } else {
@@ -4850,30 +4896,34 @@ swapBtn.addEventListener('click', async function() {
     return;
   }
   
-  // Get selected clusters from cluster summary
+  // 4-step filter: top filters → selected clusters → dimension groups → preview brand/type
   const selectedClusters = getSelectedClusters();
+  const finalSkus = getFinalSkus(selectedClusters);
+  const selectedDimGroups = getSelectedDimensionGroups();
   
   const fromLabel = swapFromDimension.options[swapFromDimension.selectedIndex].text;
   const toLabel = swapToDimension.options[swapToDimension.selectedIndex].text;
   
-  // Build confirmation message with selected details
-  let confirmMessage = `Are you sure you want to swap ${fromLabel} with ${toLabel}?\n\n`;
+  const brandInput = document.getElementById('previewBrandFilter');
+  const typeInput  = document.getElementById('previewTypeFilter');
+  const swapCount = finalSkus.length > 0 ? finalSkus.length : analysisData.filter(p =>
+    (!brands.length || brands.includes(p.Brand)) &&
+    (!category || p.Category === category) &&
+    (!types.length || types.includes(p.Type)) &&
+    (!selectedClusters.length || selectedClusters.includes(p.dbscan_cluster))
+  ).length;
+  let confirmMessage = `Are you sure you want to swap ${fromLabel} with ${toLabel}?\n`;
+  confirmMessage += `This will swap dimension values for ${swapCount} products.\n\n`;
   confirmMessage += `Selected filters:\n`;
-  confirmMessage += `• Product Group: ${els.group.options[els.group.selectedIndex].text}\n`;
   if (brands.length) confirmMessage += `• Brands: ${brands.join(', ')}\n`;
   if (category) confirmMessage += `• Category: ${category}\n`;
   if (types.length) confirmMessage += `• Product Types: ${types.join(', ')}\n`;
+  if (selectedClusters.length > 0) confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
+  if (selectedDimGroups.length > 0) confirmMessage += `• Dimension Groups: ${selectedDimGroups.join(', ')}\n`;
+  if (brandInput && brandInput.value) confirmMessage += `• Preview Brand Filter: ${brandInput.value}\n`;
+  if (typeInput  && typeInput.value)  confirmMessage += `• Preview Type Filter: ${typeInput.value}\n`;
   
-  if (selectedClusters.length > 0) {
-    confirmMessage += `• Selected Clusters: ${selectedClusters.map(c => c === -1 ? 'Noise/Outlier' : `Cluster ${c}`).join(', ')}\n`;
-    confirmMessage += `\nThis will swap dimension values for products in the selected clusters only.`;
-  } else {
-    confirmMessage += `\nThis will swap dimension values for all products matching the above filters.`;
-  }
-  
-  if (!confirm(confirmMessage)) {
-    return;
-  }
+  if (!confirm(confirmMessage)) return;
   
   const payload = {
     group_id: parseInt(groupId),
@@ -4882,7 +4932,8 @@ swapBtn.addEventListener('click', async function() {
     types: types,
     from_dimension: fromDim,
     to_dimension: toDim,
-    selected_clusters: selectedClusters
+    selected_clusters: selectedClusters,
+    skus: finalSkus
   };
   
   showLoader();
@@ -4896,21 +4947,16 @@ swapBtn.addEventListener('click', async function() {
   
   if (data.ok) {
     showMessage(`Successfully swapped ${fromLabel} with ${toLabel} for ${data.count} products`);
-    // Reset dropdowns
     swapFromDimension.value = '';
     swapToDimension.value = '';
     Array.from(swapFromDimension.options).forEach(opt => opt.disabled = false);
     Array.from(swapToDimension.options).forEach(opt => opt.disabled = false);
     
-    // Reload the current iteration if one is selected to show updated data
     if (selectedIterationId) {
       const currentSelectedClusters = getSelectedClusters();
       await loadSavedIteration(selectedIterationId, currentSelectedClusters.length > 0 ? currentSelectedClusters[0] : null);
-      
-      // If there's a cluster preview currently displayed, refresh it with updated data
       refreshCurrentClusterPreview();
     } else {
-      // Reload options to refresh data
       await loadOptions();
     }
   } else {
@@ -4931,6 +4977,55 @@ function getSelectedClusters() {
   });
   
   return selectedClusters;
+}
+
+// Build final SKU list by applying all 3 filter layers on analysisData:
+// 1. Top-level filters already reflected in analysisData
+// 2. Selected clusters (if any)
+// 3. Preview brand/type filters (if any)
+function getSelectedDimensionGroups() {
+  return Array.from(
+    document.querySelectorAll('.dimension-group-visibility-toggle:checked')
+  ).map(cb => cb.dataset.group);
+}
+
+// Returns filtered SKU list only when sub-filters (clusters / dim-groups / preview brand|type)
+// are active. Returns [] when only top-level filters apply — backend uses its own query then.
+function getFinalSkus(selectedClusters) {
+  const brandInput   = document.getElementById('previewBrandFilter');
+  const typeInput    = document.getElementById('previewTypeFilter');
+  const previewBrand = brandInput ? brandInput.value : '';
+  const previewType  = typeInput  ? typeInput.value  : '';
+  const selectedDimGroups = getSelectedDimensionGroups();
+
+  const hasSubFilter = selectedDimGroups.length > 0 || previewBrand || previewType;
+
+  // No dim-group or preview filters → clusters are sent separately, backend handles everything
+  if (!hasSubFilter) return [];
+
+  let pool = analysisData;
+
+  // Step 2: narrow by clusters first (so dim-group/preview filters operate on the right subset)
+  if (selectedClusters && selectedClusters.length > 0) {
+    pool = pool.filter(p => selectedClusters.includes(
+      typeof p.dbscan_cluster !== 'undefined' ? p.dbscan_cluster : null
+    ));
+  }
+
+  // Step 3: filter by selected dimension groups
+  if (selectedDimGroups.length > 0) {
+    pool = pool.filter(p => selectedDimGroups.includes(getDimensionGroup(p)));
+  }
+
+  // Step 4: filter by preview brand/type
+  if (previewBrand || previewType) {
+    pool = pool.filter(p =>
+      (!previewBrand || p.Brand === previewBrand) &&
+      (!previewType  || p.Type  === previewType)
+    );
+  }
+
+  return pool.map(p => p.SKU);
 }
 
 async function updateItemStatus(sku, finalStatus) {

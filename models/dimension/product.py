@@ -9,6 +9,8 @@ class Product(BaseModel):
 
     __table_args__ = (
         Index('idx_product_system_product_id', 'system_product_id'),
+        Index('idx_product_qb_code', 'qb_code'),
+        Index('idx_product_group_brand_cat', 'group_id', 'brand', 'category'),
     )
 
     product_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
