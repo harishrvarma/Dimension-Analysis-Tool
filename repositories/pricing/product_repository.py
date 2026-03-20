@@ -15,35 +15,37 @@ class ProductRepository(BaseRepository):
             .first()
         )
 
-    def get_brands_for_group(self, group_id: int):
+    def get_brands_for_group(self, group_id: int, axis_cols: list = None):
         """Get brands and their product counts with analysis status for a specific product group"""
-        query = """
+        col_conditions = self._axis_not_null_conditions(axis_cols)
+        query = f"""
             SELECT 
+                MIN(brand_id) as brand_id,
                 brand, 
                 COUNT(*) as product_count,
                 SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
             FROM pricing_product
             WHERE group_id = :group_id 
             AND brand IS NOT NULL
-            AND mfr_cost IS NOT NULL 
-            AND shipping_cost IS NOT NULL 
-            AND price IS NOT NULL
+            {col_conditions}
             GROUP BY brand
             ORDER BY brand
         """
         result = self.fetch_all(query, {"group_id": group_id})
         
         if result:
-            df = pd.DataFrame(result, columns=['brand', 'product_count', 'analyzed_count'])
+            df = pd.DataFrame(result, columns=['brand_id', 'brand', 'product_count', 'analyzed_count'])
             return df
         return pd.DataFrame()
 
-    def get_categories_for_group(self, group_id: int, brands: list = None):
+    def get_categories_for_group(self, group_id: int, brands: list = None, axis_cols: list = None):
         """Get categories for a group with analysis status, optionally filtered by brands"""
+        col_conditions = self._axis_not_null_conditions(axis_cols)
         if brands and len(brands) > 0:
             placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
             query = f"""
                 SELECT 
+                    MIN(category_id) as category_id,
                     category, 
                     COUNT(*) as product_count,
                     SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
@@ -51,9 +53,7 @@ class ProductRepository(BaseRepository):
                 WHERE group_id = :group_id 
                 AND brand IN ({placeholders})
                 AND category IS NOT NULL
-                AND mfr_cost IS NOT NULL 
-                AND shipping_cost IS NOT NULL 
-                AND price IS NOT NULL
+                {col_conditions}
                 GROUP BY category
                 ORDER BY product_count DESC, category
             """
@@ -61,17 +61,16 @@ class ProductRepository(BaseRepository):
             for i, brand in enumerate(brands):
                 params[f'brand{i}'] = brand
         else:
-            query = """
+            query = f"""
                 SELECT 
+                    MIN(category_id) as category_id,
                     category, 
                     COUNT(*) as product_count,
                     SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
                 FROM pricing_product
                 WHERE group_id = :group_id 
                 AND category IS NOT NULL
-                AND mfr_cost IS NOT NULL 
-                AND shipping_cost IS NOT NULL 
-                AND price IS NOT NULL
+                {col_conditions}
                 GROUP BY category
                 ORDER BY product_count DESC, category
             """
@@ -80,14 +79,13 @@ class ProductRepository(BaseRepository):
         result = self.fetch_all(query, params)
         
         if result:
-            df = pd.DataFrame(result, columns=['category', 'product_count', 'analyzed_count'])
+            df = pd.DataFrame(result, columns=['category_id', 'category', 'product_count', 'analyzed_count'])
             return df
         return pd.DataFrame()
 
-    def get_types_for_group(self, group_id: int, brands: list = None, category: str = None):
+    def get_types_for_group(self, group_id: int, brands: list = None, category: str = None, axis_cols: list = None):
         """Get product types for a group with analysis status, optionally filtered by brands and category"""
-        conditions = ["group_id = :group_id", "product_type IS NOT NULL", 
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        conditions = ["group_id = :group_id", "product_type IS NOT NULL"] + self._axis_not_null_list(axis_cols)
         params = {'group_id': group_id}
         
         if brands and len(brands) > 0:
@@ -97,8 +95,16 @@ class ProductRepository(BaseRepository):
                 params[f'brand{i}'] = brand
         
         if category:
-            conditions.append("category = :category")
-            params['category'] = category
+            # Support comma-separated multiple categories
+            cat_list = [c.strip() for c in category.split(',') if c.strip()] if ',' in category else [category]
+            if len(cat_list) == 1:
+                conditions.append("category = :category")
+                params['category'] = cat_list[0]
+            else:
+                placeholders = ','.join([f':cat{i}' for i in range(len(cat_list))])
+                conditions.append(f"category IN ({placeholders})")
+                for i, c in enumerate(cat_list):
+                    params[f'cat{i}'] = c
         
         where_clause = " AND ".join(conditions)
         query = f"""
@@ -120,10 +126,10 @@ class ProductRepository(BaseRepository):
         return pd.DataFrame()
 
     def load_products_filtered(self, group_id: int, brands: list = None, 
-                               category: str = None, types: list = None):
+                               category: str = None, types: list = None, axis_cols: list = None):
         """Load product data from database with filters"""
-        conditions = ["group_id = :group_id", 
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        conditions = ["group_id = :group_id"] + self._axis_not_null_list(axis_cols) + [
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
@@ -134,61 +140,50 @@ class ProductRepository(BaseRepository):
                 params[f'brand{i}'] = brand
         
         if category:
-            conditions.append("category = :category")
-            params['category'] = category
-        
+            cat_list = [c.strip() for c in category.split(',') if c.strip()] if ',' in category else [category]
+            if len(cat_list) == 1:
+                conditions.append("category = :category")
+                params['category'] = cat_list[0]
+            else:
+                placeholders = ','.join([f':cat{i}' for i in range(len(cat_list))])
+                conditions.append(f"category IN ({placeholders})")
+                for i, c in enumerate(cat_list):
+                    params[f'cat{i}'] = c
+
         if types and len(types) > 0:
             placeholders = ','.join([f':type{i}' for i in range(len(types))])
             conditions.append(f"product_type IN ({placeholders})")
             for i, ptype in enumerate(types):
                 params[f'type{i}'] = ptype
-        
+
+        axis_select = ', '.join(cols)
+        extra_cols = [c for c in ['price', 'weight'] if c not in cols]
+        extra_select = (', ' + ', '.join(extra_cols)) if extra_cols else ''
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT 
-                product_id,
-                qb_code,
-                brand,
-                category,
-                product_type,
-                name,
-                mfr_cost,
-                shipping_cost,
-                price,
-                weight,
-                base_image_url,
-                product_url,
-                outlier_mode,
-                system_product_id
+                product_id, qb_code, brand, category, product_type, name,
+                {axis_select}{extra_select},
+                base_image_url, product_url, outlier_mode, system_product_id
             FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
         """
-        
+
         result = self.fetch_all(query, params)
-        
+
         if result:
             df = pd.DataFrame(result, columns=[
-                'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
+                'product_id', 'qb_code', 'brand', 'category', 'product_type', 'name',
+                cols[0], cols[1], cols[2],
+                *extra_cols,
+                'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
 
-    def get_brands_for_chart(self, group_id: int):
-        query = """
-            SELECT brand, COUNT(*) as count
-            FROM pricing_product
-            WHERE group_id = :group_id AND brand IS NOT NULL
-            AND mfr_cost IS NOT NULL AND shipping_cost IS NOT NULL AND price IS NOT NULL
-            GROUP BY brand
-            ORDER BY brand
-        """
-        result = self.fetch_all(query, {"group_id": group_id})
-        return [{"label": f"{r[0]} ({r[1]})", "value": r[0]} for r in result] if result else []
-
-    def get_categories_for_chart(self, group_id: int, brands):
-        conditions = ["group_id = :group_id", "category IS NOT NULL", "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+    def get_categories_for_chart(self, group_id: int, brands, axis_cols: list = None):
+        conditions = ["group_id = :group_id", "category IS NOT NULL"] + self._axis_not_null_list(axis_cols)
         params = {"group_id": group_id}
         
         if brands:
@@ -208,8 +203,8 @@ class ProductRepository(BaseRepository):
         result = self.fetch_all(query, params)
         return [{"label": f"{r[0]} ({r[1]})", "value": r[0]} for r in result] if result else []
 
-    def get_types_for_chart(self, group_id: int, brands, category):
-        conditions = ["group_id = :group_id", "product_type IS NOT NULL", "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+    def get_types_for_chart(self, group_id: int, brands, category, axis_cols: list = None):
+        conditions = ["group_id = :group_id", "product_type IS NOT NULL"] + self._axis_not_null_list(axis_cols)
         params = {"group_id": group_id}
         
         if brands:
@@ -242,15 +237,14 @@ class ProductRepository(BaseRepository):
             product.skip_status_updated_date = datetime.now()
 
     def load_products_for_iteration(self, group_id: int, iteration: int, brands: list = None, 
-                                   category: str = None, types: list = None, for_display=False):
+                                   category: str = None, types: list = None, for_display=False, axis_cols: list = None):
         """Load products for specific iteration"""
-        conditions = ["group_id = :group_id", 
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        conditions = ["group_id = :group_id"] + self._axis_not_null_list(axis_cols) + [
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
         if iteration > 1:
-            # Load products where: iteration = current OR (iteration = previous AND final_status = 1)
             conditions.append("(iteration_closed = :current_iteration OR (iteration_closed = :prev_iteration AND final_status = 1))")
             params['current_iteration'] = iteration
             params['prev_iteration'] = iteration - 1
@@ -271,23 +265,15 @@ class ProductRepository(BaseRepository):
             for i, ptype in enumerate(types):
                 params[f'type{i}'] = ptype
         
+        axis_select = ', '.join(cols)
+        extra_cols = [c for c in ['price', 'weight'] if c not in cols]
+        extra_select = (', ' + ', '.join(extra_cols)) if extra_cols else ''
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT 
-                product_id,
-                qb_code,
-                brand,
-                category,
-                product_type,
-                name,
-                mfr_cost,
-                shipping_cost,
-                price,
-                weight,
-                base_image_url,
-                product_url,
-                outlier_mode,
-                system_product_id
+                product_id, qb_code, brand, category, product_type, name,
+                {axis_select}{extra_select},
+                base_image_url, product_url, outlier_mode, system_product_id
             FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
@@ -297,8 +283,10 @@ class ProductRepository(BaseRepository):
         
         if result:
             df = pd.DataFrame(result, columns=[
-                'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
+                'product_id', 'qb_code', 'brand', 'category', 'product_type', 'name',
+                cols[0], cols[1], cols[2],
+                *extra_cols,
+                'base_image_url', 'product_url', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
@@ -416,18 +404,16 @@ class ProductRepository(BaseRepository):
         self.db.execute(text(query), params)
         self.db.commit()
 
-    def get_previous_outliers(self, group_id: int, brands: list, category: str, types: list, current_iteration: int):
+    def get_previous_outliers(self, group_id: int, brands: list, category: str, types: list, current_iteration: int, axis_cols: list = None):
         """Get all outliers from previous iterations with analysis data"""
         conditions = ["group_id = :group_id", "category = :category",
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id, 'category': category}
         
-        # Get outliers from iterations before current
         if current_iteration > 1:
             conditions.append("iteration_closed < :current_iteration")
             params['current_iteration'] = current_iteration
         else:
-            # No previous iterations
             return pd.DataFrame()
         
         conditions.append("final_status = 0")
@@ -444,24 +430,17 @@ class ProductRepository(BaseRepository):
             for i, ptype in enumerate(types):
                 params[f'type{i}'] = ptype
         
+        # Build dynamic axis column SELECT
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        axis_select = ', '.join(cols)
+        
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT 
-                product_id,
-                qb_code,
-                brand,
-                category,
-                product_type,
-                name,
-                mfr_cost,
-                shipping_cost,
-                price,
-                weight,
-                base_image_url,
-                product_url,
-                dbs_status,
-                outlier_mode,
-                iteration_closed
+                product_id, qb_code, brand, category, product_type, name,
+                {axis_select},
+                weight, base_image_url, product_url,
+                dbs_status, outlier_mode, iteration_closed
             FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
@@ -471,8 +450,9 @@ class ProductRepository(BaseRepository):
         
         if result:
             df = pd.DataFrame(result, columns=[
-                'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url',
+                'product_id', 'qb_code', 'brand', 'category', 'product_type', 'name',
+                cols[0], cols[1], cols[2],
+                'weight', 'base_image_url', 'product_url',
                 'dbs_status', 'outlier_mode', 'iteration_closed'
             ])
             return df
@@ -562,10 +542,10 @@ class ProductRepository(BaseRepository):
 
         self.db.commit()
 
-    def get_global_aggregate_data(self, group_id: int, brands: list, category: str, types: list, algorithms: list):
+    def get_global_aggregate_data(self, group_id: int, brands: list, category: str, types: list, algorithms: list, axis_cols: list = None):
         """Get global aggregate data from product table for all saved iterations"""
-        conditions = ["group_id = :group_id", "category = :category", 
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        conditions = ["group_id = :group_id", "category = :category"] + self._axis_not_null_list(axis_cols) + [
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id, 'category': category}
         
@@ -581,25 +561,14 @@ class ProductRepository(BaseRepository):
             for i, ptype in enumerate(types):
                 params[f'type{i}'] = ptype
         
+        axis_select = ', '.join(cols)
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT 
-                product_id,
-                qb_code,
-                brand,
-                category,
-                product_type,
-                name,
-                mfr_cost,
-                shipping_cost,
-                price,
-                weight,
-                base_image_url,
-                product_url,
-                dbs_status,
-                final_status,
-                outlier_mode,
-                system_product_id
+                product_id, qb_code, brand, category, product_type, name,
+                {axis_select},
+                weight, base_image_url, product_url,
+                dbs_status, final_status, outlier_mode, system_product_id
             FROM pricing_product
             WHERE {where_clause}
             ORDER BY product_id
@@ -609,17 +578,17 @@ class ProductRepository(BaseRepository):
         
         if result:
             df = pd.DataFrame(result, columns=[
-                'product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'mfr_cost', 'shipping_cost', 'price', 'weight', 'base_image_url', 'product_url',
+                'product_id', 'qb_code', 'brand', 'category', 'product_type', 'name',
+                cols[0], cols[1], cols[2],
+                'weight', 'base_image_url', 'product_url',
                 'dbs_status', 'final_status', 'outlier_mode', 'system_product_id'
             ])
             return df
         return pd.DataFrame()
 
-    def get_basic_groups(self, group_id: int, brands: list = None, category: str = None, types: list = None):
+    def get_basic_groups(self, group_id: int, brands: list = None, category: str = None, types: list = None, axis_cols: list = None):
         """Get all basic groups (Brand + Category + Product_Type combinations) with counts"""
-        conditions = ["group_id = :group_id", 
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL",
+        conditions = ["group_id = :group_id"] + self._axis_not_null_list(axis_cols) + [
                       "(skip_status IS NULL OR skip_status != 1)"]
         params = {'group_id': group_id}
         
@@ -701,7 +670,7 @@ class ProductRepository(BaseRepository):
         self.db.commit()
 
 
-    def load_products_by_ids(self, system_product_ids):
+    def load_products_by_ids(self, system_product_ids, axis_cols: list = None):
         """Load products by system_product_ids"""
         from models.pricing.product import Product
         
@@ -710,51 +679,44 @@ class ProductRepository(BaseRepository):
                 Product.system_product_id.in_(system_product_ids)
             ).all()
             
+            cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+            
             data = []
             for p in products:
-                data.append({
+                row = {
                     'system_product_id': p.system_product_id,
                     'qb_code': p.qb_code,
                     'brand': p.brand,
                     'category': p.category,
                     'product_type': p.product_type,
                     'name': p.name,
-                    'mfr_cost': p.mfr_cost,
-                    'shipping_cost': p.shipping_cost,
                     'price': p.price,
                     'base_image_url': p.base_image_url,
                     'product_url': p.product_url
-                })
+                }
+                for col in cols:
+                    row[col] = getattr(p, col, None)
+                data.append(row)
             
             return pd.DataFrame(data)
         except Exception as e:
             print(f"Error loading products by IDs: {e}")
             return pd.DataFrame()
 
-    def get_all_products_for_export(self, filters=None, record_type='all', product_group_id=None):
-        """Get all products with required fields for export analysis
-        
-        Args:
-            filters: Dict with 'brands', 'categories', 'product_types' lists
-            record_type: 'all' or 'pending'
-            product_group_id: Product group ID to filter by
-        """
-        conditions = [
-            "mfr_cost IS NOT NULL",
-            "shipping_cost IS NOT NULL",
-            "price IS NOT NULL",
+    def get_all_products_for_export(self, filters=None, record_type='all', product_group_id=None, axis_cols: list = None):
+        """Get all products with required fields for export analysis"""
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        conditions = self._axis_not_null_list(axis_cols) + [
             "brand IS NOT NULL",
             "category IS NOT NULL",
             "product_type IS NOT NULL"
         ]
         params = {}
         
-        # Add product group filter
         if product_group_id:
             conditions.append("group_id = :group_id")
             params['group_id'] = product_group_id
         
-        # Add record type filter
         if record_type == 'pending':
             conditions.append("final_status IS NULL")
         
@@ -777,20 +739,13 @@ class ProductRepository(BaseRepository):
                 for i, ptype in enumerate(filters['product_types']):
                     params[f'type{i}'] = ptype
         
+        axis_select = ', '.join(cols)
         where_clause = " AND ".join(conditions)
         query = f"""
             SELECT 
-                system_product_id,
-                qb_code,
-                brand,
-                category,
-                product_type,
-                name,
-                mfr_cost,
-                shipping_cost,
-                price,
-                base_image_url,
-                product_url
+                system_product_id, qb_code, brand, category, product_type, name,
+                {axis_select},
+                base_image_url, product_url
             FROM pricing_product
             WHERE {where_clause}
             ORDER BY brand, category, product_type
@@ -800,8 +755,9 @@ class ProductRepository(BaseRepository):
         
         if result:
             df = pd.DataFrame(result, columns=[
-                'system_product_id', 'qb_code', 'brand', 'category', 'product_type', 
-                'name', 'mfr_cost', 'shipping_cost', 'price', 'base_image_url', 'product_url'
+                'system_product_id', 'qb_code', 'brand', 'category', 'product_type', 'name',
+                cols[0], cols[1], cols[2],
+                'base_image_url', 'product_url'
             ])
             return df
         return pd.DataFrame()
@@ -854,9 +810,20 @@ class ProductRepository(BaseRepository):
             self.db.execute(text(query), params)
         
         self.db.commit()
-    def get_category_product_counts(self, product_group_id):
+    def _axis_not_null_list(self, axis_cols: list = None) -> list:
+        """Return list of IS NOT NULL conditions for axis columns"""
+        cols = axis_cols if axis_cols and len(axis_cols) == 3 else ['mfr_cost', 'shipping_cost', 'profit_margin']
+        return [f"{c} IS NOT NULL" for c in cols]
+
+    def _axis_not_null_conditions(self, axis_cols: list = None) -> str:
+        """Return AND-prefixed IS NOT NULL conditions string for axis columns"""
+        parts = self._axis_not_null_list(axis_cols)
+        return ('AND ' + ' AND '.join(parts)) if parts else ''
+
+    def get_category_product_counts(self, product_group_id, axis_cols: list = None):
         """Get product counts by category for total, analyzed, and pending items"""
-        query = """
+        col_conditions = self._axis_not_null_conditions(axis_cols)
+        query = f"""
             SELECT 
                 category,
                 COUNT(*) as total,
@@ -865,9 +832,7 @@ class ProductRepository(BaseRepository):
             FROM pricing_product
             WHERE group_id = :group_id
             AND category IS NOT NULL
-            AND mfr_cost IS NOT NULL 
-            AND shipping_cost IS NOT NULL 
-            AND price IS NOT NULL
+            {col_conditions}
             GROUP BY category
         """
         result = self.fetch_all(query, {"group_id": product_group_id})

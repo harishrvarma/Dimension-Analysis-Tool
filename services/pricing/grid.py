@@ -118,14 +118,13 @@ def get_product_groups():
         db.close()
 
 
-def get_brands_with_counts(group_id, final_status=None):
+def get_brands_with_counts(group_id, final_status=None, axis_cols=None):
     """Get brands with product counts for a group"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-
-        conditions = ["group_id = :group_id", "brand IS NOT NULL",
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        axis_conditions = repo._axis_not_null_list(axis_cols)
+        conditions = ["group_id = :group_id", "brand IS NOT NULL"] + axis_conditions
         params = {'group_id': group_id}
 
         if final_status and len(final_status) > 0:
@@ -165,14 +164,13 @@ def get_brands_with_counts(group_id, final_status=None):
         db.close()
 
 
-def get_categories_with_counts(group_id, brands=None, final_status=None):
+def get_categories_with_counts(group_id, brands=None, final_status=None, axis_cols=None):
     """Get categories with product counts"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-
-        conditions = ["group_id = :group_id", "category IS NOT NULL",
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        axis_conditions = repo._axis_not_null_list(axis_cols)
+        conditions = ["group_id = :group_id", "category IS NOT NULL"] + axis_conditions
         params = {'group_id': group_id}
 
         if brands and len(brands) > 0:
@@ -219,14 +217,13 @@ def get_categories_with_counts(group_id, brands=None, final_status=None):
         db.close()
 
 
-def get_types_with_counts(group_id, brands=None, categories=None, final_status=None):
+def get_types_with_counts(group_id, brands=None, categories=None, final_status=None, axis_cols=None):
     """Get product types with product counts"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-
-        conditions = ["group_id = :group_id", "product_type IS NOT NULL",
-                      "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        axis_conditions = repo._axis_not_null_list(axis_cols)
+        conditions = ["group_id = :group_id", "product_type IS NOT NULL"] + axis_conditions
         params = {'group_id': group_id}
 
         if brands and len(brands) > 0:
@@ -279,11 +276,13 @@ def get_types_with_counts(group_id, brands=None, categories=None, final_status=N
         db.close()
 
 
-def get_analyzed_status(group_id, brands=None, categories=None):
+def get_analyzed_status(group_id, brands=None, categories=None, axis_cols=None):
     """Get analyzed status for brands, categories, and types"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
+        axis_conditions = repo._axis_not_null_list(axis_cols)
+        axis_and_str = repo._axis_not_null_conditions(axis_cols)
 
         result = {
             'brands': {},
@@ -298,7 +297,7 @@ def get_analyzed_status(group_id, brands=None, categories=None):
                    SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed
             FROM pricing_product
             WHERE group_id = :group_id AND brand IS NOT NULL
-                  AND mfr_cost IS NOT NULL AND shipping_cost IS NOT NULL AND price IS NOT NULL
+                  {axis_and_str}
             GROUP BY brand
         """
         brand_result = repo.fetch_all(brand_query, {'group_id': group_id})
@@ -310,8 +309,7 @@ def get_analyzed_status(group_id, brands=None, categories=None):
                 result['brands'][brand] = 'partial'
 
         # Get category analyzed status
-        cat_conditions = ["group_id = :group_id", "category IS NOT NULL",
-                         "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        cat_conditions = ["group_id = :group_id", "category IS NOT NULL"] + axis_conditions
         cat_params = {'group_id': group_id}
 
         if brands and len(brands) > 0:
@@ -338,8 +336,7 @@ def get_analyzed_status(group_id, brands=None, categories=None):
                 result['categories'][category] = 'partial'
 
         # Get type analyzed status
-        type_conditions = ["group_id = :group_id", "product_type IS NOT NULL",
-                          "mfr_cost IS NOT NULL", "shipping_cost IS NOT NULL", "price IS NOT NULL"]
+        type_conditions = ["group_id = :group_id", "product_type IS NOT NULL"] + axis_conditions
         type_params = {'group_id': group_id}
 
         if brands and len(brands) > 0:
@@ -473,7 +470,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             query = f"""
                 SELECT
                     p.product_id, p.system_product_id, p.qb_code, p.brand, p.category, p.product_type, p.name,
-                    p.mfr_cost, p.shipping_cost, p.price, pi.eps, pi.sample, dpii.final_status, dpii.status, p.skip_status,
+                    p.mfr_cost, p.shipping_cost, p.profit_margin, pi.eps, pi.sample, dpii.final_status, dpii.status, p.skip_status,
                     p.base_image_url, p.product_url, pi.total_items, pi.analyzed_items, pi.pending_items, pi.outlier_items,
                     dpii.cluster_items, dpii.cluster_items_per, dpii.cluster
                 FROM pricing_product p
@@ -491,7 +488,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             column_map = {
                 'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)', 'qb_code': 'p.qb_code',
                 'brand': 'p.brand', 'category': 'p.category', 'product_type': 'p.product_type', 'name': 'p.name',
-                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'price': 'p.price', 'eps': 'pi.eps', 'sample': 'pi.sample',
+                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'profit_margin': 'p.profit_margin', 'eps': 'pi.eps', 'sample': 'pi.sample',
                 'final_status': 'dpii.final_status', 'skip_status': 'p.skip_status',
                 'total_items': 'pi.total_items', 'analyzed_items': 'pi.analyzed_items',
                 'pending_items': 'pi.pending_items', 'outlier_items': 'pi.outlier_items',
@@ -518,7 +515,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             query = f"""
                 SELECT
                     p.product_id, p.system_product_id, p.qb_code, p.brand, p.category, p.product_type, p.name,
-                    p.mfr_cost, p.shipping_cost, p.price, latest_iter.eps, latest_iter.sample, p.final_status, p.skip_status,
+                    p.mfr_cost, p.shipping_cost, p.profit_margin, latest_iter.eps, latest_iter.sample, p.final_status, p.skip_status,
                     p.base_image_url, p.product_url,
                     latest_iter.total_items, latest_iter.analyzed_items, latest_iter.pending_items, latest_iter.outlier_items,
                     latest_item.cluster_items, latest_item.cluster_items_per, latest_item.cluster, latest_iter.iteration_id
@@ -541,7 +538,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             column_map = {
                 'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)', 'qb_code': 'p.qb_code',
                 'brand': 'p.brand', 'category': 'p.category', 'product_type': 'p.product_type', 'name': 'p.name',
-                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'price': 'p.price', 'eps': 'latest_iter.eps', 'sample': 'latest_iter.sample',
+                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'profit_margin': 'p.profit_margin', 'eps': 'latest_iter.eps', 'sample': 'latest_iter.sample',
                 'final_status': 'p.final_status', 'skip_status': 'p.skip_status',
                 'total_items': 'latest_iter.total_items', 'analyzed_items': 'latest_iter.analyzed_items',
                 'pending_items': 'latest_iter.pending_items', 'outlier_items': 'latest_iter.outlier_items',
@@ -604,7 +601,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 data.append({
                     "product_id": row[0], "system_product_id": system_product_id, "qb_code": row[2] or "",
                     "brand": row[3] or "", "category": row[4] or "", "product_type": row[5] or "", "name": row[6] or "",
-                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "price": float(row[9]) if row[9] else 0,
+                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "profit_margin": float(row[9]) if row[9] else 0,
                     "eps": float(row[10]) if row[10] else "-", "sample": int(row[11]) if row[11] else "-",
                     "final_status": final_status_display,
                     "skip_status": row[14],
@@ -623,7 +620,7 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 data.append({
                     "product_id": row[0], "system_product_id": system_product_id, "qb_code": row[2] or "",
                     "brand": row[3] or "", "category": row[4] or "", "product_type": row[5] or "", "name": row[6] or "",
-                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "price": float(row[9]) if row[9] else 0,
+                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "profit_margin": float(row[9]) if row[9] else 0,
                     "eps": float(row[10]) if row[10] else "-", "sample": int(row[11]) if row[11] else "-",
                     "final_status": "Normal" if row[12] == 1 else "Outlier" if row[12] == 0 else "Pending to Analyze",
                     "skip_status": row[13],

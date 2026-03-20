@@ -897,8 +897,8 @@ img.preview {
 </div>
 </div>
 <div>
-<label>Category <span class="warn">*</span></label>
-<select id="categorySelector" class="select-hidden"></select>
+<label>Category <span id="categoryCount" class="label-count">(0 selected)</span></label>
+<select id="categorySelector" class="select-hidden" multiple></select>
 <div class="multi-select" id="categoryDropdown">
 <div class="ms-trigger" id="categoryTrigger">Select Category <span>▾</span></div>
 <div class="ms-menu hidden" id="categoryMenu"></div>
@@ -914,6 +914,33 @@ img.preview {
 </div>
 </div>
 
+
+<div class="row" id="insightRow" style="margin-top:8px;">
+<div>
+<label>Chart</label>
+<select id="insightChartSelector">
+<option value="">Select Chart</option>
+</select>
+</div>
+<div>
+<label>X Axis</label>
+<select id="insightXAxis">
+<option value="">Select Column</option>
+</select>
+</div>
+<div>
+<label>Y Axis</label>
+<select id="insightYAxis">
+<option value="">Select Column</option>
+</select>
+</div>
+<div>
+<label>Z Axis</label>
+<select id="insightZAxis">
+<option value="">Select Column</option>
+</select>
+</div>
+</div>
 
 <div id="dbscanPanel" class="panel hidden">
 <div style="display:flex;align-items:center;gap:15px;">
@@ -1074,6 +1101,7 @@ let iterationHistory = [];
 let allIterationsData = [];
 let selectedIterationId = null;
 let isLoadingIteration = false;
+let suppressCategoryChange = false;
 let messageTimeout = null;
 
 function showMessage(text) {
@@ -1114,6 +1142,7 @@ const els = {
   brandTrigger: document.getElementById('brandTrigger'),
   brandMenu: document.getElementById('brandMenu'),
   category: document.getElementById('categorySelector'),
+  categoryCount: document.getElementById('categoryCount'),
   categoryTrigger: document.getElementById('categoryTrigger'),
   categoryMenu: document.getElementById('categoryMenu'),
   type: document.getElementById('typeSelector'),
@@ -1162,11 +1191,17 @@ function setSelectOptions(selectEl, options, selected = []) {
   selectEl.innerHTML = '';
   options.forEach(item => {
     const opt = document.createElement('option');
-    opt.value = item.value;
+    if (selectEl === els.brand && item.brand_id !== undefined) {
+      opt.value = item.brand_id;
+      opt.dataset.brandValue = item.value;
+    } else {
+      opt.value = item.value;
+    }
     opt.textContent = item.label;
     if (item.analyzed_count !== undefined) opt.dataset.analyzedCount = item.analyzed_count;
     if (item.total_count !== undefined) opt.dataset.totalCount = item.total_count;
-    if (old.has(String(item.value))) opt.selected = true;
+    const keyVal = (selectEl === els.brand && item.brand_id !== undefined) ? item.brand_id : item.value;
+    if (old.has(String(keyVal))) opt.selected = true;
     selectEl.appendChild(opt);
   });
   
@@ -1177,138 +1212,16 @@ function setSelectOptions(selectEl, options, selected = []) {
     renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, 'Select Product Type');
   }
   if (selectEl === els.category) {
-    renderCategoryDropdown();
+    renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, 'Select Category');
   }
 }
 
 function renderCategoryDropdown() {
-  const options = Array.from(els.category.options);
-  const selectedValue = els.category.value || '';
-  
-  els.categoryMenu.innerHTML = '';
-  
-  if (!options.length || (options.length === 1 && options[0].value === '')) {
-    els.categoryMenu.innerHTML = '<div class="ms-empty">No options available</div>';
-    updateCategoryTrigger();
-    return;
-  }
-  
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'ms-search-wrap';
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.className = 'ms-search';
-  searchInput.placeholder = 'Search Category';
-  searchWrap.appendChild(searchInput);
-  
-  // Add filter buttons
-  const filterWrap = document.createElement('div');
-  filterWrap.className = 'ms-filter-wrap';
-  const filterPending = document.createElement('button');
-  filterPending.type = 'button';
-  filterPending.className = 'ms-filter-btn';
-  filterPending.textContent = 'Pending';
-  filterPending.dataset.filter = 'pending';
-  const filterPartial = document.createElement('button');
-  filterPartial.type = 'button';
-  filterPartial.className = 'ms-filter-btn';
-  filterPartial.textContent = 'Partial';
-  filterPartial.dataset.filter = 'partial';
-  const filterFull = document.createElement('button');
-  filterFull.type = 'button';
-  filterFull.className = 'ms-filter-btn';
-  filterFull.textContent = 'Full';
-  filterFull.dataset.filter = 'full';
-  filterWrap.appendChild(filterPending);
-  filterWrap.appendChild(filterPartial);
-  filterWrap.appendChild(filterFull);
-  
-  const optionsWrap = document.createElement('div');
-  optionsWrap.className = 'ms-options';
-  
-  options.forEach(opt => {
-    const row = document.createElement('div');
-    row.className = 'cat-opt';
-    row.dataset.value = String(opt.value || '');
-    row.dataset.filterText = String(opt.textContent || '').toLowerCase();
-    row.textContent = opt.textContent;
-    
-    // Add analysis status class and data attribute
-    let statusType = 'pending';
-    if (opt.dataset.analyzedCount && opt.dataset.totalCount) {
-      const analyzed = parseInt(opt.dataset.analyzedCount);
-      const total = parseInt(opt.dataset.totalCount);
-      if (analyzed === total) {
-        row.classList.add('analyzed-full');
-        statusType = 'full';
-      } else if (analyzed > 0) {
-        row.classList.add('analyzed-partial');
-        statusType = 'partial';
-      }
-    }
-    row.dataset.statusType = statusType;
-    
-    if (String(opt.value || '') === String(selectedValue)) row.classList.add('active');
-    row.addEventListener('click', () => {
-      els.category.value = String(opt.value || '');
-      updateCategoryTrigger();
-      closeAllDropdownMenus();
-      els.category.dispatchEvent(new Event('change'));
-    });
-    optionsWrap.appendChild(row);
-  });
-  
-  // Filter button click handlers
-  const activeFilters = new Set();
-  [filterPending, filterPartial, filterFull].forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.classList.contains('active')) {
-        btn.classList.remove('active');
-        activeFilters.delete(btn.dataset.filter);
-      } else {
-        btn.classList.add('active');
-        activeFilters.add(btn.dataset.filter);
-      }
-      
-      Array.from(optionsWrap.querySelectorAll('.cat-opt')).forEach(row => {
-        if (activeFilters.size === 0 || activeFilters.has(row.dataset.statusType)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-    });
-  });
-  
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    Array.from(optionsWrap.querySelectorAll('.cat-opt')).forEach(row => {
-      const txt = row.dataset.filterText || '';
-      const matchesSearch = !q || txt.includes(q);
-      const matchesFilter = activeFilters.size === 0 || activeFilters.has(row.dataset.statusType);
-      row.style.display = matchesSearch && matchesFilter ? '' : 'none';
-    });
-  });
-  
-  els.categoryMenu.appendChild(searchWrap);
-  els.categoryMenu.appendChild(filterWrap);
-  els.categoryMenu.appendChild(optionsWrap);
-  updateCategoryTrigger();
+  renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, 'Select Category');
 }
 
 function updateCategoryTrigger() {
-  const selectedOpt = els.category.options[els.category.selectedIndex];
-  const label = selectedOpt && selectedOpt.value !== '' ? selectedOpt.textContent : 'Select Category';
-  const arrow = '<span>▾</span>';
-  els.categoryTrigger.innerHTML = '';
-  const textSpan = document.createElement('span');
-  textSpan.style.overflow = 'hidden';
-  textSpan.style.textOverflow = 'ellipsis';
-  textSpan.style.whiteSpace = 'nowrap';
-  textSpan.style.flex = '1';
-  textSpan.textContent = label;
-  els.categoryTrigger.appendChild(textSpan);
-  els.categoryTrigger.insertAdjacentHTML('beforeend', arrow);
+  updateMultiCount(els.category, els.categoryTrigger, els.categoryCount, 'Select Category');
 }
 
 function closeAllDropdownMenus() {
@@ -1507,7 +1420,6 @@ function syncAlgoPanels() {
 function updatePrompt() {
   const groupId = els.group.value;
   const algos = selectedValues(els.algo);
-  const category = els.category.value;
   
   document.getElementById('statusGroup').textContent = groupId ? '✅' : '❌';
   document.getElementById('statusAlgo').textContent = algos.length ? '✅' : '❌';
@@ -1536,13 +1448,14 @@ async function loadGroups() {
   updatePrompt();
 }
 
-async function loadOptionsForIteration(groupId, category) {
+async function loadOptionsForIteration(groupId, categories) {
   if (!groupId) return;
+  const targetCats = Array.isArray(categories) ? categories : (categories ? [categories] : []);
   
   const payload = {
     group_id: parseInt(groupId),
     brands: [],
-    category: category || null
+    categories: targetCats
   };
   
   const res = await fetch('/pricing/analyzer/api/options', {
@@ -1555,17 +1468,16 @@ async function loadOptionsForIteration(groupId, category) {
   if (data.ok) {
     setSelectOptions(els.brand, data.brand_options || [], []);
     
-    const categories = data.category_options || [];
-    els.category.innerHTML = '<option value="">Select Category</option>';
-    categories.forEach(item => {
+    const catOptions = data.category_options || [];
+    els.category.innerHTML = '';
+    catOptions.forEach(item => {
       const opt = document.createElement('option');
-      opt.value = item.value;
+      opt.value = item.category_id;
       opt.textContent = item.label;
+      opt.dataset.categoryValue = item.value;
       if (item.analyzed_count !== undefined) opt.dataset.analyzedCount = item.analyzed_count;
       if (item.total_count !== undefined) opt.dataset.totalCount = item.total_count;
-      if (category && String(item.value) === String(category)) {
-        opt.selected = true;
-      }
+      if (targetCats.includes(item.value)) opt.selected = true;
       els.category.appendChild(opt);
     });
     renderCategoryDropdown();
@@ -1574,13 +1486,16 @@ async function loadOptionsForIteration(groupId, category) {
   }
 }
 
-async function loadIterationHistoryBackground(groupId, category) {
-  if (!groupId || !category) return;
+async function loadIterationHistoryBackground(groupId, categories, categoryIds, brandIds) {
+  const cats = Array.isArray(categories) ? categories : (categories ? [categories] : []);
+  if (!groupId || !cats.length) return;
   
   try {
     const payload = {
       group_id: parseInt(groupId),
-      category: category
+      categories: cats,
+      category_ids: categoryIds || [],
+      brand_ids: brandIds || []
     };
     
     const res = await fetch('/pricing/analyzer/api/iteration-history', {
@@ -1600,23 +1515,64 @@ async function loadIterationHistoryBackground(groupId, category) {
   }
 }
 
+// Helper: get selected category strings from the multi-select
+function getSelectedCategories() {
+  return Array.from(els.category.selectedOptions).map(o => o.dataset.categoryValue || o.textContent.replace(/\s*\(\d+\)$/, '').trim());
+}
+
+// Helper: get selected category IDs (numeric option values)
+function getSelectedCategoryIds() {
+  return Array.from(els.category.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
+}
+
+// Helper: get selected brand strings
+function getSelectedBrands() {
+  return Array.from(els.brand.selectedOptions).map(o => o.dataset.brandValue || o.textContent.replace(/\s*\(\d+\)$/, '').trim());
+}
+
+// Helper: get selected brand IDs
+function getSelectedBrandIds() {
+  return Array.from(els.brand.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
+}
+
+async function loadTypeOptions() {
+  const groupId = els.group.value;
+  if (!groupId) return;
+  const payload = {
+    group_id: parseInt(groupId),
+    brands: getSelectedBrands(),
+    categories: getSelectedCategories()
+  };
+  const res = await fetch('/pricing/analyzer/api/options', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.ok) {
+    setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
+  }
+}
+
 async function loadOptions() {
   const groupId = els.group.value;
   if (!groupId) {
     setSelectOptions(els.brand, []);
-    setSelectOptions(els.category, []);
+    els.category.innerHTML = '';
+    renderCategoryDropdown();
     setSelectOptions(els.type, []);
     updatePrompt();
     if (!isLoadingIteration) resetIteration();
     return;
   }
   
-  const currentCategory = els.category.value;
+  const currentCatIds = new Set(selectedValues(els.category));
+  const currentCatValues = getSelectedCategories();
   
   const payload = {
     group_id: parseInt(groupId),
-    brands: selectedValues(els.brand),
-    category: currentCategory || null
+    brands: getSelectedBrands(),
+    categories: currentCatValues
   };
   
   showLoader();
@@ -1630,25 +1586,25 @@ async function loadOptions() {
   
   if (!data.ok) {
     setSelectOptions(els.brand, []);
-    setSelectOptions(els.category, []);
+    els.category.innerHTML = '';
+    renderCategoryDropdown();
     setSelectOptions(els.type, []);
     updatePrompt();
     return;
   }
   
-  setSelectOptions(els.brand, data.brand_options || [], selectedValues(els.brand));
+  setSelectOptions(els.brand, data.brand_options || [], getSelectedBrandIds().map(String));
   
-  const categories = data.category_options || [];
-  els.category.innerHTML = '<option value="">Select Category</option>';
-  categories.forEach(item => {
+  const catOptions = data.category_options || [];
+  els.category.innerHTML = '';
+  catOptions.forEach(item => {
     const opt = document.createElement('option');
-    opt.value = item.value;
+    opt.value = item.category_id;
     opt.textContent = item.label;
+    opt.dataset.categoryValue = item.value;
     if (item.analyzed_count !== undefined) opt.dataset.analyzedCount = item.analyzed_count;
     if (item.total_count !== undefined) opt.dataset.totalCount = item.total_count;
-    if (currentCategory && String(item.value) === String(currentCategory)) {
-      opt.selected = true;
-    }
+    if (currentCatValues.includes(item.value)) opt.selected = true;
     els.category.appendChild(opt);
   });
   renderCategoryDropdown();
@@ -1656,8 +1612,8 @@ async function loadOptions() {
   setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
   updatePrompt();
   
-  // Load iteration history if category is selected
-  if (currentCategory) {
+  // Load iteration history if categories are selected
+  if (currentCatValues.length > 0) {
     await loadIterationHistory();
   }
 }
@@ -1684,16 +1640,19 @@ function resetIteration() {
 
 async function loadIterationHistory() {
   const groupId = els.group.value;
-  const category = els.category.value;
+  const categories = getSelectedCategories();
+  const categoryIds = getSelectedCategoryIds();
+  const brandIds = getSelectedBrandIds();
   
-  if (!groupId || !category) return;
-  
-  // Skip if already loading or if we already have history for this category
+  if (!groupId) return;
+  if (!categories.length && !brandIds.length) return;
   if (isLoadingIteration) return;
   
   const payload = {
     group_id: parseInt(groupId),
-    category: category
+    categories: categories,
+    category_ids: categoryIds,
+    brand_ids: brandIds
   };
   
   const res = await fetch('/pricing/analyzer/api/iteration-history', {
@@ -1711,15 +1670,13 @@ async function loadIterationHistory() {
     }
     
     displayIterationSummary();
-    
-    // Remove auto-load - user must manually click analyze or view icon
   }
 }
 
 async function resetIterationData() {
   const groupId = els.group.value;
-  const category = els.category.value;
-  const brands = selectedValues(els.brand);
+  const categories = getSelectedCategories();
+  const brands = getSelectedBrands();
   const types = selectedValues(els.type);
   
   if (!groupId) {
@@ -1727,15 +1684,14 @@ async function resetIterationData() {
     return;
   }
   
-  // Build a clear confirm message based on what is selected
   const groupName = els.group.options[els.group.selectedIndex].text.split('(')[0].trim();
   let scopeLines = [`Product Group: ${groupName}`];
   if (brands.length) scopeLines.push(`Brand(s): ${brands.join(', ')}`);
-  if (category) scopeLines.push(`Category: ${category}`);
+  if (categories.length) scopeLines.push(`Category: ${categories.join(', ')}`);
   if (types.length) scopeLines.push(`Product Type(s): ${types.join(', ')}`);
   
-  const scopeDesc = category
-    ? `the selected category "${category}"`
+  const scopeDesc = categories.length
+    ? `the selected categories "${categories.join(', ')}"`
     : `ALL categories in "${groupName}"`;
   
   const confirmMsg = `Are you sure you want to reset?\n\nThis will permanently delete all iteration records for ${scopeDesc}.\n\nScope:\n${scopeLines.join('\n')}`;
@@ -1744,9 +1700,10 @@ async function resetIterationData() {
     return;
   }
   
+  // Reset each selected category (or all if none selected)
   const payload = {
     group_id: parseInt(groupId),
-    category: category || null
+    category: categories.length === 1 ? categories[0] : null
   };
   
   showLoader();
@@ -1805,6 +1762,37 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     
     // Step 4: Display results immediately with current data
     document.querySelector('input[name="viewMode"][value="chart"]').checked = true;
+    
+    // Restore activeAxisMeta from current dropdown selections before rendering
+    activeAxisMeta = getAxisMeta();
+
+    // Apply saved axis columns from iteration if available
+    if (filters.x_axis && filters.y_axis && filters.z_axis && insightColumns.length > 0) {
+      applyInsightConfig({ x_axis: filters.x_axis, y_axis: filters.y_axis, z_axis: filters.z_axis });
+      activeAxisMeta = getAxisMeta();
+      // Select matching chart config in dropdown
+      const matchingConfig = insightConfigs.find(c =>
+        String(c.x_axis) === String(filters.x_axis) &&
+        String(c.y_axis) === String(filters.y_axis) &&
+        String(c.z_axis) === String(filters.z_axis)
+      );
+      document.getElementById('insightChartSelector').value = matchingConfig ? matchingConfig.id : '';
+    } else if (filters.x_axis && filters.y_axis && filters.z_axis) {
+      // insightColumns not loaded yet — wait for loadInsightConfig then apply
+      window._pendingAxisRestore = { x_axis: filters.x_axis, y_axis: filters.y_axis, z_axis: filters.z_axis };
+    }
+
+    // Restore com axis meta before rendering so cluster groups use com columns
+    if (filters.x_axis_com || filters.y_axis_com || filters.z_axis_com) {
+      const colMap = {};
+      insightColumns.forEach(c => { colMap[c.id] = c; });
+      activeAxisComMeta = {
+        x: filters.x_axis_com && colMap[filters.x_axis_com] ? { code: colMap[filters.x_axis_com].code, name: colMap[filters.x_axis_com].name, symbol: colMap[filters.x_axis_com].symbol || '' } : null,
+        y: filters.y_axis_com && colMap[filters.y_axis_com] ? { code: colMap[filters.y_axis_com].code, name: colMap[filters.y_axis_com].name, symbol: colMap[filters.y_axis_com].symbol || '' } : null,
+        z: filters.z_axis_com && colMap[filters.z_axis_com] ? { code: colMap[filters.z_axis_com].code, name: colMap[filters.z_axis_com].name, symbol: colMap[filters.z_axis_com].symbol || '' } : null,
+      };
+    }
+    
     displayResults({
       data: analysisData,
       total: analysisData.length,
@@ -1813,18 +1801,18 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     }, true);
     
     // Step 5: Load options and set remaining filters in background
-    await loadOptionsForIteration(filters.group_id, filters.category);
+    const savedCategories = filters.categories && filters.categories.length > 0 ? filters.categories : (filters.category ? [filters.category] : []);
+    await loadOptionsForIteration(filters.group_id, savedCategories);
     
-    // Set category after options are loaded
-    if (filters.category) {
-      els.category.value = filters.category;
-      renderCategoryDropdown();
-    }
-    
-    // Set other filters
-    if (filters.brand) {
+    // Set other filters — restore brands by ID
+    if (filters.brand_ids && filters.brand_ids.length > 0) {
+      const idSet = new Set(filters.brand_ids.map(String));
+      Array.from(els.brand.options).forEach(opt => { opt.selected = idSet.has(String(opt.value)); });
+      renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand');
+    } else if (filters.brands && filters.brands.length > 0) {
+      const brandSet = new Set(filters.brands);
       Array.from(els.brand.options).forEach(opt => {
-        opt.selected = opt.value === filters.brand;
+        opt.selected = brandSet.has(opt.dataset.brandValue || opt.textContent.replace(/\s*\(\d+\)$/, '').trim());
       });
       renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand');
     }
@@ -1855,7 +1843,10 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     
     // Step 6: Load iteration history in background (non-blocking)
     setTimeout(() => {
-      loadIterationHistoryBackground(filters.group_id, filters.category);
+      // Build categoryIds from the restored options
+      const restoredCatIds = Array.from(els.category.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
+      const restoredBrandIds = Array.from(els.brand.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
+      loadIterationHistoryBackground(filters.group_id, savedCategories, restoredCatIds, restoredBrandIds);
       
       // Step 7: Apply cluster filter if specified
       if (targetCluster !== null) {
@@ -1910,13 +1901,25 @@ async function deleteIteration(iterationId) {
 
 async function runAnalysis() {
   const groupId = els.group.value;
-  const brands = selectedValues(els.brand);
-  const category = els.category.value;
+  const brands = getSelectedBrands();
+  const categories = getSelectedCategories();
   const types = selectedValues(els.type);
   const algorithms = selectedValues(els.algo);
   
-  if (!groupId || !algorithms.length || !category) {
-    showMessage('Please select Product Group, Category and at least one Algorithm');
+  if (!groupId || !algorithms.length || (!categories.length && !brands.length)) {
+    showMessage('Please select Product Group, at least one Brand or Category, and at least one Algorithm');
+    return;
+  }
+
+  const xVal = document.getElementById('insightXAxis').value;
+  const yVal = document.getElementById('insightYAxis').value;
+  const zVal = document.getElementById('insightZAxis').value;
+  ['insightXAxis', 'insightYAxis', 'insightZAxis'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.borderColor = el.value ? '#c9d4e7' : '#e74c3c';
+  });
+  if (!xVal || !yVal || !zVal) {
+    showMessage('Please select X Axis, Y Axis, and Z Axis columns');
     return;
   }
   
@@ -1926,11 +1929,26 @@ async function runAnalysis() {
   const analysisAllBtn = document.getElementById('analysisAllBtn');
   const analysisPendingBtn = document.getElementById('analysisPendingBtn');
   const analysisMode = analysisAllBtn && analysisAllBtn.classList.contains('active') ? 'all' : 'pending';
+
+  const axisMeta = getAxisMeta();
+  const axisCols = [axisMeta.x.code, axisMeta.y.code, axisMeta.z.code];
+  const axisColIds = [
+    parseInt(document.getElementById('insightXAxis').value),
+    parseInt(document.getElementById('insightYAxis').value),
+    parseInt(document.getElementById('insightZAxis').value)
+  ];
+  const axisMetaPayload = {
+    [axisMeta.x.code]: { name: axisMeta.x.name, symbol: axisMeta.x.symbol },
+    [axisMeta.y.code]: { name: axisMeta.y.name, symbol: axisMeta.y.symbol },
+    [axisMeta.z.code]: { name: axisMeta.z.name, symbol: axisMeta.z.symbol }
+  };
   
   const payload = {
     group_id: groupId,
     brands: brands,
-    category: category,
+    brand_ids: getSelectedBrandIds(),
+    categories: categories,
+    category_ids: getSelectedCategoryIds(),
     types: types,
     algorithms: algorithms,
     algorithm_settings: selectedValues(els.algoSettings),
@@ -1941,7 +1959,11 @@ async function runAnalysis() {
     dbscan_min_samples: parseInt(els.minSamp.value),
     analysis_mode: analysisMode,
     save_to_db: saveToDb && !window.viewingIteration,
-    selected_iteration_id: analysisMode === 'pending' ? selectedIterationId : null
+    selected_iteration_id: analysisMode === 'pending' ? selectedIterationId : null,
+    axis_cols: axisCols,
+    axis_col_ids: axisColIds,
+    axis_col_com_ids: getAxisComColIds(),
+    axis_meta: axisMetaPayload
   };
   
   showLoader();
@@ -1959,6 +1981,16 @@ async function runAnalysis() {
   }
   
   analysisData = result.data;
+  
+  // Store active axis meta from result
+  if (result.axis_cols && result.axis_meta && result.axis_cols.length === 3) {
+    const [xc, yc, zc] = result.axis_cols;
+    activeAxisMeta = {
+      x: { code: xc, ...(result.axis_meta[xc] || { name: xc, symbol: '' }) },
+      y: { code: yc, ...(result.axis_meta[yc] || { name: yc, symbol: '' }) },
+      z: { code: zc, ...(result.axis_meta[zc] || { name: zc, symbol: '' }) }
+    };
+  }
   
   // Merge saved iteration data if loading existing iteration
   if (window.savedIterationData && window.savedIterationData.length > 0) {
@@ -1988,6 +2020,9 @@ async function runAnalysis() {
     await loadIterationHistory();
     displayIterationSummary();
   }
+  
+  // Update category display after analysis (categories may have changed)
+  // No-op: categories are already set
   
   // Always display current iteration data after analysis
   displayResults(result, true);
@@ -2092,18 +2127,22 @@ function updateAnalysisToggleState() {
 }
 
 function getpricingGroup(product) {
-  const h = parseFloat(product.mfr_cost) || 0;
-  const w = parseFloat(product.shipping_cost) || 0;
-  const d = parseFloat(product.price) || 0;
+  // Use com axis when com meta is populated (chart selected or loading saved iteration)
+  const useCom = activeAxisComMeta.x && activeAxisComMeta.y && activeAxisComMeta.z;
+  const ax = useCom ? activeAxisComMeta : activeAxisMeta;
+  const xc = ax.x.code, xn = ax.x.name;
+  const yc = ax.y.code, yn = ax.y.name;
+  const zc = ax.z.code, zn = ax.z.name;
+  const h = parseFloat(product[xc]) || 0;
+  const w = parseFloat(product[yc]) || 0;
+  const d = parseFloat(product[zc]) || 0;
   
-  // Determine pricing group based on size ordering
-  if (h >= w && w >= d) return 'Mfr Cost ≥ Shipping Cost ≥ Price';
-  if (h >= d && d >= w) return 'Mfr Cost ≥ Price ≥ Shipping Cost';
-  if (w >= h && h >= d) return 'Shipping Cost ≥ Mfr Cost ≥ Price';
-  if (w >= d && d >= h) return 'Shipping Cost ≥ Price ≥ Mfr Cost';
-  if (d >= h && h >= w) return 'Price ≥ Mfr Cost ≥ Shipping Cost';
-  if (d >= w && w >= h) return 'Price ≥ Shipping Cost ≥ Mfr Cost';
-  
+  if (h >= w && w >= d) return `${xn} ≥ ${yn} ≥ ${zn}`;
+  if (h >= d && d >= w) return `${xn} ≥ ${zn} ≥ ${yn}`;
+  if (w >= h && h >= d) return `${yn} ≥ ${xn} ≥ ${zn}`;
+  if (w >= d && d >= h) return `${yn} ≥ ${zn} ≥ ${xn}`;
+  if (d >= h && h >= w) return `${zn} ≥ ${xn} ≥ ${yn}`;
+  if (d >= w && w >= h) return `${zn} ≥ ${yn} ≥ ${xn}`;
   return 'Unknown';
 }
 
@@ -3474,14 +3513,15 @@ function displayChart(data) {
   const normals = data.filter(d => !d.is_outlier_combined);
   const outliers = data.filter(d => d.is_outlier_combined);
   
+  const ax = activeAxisMeta;
+  const axLabel = a => a.symbol ? (a.symbol === '%' ? `${a.name} (%)` : `${a.name} (${a.symbol})`) : a.name;
+  const axFmt = (val, sym) => { if (val == null) return '-'; const n = parseFloat(val).toFixed(2); return sym ? (sym === '%' ? n + '%' : sym + n) : n; };
   const allData = data;
-  const max_width = Math.max(...allData.map(d => d.shipping_cost));
-  const max_height = Math.max(...allData.map(d => d.mfr_cost));
-  const max_depth = Math.max(...allData.map(d => d.price));
+  const max_x = Math.max(...allData.map(d => parseFloat(d[ax.x.code]) || 0));
+  const max_y = Math.max(...allData.map(d => parseFloat(d[ax.y.code]) || 0));
+  const max_z = Math.max(...allData.map(d => parseFloat(d[ax.z.code]) || 0));
   
   const traces = [];
-  
-  // Group normals by cluster
   const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
   const clusterGroups = {};
   
@@ -3491,7 +3531,6 @@ function displayChart(data) {
     clusterGroups[cluster].push(d);
   });
   
-  // Create trace for each cluster
   Object.keys(clusterGroups).sort((a, b) => {
     if (a === 'none') return 1;
     if (b === 'none') return -1;
@@ -3503,27 +3542,22 @@ function displayChart(data) {
     const clusterLabel = cluster === 'none' ? 'Normal Products' : `Cluster ${cluster} (${clusterData.length})`;
     
     traces.push({
-      x: clusterData.map(d => d.shipping_cost),
-      y: clusterData.map(d => d.mfr_cost),
-      z: clusterData.map(d => d.price),
+      x: clusterData.map(d => parseFloat(d[ax.x.code]) || 0),
+      y: clusterData.map(d => parseFloat(d[ax.y.code]) || 0),
+      z: clusterData.map(d => parseFloat(d[ax.z.code]) || 0),
       mode: 'markers',
       type: 'scatter3d',
       name: clusterName,
-      marker: {
-        size: 8,
-        color: color,
-        opacity: 0.8,
-        line: {color: color, width: 1.5},
-        symbol: 'circle'
-      },
+      marker: { size: 8, color, opacity: 0.8, line: {color, width: 1.5}, symbol: 'circle' },
       text: clusterData.map(d => d.SKU),
-      customdata: clusterData,
-      hovertemplate: '<b style="font-size:14px">%{text}</b><br><br>' +
-                     '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
-                     '<b>Type:</b> %{customdata.Type}<br>' +
-                     '<b>Cluster:</b> ' + clusterLabel + '<br><br><b style="color:#2c3e50">💰 Pricing:</b><br>' +
-                     'Mfr Cost: <b>$%{customdata.mfr_cost}</b><br>Shipping Cost: <b>$%{customdata.shipping_cost}</b><br>' +
-                     'Price: <b>$%{customdata.price}</b><br><extra></extra>',
+      customdata: clusterData.map(d => ({...d, _fx: axFmt(d[ax.x.code], ax.x.symbol), _fy: axFmt(d[ax.y.code], ax.y.symbol), _fz: axFmt(d[ax.z.code], ax.z.symbol)})),
+      hovertemplate: `<b style="font-size:14px">%{text}</b><br><br>` +
+                     `<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>` +
+                     `<b>Type:</b> %{customdata.Type}<br>` +
+                     `<b>Cluster:</b> ${clusterLabel}<br><br>` +
+                     `<b>${axLabel(ax.x)}:</b> %{customdata._fx}<br>` +
+                     `<b>${axLabel(ax.y)}:</b> %{customdata._fy}<br>` +
+                     `<b>${axLabel(ax.z)}:</b> %{customdata._fz}<br><extra></extra>`,
       hoverlabel: { namelength: -1 },
       visible: true
     });
@@ -3531,27 +3565,22 @@ function displayChart(data) {
   
   if (outliers.length) {
     traces.push({
-      x: outliers.map(d => d.shipping_cost),
-      y: outliers.map(d => d.mfr_cost),
-      z: outliers.map(d => d.price),
+      x: outliers.map(d => parseFloat(d[ax.x.code]) || 0),
+      y: outliers.map(d => parseFloat(d[ax.y.code]) || 0),
+      z: outliers.map(d => parseFloat(d[ax.z.code]) || 0),
       mode: 'markers',
       type: 'scatter3d',
       name: 'Outlier Products',
-      marker: {
-        size: 8,
-        color: '#E74C3C',
-        opacity: 0.9,
-        line: {color: '#C0392B', width: 2},
-        symbol: 'diamond'
-      },
+      marker: { size: 8, color: '#E74C3C', opacity: 0.9, line: {color: '#C0392B', width: 2}, symbol: 'diamond' },
       text: outliers.map(d => d.SKU),
       customdata: outliers,
-      hovertemplate: '<b style="font-size:14px">⚠️ OUTLIER: %{text}</b><br><br>' +
-                     '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
-                     '<b>Type:</b> %{customdata.Type}<br>' +
-                     '<b>Cluster:</b> Noise/Outlier (' + outliers.length + ')<br><br><b style="color:#c0392b">💰 Pricing:</b><br>' +
-                     'Mfr Cost: <b>$%{customdata.mfr_cost}</b><br>Shipping Cost: <b>$%{customdata.shipping_cost}</b><br>' +
-                     'Price: <b>$%{customdata.price}</b><br><extra></extra>',
+      hovertemplate: `<b style="font-size:14px">⚠️ OUTLIER: %{text}</b><br><br>` +
+                     `<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>` +
+                     `<b>Type:</b> %{customdata.Type}<br>` +
+                     `<b>Cluster:</b> Noise/Outlier (${outliers.length})<br><br>` +
+                     `<b>${ax.x.name}:</b> %{x}<br>` +
+                     `<b>${ax.y.name}:</b> %{y}<br>` +
+                     `<b>${ax.z.name}:</b> %{z}<br><extra></extra>`,
       hoverlabel: { namelength: -1 },
       visible: true
     });
@@ -3559,33 +3588,11 @@ function displayChart(data) {
   
   const layout = {
     scene: {
-      xaxis: {
-        title: { text: 'Shipping Cost' },
-        range: [0, max_width],
-        gridcolor: '#ffffff',
-        showbackground: true,
-        backgroundcolor: '#f0f0f0'
-      },
-      yaxis: {
-        title: { text: 'Mfr Cost' },
-        range: [0, max_height],
-        gridcolor: '#ffffff',
-        showbackground: true,
-        backgroundcolor: '#f0f0f0'
-      },
-      zaxis: {
-        title: { text: 'Price' },
-        range: [0, max_depth],
-        gridcolor: '#ffffff',
-        showbackground: true,
-        backgroundcolor: '#f0f0f0'
-      },
+      xaxis: { title: { text: axLabel(ax.x) }, range: [0, max_x], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
+      yaxis: { title: { text: axLabel(ax.y) }, range: [0, max_y], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
+      zaxis: { title: { text: axLabel(ax.z) }, range: [0, max_z], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
       bgcolor: '#ffffff',
-      camera: {
-        up: { x: 0, y: 1, z: 0 },
-        center: { x: 0, y: 0, z: 0 },
-        eye: { x: 1.8, y: 1.8, z: 1.2 }
-      }
+      camera: { up: {x:0,y:1,z:0}, center: {x:0,y:0,z:0}, eye: {x:1.8,y:1.8,z:1.2} }
     },
     paper_bgcolor: '#ffffff',
     margin: { l: 0, r: 0, b: 0, t: 0 },
@@ -3631,39 +3638,12 @@ function renderpricingGroupPreview(clusterInfo, groupName) {
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
   
-  let productsHtml = '';
-  products.forEach(p => {
-    const isNormal = p.final_status == 1;
-    const isOutlier = p.final_status == 0;
-    const normalColor = isNormal ? '#27ae60' : '#9ca3af';
-    const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
-    
-    productsHtml += `
-      <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
-        <div style="flex-shrink:0;">
-          ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
-        </div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
-          <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
-            <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
-            <div style="display:flex;gap:4px;margin-left:auto;">
-              <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
-              <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
-            </div>
-          </div>
-          <div style="font-size:13px;color:#374151;">${p.Brand}</div>
-          <div style="font-size:13px;color:#374151;">${p.Type}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Mfr Cost</strong> : $${p.mfr_cost}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Shipping Cost</strong> : $${p.shipping_cost}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Price</strong> : $${p.price}</div>
-        </div>
-      </div>
-    `;
-  });
+  let productsHtml = products.map(p => _productCardHtml(p)).join('');
   
   els.preview.innerHTML = `
     <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} > ${groupName}</h3>
     <div style="font-size:12px;color:#6b7280;margin-bottom:10px;">Products: ${products.length}${pricingGroup.products.length > 100 ? ' of ' + pricingGroup.products.length : ''}</div>
+    ${buildStatsTable(pricingGroup.products)}
     ${productsHtml}
   `;
   
@@ -3671,20 +3651,109 @@ function renderpricingGroupPreview(clusterInfo, groupName) {
   document.querySelectorAll('.item-normal-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      const sku = this.dataset.sku;
-      updateItemStatus(sku, 1);
+      updateItemStatus(this.dataset.sku, 1);
     });
   });
-  
   document.querySelectorAll('.item-outlier-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      const sku = this.dataset.sku;
-      updateItemStatus(sku, 0);
+      updateItemStatus(this.dataset.sku, 0);
     });
   });
   
   initLazyLoading();
+}
+
+function _productCardHtml(p) {
+  const isNormal = p.final_status == 1;
+  const isOutlier = p.final_status == 0;
+  const normalColor = isNormal ? '#27ae60' : '#9ca3af';
+  const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
+  const ax = activeAxisMeta;
+  return `
+    <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
+      <div style="flex-shrink:0;">
+        ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
+          <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
+          <div style="display:flex;gap:4px;margin-left:auto;">
+            <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
+            <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
+          </div>
+        </div>
+        <div style="font-size:13px;color:#374151;">${p.Brand}</div>
+        <div style="font-size:13px;color:#374151;">${p.Type}</div>
+        <div style="font-size:13px;color:#374151;"><strong>${ax.x.name}</strong> : ${fmtVal(p[ax.x.code], ax.x.symbol)}${activeAxisComMeta.x && activeAxisComMeta.x.code !== ax.x.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.x.code], activeAxisComMeta.x.symbol)})</span>` : ''}</div>
+        <div style="font-size:13px;color:#374151;"><strong>${ax.y.name}</strong> : ${fmtVal(p[ax.y.code], ax.y.symbol)}${activeAxisComMeta.y && activeAxisComMeta.y.code !== ax.y.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.y.code], activeAxisComMeta.y.symbol)})</span>` : ''}</div>
+        <div style="font-size:13px;color:#374151;"><strong>${ax.z.name}</strong> : ${fmtVal(p[ax.z.code], ax.z.symbol)}${activeAxisComMeta.z && activeAxisComMeta.z.code !== ax.z.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.z.code], activeAxisComMeta.z.symbol)})</span>` : ''}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildStatsTable(products) {
+  const ax = activeAxisMeta;
+  const com = activeAxisComMeta;
+  const vals = (code) => products.map(p => parseFloat(p[code]) || 0).filter(v => v > 0);
+  const stat = (arr) => {
+    if (!arr.length) return { min: '-', max: '-', avg: '-' };
+    const sorted = [...arr].sort((a, b) => a - b);
+    return {
+      min: sorted[0].toFixed(2),
+      max: sorted[sorted.length - 1].toFixed(2),
+      avg: (arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(2)
+    };
+  };
+  const fmt = (s, sym) => s === '-' ? '-' : (sym ? (sym === '%' ? s + '%' : sym + s) : s);
+  const fmtWithCom = (mainStat, comStat, mainSym, comSym, mainCode, comCode) => {
+    const main = fmt(mainStat, mainSym);
+    if (!comStat || comStat.min === '-' || mainCode === comCode) return main;
+    const c = fmt(comStat, comSym);
+    return `${main} <span style="color:#6b7280;font-size:10px;">(${c})</span>`;
+  };
+  const sx = stat(vals(ax.x.code));
+  const sy = stat(vals(ax.y.code));
+  const sz = stat(vals(ax.z.code));
+  const scx = com.x ? stat(vals(com.x.code)) : null;
+  const scy = com.y ? stat(vals(com.y.code)) : null;
+  const scz = com.z ? stat(vals(com.z.code)) : null;
+  const axXLabel = ax.x.name + (com.x && com.x.code !== ax.x.code ? ` / ${com.x.name}` : '');
+  const axYLabel = ax.y.name + (com.y && com.y.code !== ax.y.code ? ` / ${com.y.name}` : '');
+  const axZLabel = ax.z.name + (com.z && com.z.code !== ax.z.code ? ` / ${com.z.name}` : '');
+  return `
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+      <thead>
+        <tr style="background:#f1f5f9;">
+          <th style="padding:4px 6px;text-align:left;border:1px solid #e2e8f0;">Axis</th>
+          <th style="padding:4px 6px;text-align:right;border:1px solid #e2e8f0;">Min</th>
+          <th style="padding:4px 6px;text-align:right;border:1px solid #e2e8f0;">Avg</th>
+          <th style="padding:4px 6px;text-align:right;border:1px solid #e2e8f0;">Max</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;font-weight:600;">${axXLabel}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sx.min, scx ? scx.min : null, ax.x.symbol, com.x ? com.x.symbol : '', ax.x.code, com.x ? com.x.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sx.avg, scx ? scx.avg : null, ax.x.symbol, com.x ? com.x.symbol : '', ax.x.code, com.x ? com.x.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sx.max, scx ? scx.max : null, ax.x.symbol, com.x ? com.x.symbol : '', ax.x.code, com.x ? com.x.code : null)}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;font-weight:600;">${axYLabel}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sy.min, scy ? scy.min : null, ax.y.symbol, com.y ? com.y.symbol : '', ax.y.code, com.y ? com.y.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sy.avg, scy ? scy.avg : null, ax.y.symbol, com.y ? com.y.symbol : '', ax.y.code, com.y ? com.y.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sy.max, scy ? scy.max : null, ax.y.symbol, com.y ? com.y.symbol : '', ax.y.code, com.y ? com.y.code : null)}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;font-weight:600;">${axZLabel}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sz.min, scz ? scz.min : null, ax.z.symbol, com.z ? com.z.symbol : '', ax.z.code, com.z ? com.z.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sz.avg, scz ? scz.avg : null, ax.z.symbol, com.z ? com.z.symbol : '', ax.z.code, com.z ? com.z.code : null)}</td>
+          <td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:right;">${fmtWithCom(sz.max, scz ? scz.max : null, ax.z.symbol, com.z ? com.z.symbol : '', ax.z.code, com.z ? com.z.code : null)}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
 }
 
 function renderClusterPreview(clusterInfo) {
@@ -3697,55 +3766,24 @@ function renderClusterPreview(clusterInfo) {
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
   
-  let productsHtml = '';
-  products.forEach(p => {
-    const isNormal = p.final_status == 1;
-    const isOutlier = p.final_status == 0;
-    const normalColor = isNormal ? '#27ae60' : '#9ca3af';
-    const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
-    
-    productsHtml += `
-      <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
-        <div style="flex-shrink:0;">
-          ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
-        </div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
-          <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
-            <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
-            <div style="display:flex;gap:4px;margin-left:auto;">
-              <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
-              <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
-            </div>
-          </div>
-          <div style="font-size:13px;color:#374151;">${p.Brand}</div>
-          <div style="font-size:13px;color:#374151;">${p.Type}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Mfr Cost</strong> : $${p.mfr_cost}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Shipping Cost</strong> : $${p.shipping_cost}</div>
-          <div style="font-size:13px;color:#374151;"><strong>Price</strong> : $${p.price}</div>
-        </div>
-      </div>
-    `;
-  });
+  let productsHtml = products.map(p => _productCardHtml(p)).join('');
   
   els.preview.innerHTML = `
     <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} - Products (${products.length}${clusterInfo.products.length > 100 ? ' of ' + clusterInfo.products.length : ''})</h3>
+    ${buildStatsTable(clusterInfo.products)}
     ${productsHtml}
   `;
   
-  // Add event listeners for N and O buttons
   document.querySelectorAll('.item-normal-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      const sku = this.dataset.sku;
-      updateItemStatus(sku, 1);
+      updateItemStatus(this.dataset.sku, 1);
     });
   });
-  
   document.querySelectorAll('.item-outlier-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      const sku = this.dataset.sku;
-      updateItemStatus(sku, 0);
+      updateItemStatus(this.dataset.sku, 0);
     });
   });
   
@@ -3788,9 +3826,9 @@ function renderPreview(p) {
   const pricingHtml = `
     <div class="panel">
       <h3 style="margin-top:0;">💰 Pricing</h3>
-      <div>Mfr Cost: $${p.mfr_cost}</div>
-      <div>Shipping Cost: $${p.shipping_cost}</div>
-      <div>Price: $${p.price}</div>
+      <div>${activeAxisMeta.x.name}: ${fmtVal(p[activeAxisMeta.x.code], activeAxisMeta.x.symbol)}</div>
+      <div>${activeAxisMeta.y.name}: ${fmtVal(p[activeAxisMeta.y.code], activeAxisMeta.y.symbol)}</div>
+      <div>${activeAxisMeta.z.name}: ${fmtVal(p[activeAxisMeta.z.code], activeAxisMeta.z.symbol)}</div>
     </div>
   `;
   
@@ -3990,14 +4028,24 @@ function openGridPageBrand(brand, category, finalStatus) {
 }
 
 els.group.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
-els.brand.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
-els.category.addEventListener('change', async () => { 
-  // Reset analysis toggle to All when category changes
+els.brand.addEventListener('change', async () => {
+  resetIteration();
+  suppressCategoryChange = true;
+  await loadOptions();
+  suppressCategoryChange = false;
+  await loadIterationHistory();
+});
+els.category.addEventListener('change', async () => {
+  if (suppressCategoryChange) return;
   document.getElementById('analysisAllBtn').classList.add('active');
   document.getElementById('analysisPendingBtn').classList.remove('active');
-  resetIteration(); 
-  await loadOptions(); 
-  updatePrompt(); 
+  resetIteration();
+  await loadTypeOptions();
+  const cats = getSelectedCategories();
+  if (cats.length > 0) {
+    await loadIterationHistory();
+  }
+  updatePrompt();
 });
 els.type.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
 els.algo.addEventListener('change', () => { syncAlgoPanels(); });
@@ -4116,6 +4164,19 @@ async function submitExportAnalysis() {
     showMessage('Please select a Product Group on the main analyzer page first');
     return;
   }
+
+  const xVal = document.getElementById('insightXAxis').value;
+  const yVal = document.getElementById('insightYAxis').value;
+  const zVal = document.getElementById('insightZAxis').value;
+  ['insightXAxis', 'insightYAxis', 'insightZAxis'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.borderColor = el.value ? '#c9d4e7' : '#e74c3c';
+  });
+  if (!xVal || !yVal || !zVal) {
+    showMessage('Please select X Axis, Y Axis, and Z Axis columns before running Analyze All Export');
+    closeExportModal();
+    return;
+  }
   
   // Get algorithm settings
   const algorithmSettings = [];
@@ -4170,7 +4231,8 @@ async function submitExportAnalysis() {
       algorithm: algorithm,
       record_type: recordType,
       configurations: configs,
-      algorithm_settings: algorithmSettings
+      algorithm_settings: algorithmSettings,
+      axis_cols: [getAxisMeta().x.code, getAxisMeta().y.code, getAxisMeta().z.code]
     };
     
     const res = await fetch('/pricing/analyzer/api/analyze-all-export', {
@@ -4427,10 +4489,162 @@ document.getElementById('exportAlgoSettingsTrigger').addEventListener('click', (
   if (willOpen) document.getElementById('exportAlgoSettingsMenu').classList.remove('hidden');
 });
 
+// ── Insight Config Dropdowns ──────────────────────────────────────────────
+let insightConfigs = [];
+let insightColumns = [];
+
+// Active axis state — updated after every analyze call
+let activeAxisMeta = {
+  x: { code: '', name: '', symbol: '' },
+  y: { code: '', name: '', symbol: '' },
+  z: { code: '', name: '', symbol: '' }
+};
+let activeAxisComMeta = { x: null, y: null, z: null };
+
+function getAxisComColIds() {
+  const comConfig = insightConfigs.find(c => c.is_default) || insightConfigs[0];
+  if (!comConfig) return null;
+  const ids = [comConfig.x_axis_com, comConfig.y_axis_com, comConfig.z_axis_com];
+  if (ids.every(id => id != null)) return ids.map(id => parseInt(id));
+  return null;
+}
+
+function getAxisMeta() {
+  // Read current dropdown selections; fall back to activeAxisMeta
+  const colMap = {};
+  insightColumns.forEach(c => { colMap[c.id] = c; });
+
+  const xId = parseInt(document.getElementById('insightXAxis').value);
+  const yId = parseInt(document.getElementById('insightYAxis').value);
+  const zId = parseInt(document.getElementById('insightZAxis').value);
+
+  const xCol = colMap[xId];
+  const yCol = colMap[yId];
+  const zCol = colMap[zId];
+
+  return {
+    x: xCol ? { code: xCol.code, name: xCol.name, symbol: xCol.symbol || '' } : activeAxisMeta.x,
+    y: yCol ? { code: yCol.code, name: yCol.name, symbol: yCol.symbol || '' } : activeAxisMeta.y,
+    z: zCol ? { code: zCol.code, name: zCol.name, symbol: zCol.symbol || '' } : activeAxisMeta.z
+  };
+}
+
+function fmtVal(val, symbol) {
+  if (val === null || val === undefined || val === '') return '-';
+  const n = parseFloat(val).toFixed(2); return symbol ? (symbol === '%' ? n + '%' : symbol + n) : n;
+}
+
+async function loadInsightConfig() {
+  const res = await fetch('/pricing/analyzer/api/insight-config');
+  const data = await res.json();
+  if (!data.ok) return;
+
+  insightConfigs = data.configs;
+  insightColumns = data.columns;
+
+  const chartSel = document.getElementById('insightChartSelector');
+  chartSel.innerHTML = '<option value="">Select Chart</option>';
+  insightConfigs.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    if (c.is_default) opt.selected = true;
+    chartSel.appendChild(opt);
+  });
+
+  populateAxisDropdowns(insightColumns);
+
+  // Apply default config if one is marked default
+  const defaultConfig = insightConfigs.find(c => c.is_default);
+  if (window._pendingAxisRestore) {
+    applyInsightConfig(window._pendingAxisRestore);
+    activeAxisMeta = getAxisMeta();
+    const pr = window._pendingAxisRestore;
+    const matchingConfig = insightConfigs.find(c =>
+      String(c.x_axis) === String(pr.x_axis) &&
+      String(c.y_axis) === String(pr.y_axis) &&
+      String(c.z_axis) === String(pr.z_axis)
+    );
+    document.getElementById('insightChartSelector').value = matchingConfig ? matchingConfig.id : '';
+    delete window._pendingAxisRestore;
+  } else if (defaultConfig) {
+    applyInsightConfig(defaultConfig);
+  } else {
+    syncAxisDisabledState();
+  }
+  // Store com axis meta from default config
+  const comConfig = insightConfigs.find(c => c.is_default) || insightConfigs[0];
+  if (comConfig) {
+    const colMap = {};
+    insightColumns.forEach(c => { colMap[c.id] = c; });
+    activeAxisComMeta = {
+      x: comConfig.x_axis_com ? (colMap[comConfig.x_axis_com] ? { code: colMap[comConfig.x_axis_com].code, name: colMap[comConfig.x_axis_com].name, symbol: colMap[comConfig.x_axis_com].symbol || '' } : null) : null,
+      y: comConfig.y_axis_com ? (colMap[comConfig.y_axis_com] ? { code: colMap[comConfig.y_axis_com].code, name: colMap[comConfig.y_axis_com].name, symbol: colMap[comConfig.y_axis_com].symbol || '' } : null) : null,
+      z: comConfig.z_axis_com ? (colMap[comConfig.z_axis_com] ? { code: colMap[comConfig.z_axis_com].code, name: colMap[comConfig.z_axis_com].name, symbol: colMap[comConfig.z_axis_com].symbol || '' } : null) : null,
+    };
+  }
+}
+
+function populateAxisDropdowns(columns, preserveX, preserveY, preserveZ) {
+  ['insightXAxis', 'insightYAxis', 'insightZAxis'].forEach((id, idx) => {
+    const sel = document.getElementById(id);
+    const preserve = [preserveX, preserveY, preserveZ][idx];
+    sel.innerHTML = '<option value="">Select Column</option>';
+    columns.forEach(col => {
+      const opt = document.createElement('option');
+      opt.value = col.id;
+      opt.textContent = col.name + (col.symbol ? ` (${col.symbol})` : '');
+      if (preserve && String(col.id) === String(preserve)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function applyInsightConfig(config) {
+  populateAxisDropdowns(insightColumns, config.x_axis, config.y_axis, config.z_axis);
+  syncAxisDisabledState();
+}
+
+function syncAxisDisabledState() {
+  const ids = ['insightXAxis', 'insightYAxis', 'insightZAxis'];
+  const selected = ids.map(id => document.getElementById(id).value).filter(v => v !== '');
+  ids.forEach(id => {
+    const sel = document.getElementById(id);
+    Array.from(sel.options).forEach(opt => {
+      if (opt.value === '') return;
+      // Disable if selected in another dropdown
+      const usedElsewhere = ids
+        .filter(otherId => otherId !== id)
+        .some(otherId => document.getElementById(otherId).value === opt.value);
+      opt.disabled = usedElsewhere;
+    });
+  });
+}
+
+document.getElementById('insightChartSelector').addEventListener('change', function() {
+  const configId = parseInt(this.value);
+  if (!configId) {
+    // Clear axis selections
+    populateAxisDropdowns(insightColumns);
+    syncAxisDisabledState();
+    return;
+  }
+  const config = insightConfigs.find(c => c.id === configId);
+  if (config) applyInsightConfig(config);
+});
+
+['insightXAxis', 'insightYAxis', 'insightZAxis'].forEach(id => {
+  document.getElementById(id).addEventListener('change', function() {
+    syncAxisDisabledState();
+    this.style.borderColor = this.value ? '#c9d4e7' : '#e74c3c';
+  });
+});
+
 (async function init() {
   renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, 'Select Algorithm(s)');
   renderMultiCheckboxDropdown(els.algoSettings, els.algoSettingsMenu, els.algoSettingsTrigger, els.algoSettingsCount, 'Algorithm Settings');
   syncAlgoPanels();
+  loadInsightConfig();
   
   // Check for URL parameters
   const urlParams = new URLSearchParams(window.location.search);

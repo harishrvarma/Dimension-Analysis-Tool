@@ -46,7 +46,7 @@ class ProductIterationRepository:
             print(f"Error deleting iteration with items: {e}")
             return False
 
-    def save_iteration(self, brand, category, product_types, product_group_id, algorithm, eps, sample, unique_number=None, total_items=None, analyzed_items=None, pending_items=None, outlier_items=None):
+    def save_iteration(self, brand, category, product_types, product_group_id, algorithm, eps, sample, unique_number=None, total_items=None, analyzed_items=None, pending_items=None, outlier_items=None, x_axis=None, y_axis=None, z_axis=None, x_axis_com=None, y_axis_com=None, z_axis_com=None):
         """Save new iteration and return iteration_id"""
         sorted_types = '|'.join(sorted(product_types)) if isinstance(product_types, list) else product_types
         
@@ -64,7 +64,13 @@ class ProductIterationRepository:
                 total_items=total_items,
                 analyzed_items=analyzed_items,
                 pending_items=pending_items,
-                outlier_items=outlier_items
+                outlier_items=outlier_items,
+                x_axis=x_axis,
+                y_axis=y_axis,
+                z_axis=z_axis,
+                x_axis_com=x_axis_com,
+                y_axis_com=y_axis_com,
+                z_axis_com=z_axis_com
             )
             self.db.add(iteration)
             self.db.flush()
@@ -144,7 +150,7 @@ class ProductIterationRepository:
                     Product.category == category,
                     Product.mfr_cost.isnot(None),
                     Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
+                    Product.profit_margin.isnot(None)
                 )
                 
                 if brands and len(brands) > 0:
@@ -307,24 +313,127 @@ class ProductIterationRepository:
             print(f"Error deleting iterations by filters: {e}")
             return False
 
-    def get_iteration_summary_by_group_category(self, group_id, category):
-        """Get iteration summary by group_id and category"""
-        from sqlalchemy import func
+    def get_iteration_summary_by_group_brand(self, group_id, brand_ids):
+        """Get iteration summary filtered by brand IDs only (no category filter)"""
+        from sqlalchemy import func, text
         from models.pricing.product_iteration_item import PricingProductIterationItem
         from models.pricing.product import Product
-        
+
         try:
-            results = self.db.query(
+            brand_conditions = " OR ".join(
+                [f"FIND_IN_SET(:bid{i}, pricing_product_iteration.brand) > 0" for i in range(len(brand_ids))]
+            )
+            bind_params = {f"bid{i}": str(bid) for i, bid in enumerate(brand_ids)}
+
+            q = self.db.query(
                 ProductIteration.iteration_id,
                 ProductIteration.eps,
-                ProductIteration.sample
+                ProductIteration.sample,
+                ProductIteration.x_axis,
+                ProductIteration.y_axis,
+                ProductIteration.z_axis
             ).join(
                 PricingProductIterationItem,
                 ProductIteration.iteration_id == PricingProductIterationItem.iteration_id
             ).filter(
                 ProductIteration.product_group_id == group_id,
-                ProductIteration.category == category
+                text(f"({brand_conditions})").bindparams(**bind_params)
             ).group_by(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample
+            ).order_by(
+                ProductIteration.iteration_id.asc()
+            ).all()
+
+            summary = []
+            for row in q:
+                iter_id = row.iteration_id
+                total = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.status == 1,
+                    PricingProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.status == 0,
+                    PricingProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                manual_outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 0,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                manual_normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 1,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                summary.append({
+                    'iteration': iter_id,
+                    'iteration_id': iter_id,
+                    'eps': float(row.eps) if row.eps else None,
+                    'sample': int(row.sample) if row.sample else None,
+                    'x_axis': row.x_axis,
+                    'y_axis': row.y_axis,
+                    'z_axis': row.z_axis,
+                    'total_count': int(total),
+                    'normal_count': int(normal),
+                    'outlier_count': int(outlier),
+                    'manual_outlier_count': int(manual_outlier),
+                    'manual_normal_count': int(manual_normal)
+                })
+            return summary
+        except Exception as e:
+            print(f"Error getting iteration summary by brand: {e}")
+            return []
+
+    def get_iteration_summary_by_group_category(self, group_id, category, brand_ids=None):
+        """Get iteration summary by group_id and category"""
+        from sqlalchemy import func, text
+        from models.pricing.product_iteration_item import PricingProductIterationItem
+        from models.pricing.product import Product
+        
+        try:
+            q = self.db.query(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample,
+                ProductIteration.x_axis,
+                ProductIteration.y_axis,
+                ProductIteration.z_axis
+            ).join(
+                PricingProductIterationItem,
+                ProductIteration.iteration_id == PricingProductIterationItem.iteration_id
+            ).filter(
+                ProductIteration.product_group_id == group_id,
+                text("FIND_IN_SET(:cat, pricing_product_iteration.category) > 0").bindparams(cat=str(category))
+            )
+
+            if brand_ids:
+                brand_conditions = " OR ".join(
+                    [f"FIND_IN_SET(:bid{i}, pricing_product_iteration.brand) > 0" for i in range(len(brand_ids))]
+                )
+                bind_params = {f"bid{i}": str(bid) for i, bid in enumerate(brand_ids)}
+                q = q.filter(text(f"({brand_conditions})").bindparams(**bind_params))
+
+            results = q.group_by(
                 ProductIteration.iteration_id,
                 ProductIteration.eps,
                 ProductIteration.sample
@@ -392,6 +501,9 @@ class ProductIterationRepository:
                     'iteration_id': iter_id,
                     'eps': float(row.eps) if row.eps else None,
                     'sample': int(row.sample) if row.sample else None,
+                    'x_axis': row.x_axis,
+                    'y_axis': row.y_axis,
+                    'z_axis': row.z_axis,
                     'total_count': int(total),
                     'normal_count': int(normal),
                     'outlier_count': int(outlier),
@@ -402,4 +514,96 @@ class ProductIterationRepository:
             return summary
         except Exception as e:
             print(f"Error getting iteration summary: {e}")
+            return []
+
+    def get_iteration_summary_by_brand_or_category(self, group_id, brand_ids, category_ids):
+        """Get iterations where brand_id exists in brand column OR category_id exists in category column"""
+        from sqlalchemy import func, text
+        from models.pricing.product_iteration_item import PricingProductIterationItem
+        from models.pricing.product import Product
+
+        try:
+            brand_parts = [f"FIND_IN_SET(:bid{i}, pricing_product_iteration.brand) > 0" for i in range(len(brand_ids))]
+            cat_parts = [f"FIND_IN_SET(:cid{i}, pricing_product_iteration.category) > 0" for i in range(len(category_ids))]
+            or_clause = " OR ".join(brand_parts + cat_parts)
+            bind_params = {f"bid{i}": str(bid) for i, bid in enumerate(brand_ids)}
+            bind_params.update({f"cid{i}": str(cid) for i, cid in enumerate(category_ids)})
+
+            q = self.db.query(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample,
+                ProductIteration.x_axis,
+                ProductIteration.y_axis,
+                ProductIteration.z_axis
+            ).join(
+                PricingProductIterationItem,
+                ProductIteration.iteration_id == PricingProductIterationItem.iteration_id
+            ).filter(
+                ProductIteration.product_group_id == group_id,
+                text(f"({or_clause})").bindparams(**bind_params)
+            ).group_by(
+                ProductIteration.iteration_id,
+                ProductIteration.eps,
+                ProductIteration.sample
+            ).order_by(
+                ProductIteration.iteration_id.asc()
+            ).all()
+
+            summary = []
+            for row in q:
+                iter_id = row.iteration_id
+                total = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.status == 1,
+                    PricingProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.status == 0,
+                    PricingProductIterationItem.final_status.is_(None),
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                manual_outlier = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 0,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                manual_normal = self.db.query(func.count(PricingProductIterationItem.id)).join(
+                    Product, PricingProductIterationItem.system_product_id == Product.system_product_id
+                ).filter(
+                    PricingProductIterationItem.iteration_id == iter_id,
+                    PricingProductIterationItem.final_status == 1,
+                    (Product.skip_status.is_(None)) | (Product.skip_status != 1)
+                ).scalar() or 0
+                summary.append({
+                    'iteration': iter_id,
+                    'iteration_id': iter_id,
+                    'eps': float(row.eps) if row.eps else None,
+                    'sample': int(row.sample) if row.sample else None,
+                    'x_axis': row.x_axis,
+                    'y_axis': row.y_axis,
+                    'z_axis': row.z_axis,
+                    'total_count': int(total),
+                    'normal_count': int(normal),
+                    'outlier_count': int(outlier),
+                    'manual_outlier_count': int(manual_outlier),
+                    'manual_normal_count': int(manual_normal)
+                })
+            return summary
+        except Exception as e:
+            print(f"Error getting iteration summary by brand or category: {e}")
             return []

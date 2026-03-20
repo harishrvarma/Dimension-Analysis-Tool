@@ -46,8 +46,9 @@ def get_brands_for_group(group_id):
             return []
         return [
             {
-                "label": f"{row['brand']} ({row['product_count']})", 
+                "label": f"{row['brand']} ({row['product_count']})",
                 "value": row['brand'],
+                "brand_id": int(row['brand_id']),
                 "analyzed_count": int(row['analyzed_count']),
                 "total_count": int(row['product_count'])
             }
@@ -67,8 +68,9 @@ def get_categories_for_group(group_id, brands=None):
             return []
         return [
             {
-                "label": f"{row['category']} ({row['product_count']})", 
+                "label": f"{row['category']} ({row['product_count']})",
                 "value": row['category'],
+                "category_id": int(row['category_id']),
                 "analyzed_count": int(row['analyzed_count']),
                 "total_count": int(row['product_count'])
             }
@@ -78,17 +80,22 @@ def get_categories_for_group(group_id, brands=None):
         db.close()
 
 
-def get_types_for_group(group_id, brands=None, category=None):
+def get_types_for_group(group_id, brands=None, categories=None):
     """Get product types for a group with analysis status"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-        df = repo.get_types_for_group(group_id, brands, category)
+        # Normalize categories to a single string for the repo (supports comma-separated)
+        if isinstance(categories, list):
+            category_str = ','.join(categories) if categories else None
+        else:
+            category_str = categories
+        df = repo.get_types_for_group(group_id, brands, category_str)
         if df.empty:
             return []
         return [
             {
-                "label": f"{row['product_type']} ({row['product_count']})", 
+                "label": f"{row['product_type']} ({row['product_count']})",
                 "value": row['product_type'],
                 "analyzed_count": int(row['analyzed_count']),
                 "total_count": int(row['product_count'])
@@ -99,15 +106,15 @@ def get_types_for_group(group_id, brands=None, category=None):
         db.close()
 
 
-def load_products_filtered(group_id, brands=None, category=None, types=None, iteration=1, for_save=False, for_display=False):
+def load_products_filtered(group_id, brands=None, category=None, types=None, iteration=1, for_save=False, for_display=False, axis_cols=None):
     """Load product data from database with filters for specific iteration"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         if iteration > 1 and not for_save:
-            df = repo.load_products_for_iteration(group_id, iteration, brands, category, types, for_display=for_display)
+            df = repo.load_products_for_iteration(group_id, iteration, brands, category, types, for_display=for_display, axis_cols=axis_cols)
         else:
-            df = repo.load_products_filtered(group_id, brands, category, types)
+            df = repo.load_products_filtered(group_id, brands, category, types, axis_cols=axis_cols)
         
         if not df.empty:
             # Rename columns
@@ -121,18 +128,19 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
                 'product_url': 'url_key'
             })
             
-            # Keep system_product_id and product_id as is (don't rename)
-            
-            # Ensure numeric columns
-            for col in ['mfr_cost', 'shipping_cost', 'price']:
+            # Ensure numeric columns for all known pricing/dimension columns
+            numeric_cols = ['mfr_cost', 'shipping_cost', 'price', 'profit_margin', 'weight']
+            for col in numeric_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
             
-            if 'weight' in df.columns:
-                df['weight'] = pd.to_numeric(df['weight'], errors='coerce')
-            
-            # Remove rows with missing pricing data
-            df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
+            # Remove rows with missing axis data (only drop cols that exist)
+            if axis_cols and len(axis_cols) == 3:
+                drop_cols = [c for c in axis_cols if c in df.columns]
+            else:
+                drop_cols = [c for c in ['mfr_cost', 'shipping_cost', 'profit_margin'] if c in df.columns]
+            if drop_cols:
+                df = df.dropna(subset=drop_cols)
         
         return df
     finally:
@@ -145,7 +153,7 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
 #     """Detect outliers using DBSCAN"""
 #     df_dbscan = filtered_df.copy()
     
-#     X = df_dbscan[['mfr_cost', 'shipping_cost', 'price']].values
+#     X = df_dbscan[['mfr_cost', 'shipping_cost', 'profit_margin']].values
     
 #     scaler = StandardScaler()
 #     X_scaled = scaler.fit_transform(X)
@@ -166,7 +174,7 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
 #     df_dbscan = filtered_df.copy()
 
 #     # Ensure required columns exist
-#     required_cols = ['mfr_cost', 'shipping_cost', 'price']
+#     required_cols = ['mfr_cost', 'shipping_cost', 'profit_margin']
 #     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
 #     if missing_cols:
 #         raise ValueError(f"Missing required columns: {missing_cols}")
@@ -201,33 +209,36 @@ def load_products_filtered(group_id, brands=None, category=None, types=None, ite
 
 #     return is_outlier_dbscan, df_dbscan
 
-def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settings=None):
+def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settings=None, axis_cols=None):
     print(f"Running DBSCAN with eps={eps}, min_samples={min_samples}, settings={algorithm_settings}")
     """Detect outliers using DBSCAN.
 
+    axis_cols: list of 3 column codes [x_code, y_code, z_code] to use as features.
     algorithm_settings controls which feature groups are used:
-    - shape: ratios (mfr_cost/shipping_cost, shipping_cost/price, mfr_cost/price)
-    - size: raw values (mfr_cost, shipping_cost, price)
-    - volume: mfr_cost*shipping_cost*price
-
-    If algorithm_settings is missing/empty/invalid, defaults to all.
+    - shape: ratios between axis columns
+    - size: raw axis values
+    - volume: product of axis values
     """
 
     df_dbscan = filtered_df.copy()
 
-    # Ensure required columns exist
-    required_cols = ['mfr_cost', 'shipping_cost', 'price']
+    # Determine the 3 axis columns to use
+    if axis_cols and len(axis_cols) == 3:
+        col_x, col_y, col_z = axis_cols
+    else:
+        raise ValueError("axis_cols with 3 column codes is required for DBSCAN")
+
+    required_cols = [col_x, col_y, col_z]
     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
 
-    # Remove rows with NaN values
     df_dbscan = df_dbscan.dropna(subset=required_cols)
+    for _c in required_cols:
+        df_dbscan[_c] = pd.to_numeric(df_dbscan[_c], errors='coerce').astype(float)
+    df_dbscan = df_dbscan.dropna(subset=required_cols)
+    df_dbscan = df_dbscan[(df_dbscan[required_cols] != 0).all(axis=1)]
 
-    # Remove non-positive values (avoid divide-by-zero and invalid calculations)
-    df_dbscan = df_dbscan[(df_dbscan[['mfr_cost', 'shipping_cost', 'price']] > 0).all(axis=1)]
-
-    # Normalize settings
     valid_settings = {'shape', 'size', 'volume'}
     settings = {
         str(s).strip().lower()
@@ -238,55 +249,98 @@ def detect_outliers_dbscan(filtered_df, eps=1.0, min_samples=4, algorithm_settin
     if not settings:
         settings = set(valid_settings)
 
-    # Small constant to avoid division errors
     eps_val = 1e-6
-
     features = []
 
     if 'size' in settings:
-        features.extend(['mfr_cost', 'shipping_cost', 'price'])
+        features.extend(required_cols)
 
     if 'shape' in settings:
-        df_dbscan['mfr_shipping'] = df_dbscan['mfr_cost'] / (df_dbscan['shipping_cost'] + eps_val)
-        df_dbscan['shipping_price'] = df_dbscan['shipping_cost'] / (df_dbscan['price'] + eps_val)
-        df_dbscan['mfr_price'] = df_dbscan['mfr_cost'] / (df_dbscan['price'] + eps_val)
-        features.extend(['mfr_shipping', 'shipping_price', 'mfr_price'])
+        df_dbscan['_ax_ratio_xy'] = df_dbscan[col_x] / (df_dbscan[col_y] + eps_val)
+        df_dbscan['_ax_ratio_yz'] = df_dbscan[col_y] / (df_dbscan[col_z] + eps_val)
+        df_dbscan['_ax_ratio_xz'] = df_dbscan[col_x] / (df_dbscan[col_z] + eps_val)
+        features.extend(['_ax_ratio_xy', '_ax_ratio_yz', '_ax_ratio_xz'])
 
     if 'volume' in settings:
-        df_dbscan['Volume'] = df_dbscan['mfr_cost'] * df_dbscan['shipping_cost'] * df_dbscan['price']
-        features.append('Volume')
+        df_dbscan['_ax_volume'] = df_dbscan[col_x] * df_dbscan[col_y] * df_dbscan[col_z]
+        features.append('_ax_volume')
 
-    # De-duplicate (preserve order)
     seen = set()
     features = [f for f in features if not (f in seen or seen.add(f))]
     print(f"DBSCAN using features: {features}")
     X = df_dbscan[features].values
 
-    # Scale features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Run DBSCAN
     dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean')
     clusters = dbscan.fit_predict(X_scaled)
 
-    # Identify outliers
     is_outlier_dbscan = pd.Series((clusters == -1), index=df_dbscan.index)
-
-    # Store results
     df_dbscan['dbscan_cluster'] = clusters
     df_dbscan['dbscan_is_outlier'] = is_outlier_dbscan
 
     return is_outlier_dbscan, df_dbscan
 
-def get_iteration_history(group_id, category):
-    """Get iteration history from database - only by group_id and category"""
+def fetch_com_col_values(db, system_product_ids, col_codes):
+    """Fetch com column values from pricing_product for given system_product_ids.
+    col_codes: list of 3 column code strings [x_com_code, y_com_code, z_com_code]
+    Returns dict: {system_product_id: {col_code: value}}
+    """
+    if not system_product_ids or not col_codes or not any(col_codes):
+        return {}
+    valid_codes = [c for c in col_codes if c]
+    if not valid_codes:
+        return {}
+    from sqlalchemy import text
+    cols_sql = ', '.join(valid_codes)
+    placeholders = ', '.join([f':spid{i}' for i in range(len(system_product_ids))])
+    params = {f'spid{i}': spid for i, spid in enumerate(system_product_ids)}
+    query = text(f"SELECT system_product_id, {cols_sql} FROM pricing_product WHERE system_product_id IN ({placeholders})")
+    rows = db.execute(query, params).fetchall()
+    result = {}
+    for row in rows:
+        spid = row[0]
+        result[spid] = {code: row[idx + 1] for idx, code in enumerate(valid_codes)}
+    return result
+
+
+def get_iteration_history(group_id, categories, category_ids=None, brand_ids=None):
+    """Get iteration history from database - by group_id and one or more category IDs"""
     from repositories.pricing.product_iteration_repository import ProductIterationRepository
-    
+
     db = SessionLocal()
     try:
         iter_repo = ProductIterationRepository(db)
-        return iter_repo.get_iteration_summary_by_group_category(group_id, category)
+        all_history = []
+        seen_ids = set()
+
+        has_brands = bool(brand_ids)
+        has_categories = bool(category_ids or categories)
+
+        if has_brands and has_categories:
+            # Both selected: OR match
+            cat_lookup = [str(cid) for cid in category_ids] if category_ids else categories
+            for item in iter_repo.get_iteration_summary_by_brand_or_category(group_id, brand_ids, cat_lookup):
+                if item['iteration_id'] not in seen_ids:
+                    seen_ids.add(item['iteration_id'])
+                    all_history.append(item)
+        elif has_categories:
+            # Category only: match by category
+            lookup_values = [str(cid) for cid in category_ids] if category_ids else categories
+            for val in lookup_values:
+                for item in iter_repo.get_iteration_summary_by_group_category(group_id, val):
+                    if item['iteration_id'] not in seen_ids:
+                        seen_ids.add(item['iteration_id'])
+                        all_history.append(item)
+        elif has_brands:
+            # Brand only: match by brand
+            for item in iter_repo.get_iteration_summary_by_group_brand(group_id, brand_ids):
+                if item['iteration_id'] not in seen_ids:
+                    seen_ids.add(item['iteration_id'])
+                    all_history.append(item)
+
+        return sorted(all_history, key=lambda x: x['iteration_id'])
     finally:
         db.close()
 
@@ -598,9 +652,66 @@ def load_saved_iteration(iteration_id):
             return {"ok": False, "message": "Iteration not found"}
         
         product_types = iteration.product_type.split('|') if iteration.product_type else []
+
+        # Resolve stored category IDs back to category strings for frontend
+        stored_category = iteration.category or ''
+        stored_parts = [p.strip() for p in stored_category.split(',') if p.strip()]
+        if stored_parts and all(p.isdigit() for p in stored_parts):
+            try:
+                from repositories.pricing.product_repository import ProductRepository
+                prod_repo = ProductRepository(db)
+                cat_df = prod_repo.get_categories_for_group(iteration.product_group_id)
+                id_to_cat = {str(row['category_id']): row['category'] for _, row in cat_df.iterrows()} if not cat_df.empty else {}
+                resolved_categories = [id_to_cat[p] for p in stored_parts if p in id_to_cat]
+            except Exception:
+                resolved_categories = []
+        else:
+            resolved_categories = stored_parts
+
+        # Resolve stored brand IDs back to brand strings for frontend
+        stored_brand = iteration.brand or ''
+        stored_brand_parts = [p.strip() for p in stored_brand.split(',') if p.strip()]
+        if stored_brand_parts and all(p.isdigit() for p in stored_brand_parts):
+            try:
+                from repositories.pricing.product_repository import ProductRepository
+                prod_repo = ProductRepository(db)
+                brand_df = prod_repo.get_brands_for_group(iteration.product_group_id)
+                id_to_brand = {str(row['brand_id']): row['brand'] for _, row in brand_df.iterrows()} if not brand_df.empty else {}
+                resolved_brands = [id_to_brand[p] for p in stored_brand_parts if p in id_to_brand]
+                resolved_brand_ids = [int(p) for p in stored_brand_parts]
+            except Exception:
+                resolved_brands = []
+                resolved_brand_ids = []
+        else:
+            resolved_brands = stored_brand_parts
+            resolved_brand_ids = []
         
+        # Resolve axis column codes from stored IDs
+        from repositories.pricing.product_column_repository import ProductColumnRepository
+        col_repo = ProductColumnRepository(db)
+        all_cols = col_repo.get_all()
+        col_id_map = {c.column_id: c for c in all_cols}
+
+        def _col_code(col_id):
+            c = col_id_map.get(col_id)
+            return c.code if c else None
+
+        axis_x_code = _col_code(iteration.x_axis)
+        axis_y_code = _col_code(iteration.y_axis)
+        axis_z_code = _col_code(iteration.z_axis)
+        com_x_code = _col_code(iteration.x_axis_com)
+        com_y_code = _col_code(iteration.y_axis_com)
+        com_z_code = _col_code(iteration.z_axis_com)
+
+        # Build dynamic SELECT for axis + com columns (deduplicated)
+        extra_cols = list(dict.fromkeys(c for c in [
+            axis_x_code, axis_y_code, axis_z_code,
+            com_x_code, com_y_code, com_z_code
+        ] if c))
+        extra_select = (', ' + ', '.join(f'p.{c}' for c in extra_cols)) if extra_cols else ''
+
         # Optimized single query to get all required data
-        query = text("""
+        query = text(f"""
             SELECT 
                 ppii.system_product_id,
                 ppii.status,
@@ -613,11 +724,9 @@ def load_saved_iteration(iteration_id):
                 p.category,
                 p.product_type,
                 p.name,
-                p.mfr_cost,
-                p.shipping_cost,
                 p.price,
                 p.base_image_url,
-                p.product_url
+                p.product_url{extra_select}
             FROM pricing_product_iteration_item ppii
             INNER JOIN pricing_product p ON ppii.system_product_id = p.system_product_id
             WHERE ppii.iteration_id = :iteration_id
@@ -629,6 +738,9 @@ def load_saved_iteration(iteration_id):
         normals = 0
         outliers = 0
         
+        # Column index offset: first 14 fixed cols (0-13), then extra_cols start at 14
+        extra_col_offset = 14
+
         for item in items:
             cluster_num = -1
             if item.cluster and 'Cluster' in str(item.cluster):
@@ -637,37 +749,36 @@ def load_saved_iteration(iteration_id):
                 except:
                     cluster_num = -1
             
-            # Determine is_outlier_combined using merged logic
             is_outlier = (item.final_status == 0) or (item.final_status is None and item.status == 0)
             
-            # Count based on final_status only for stats display
             if item.final_status == 0:
                 outliers += 1
             elif item.final_status == 1:
                 normals += 1
-            # If final_status is None, don't count in either category for stats
             
-            data.append({
-                'SKU': item.qb_code,
-                'Brand': item.brand,
-                'Category': item.category,
-                'Type': item.product_type,
-                'Name': item.name,
-                'mfr_cost': float(item.mfr_cost) if item.mfr_cost else None,
-                'shipping_cost': float(item.shipping_cost) if item.shipping_cost else None,
-                'price': float(item.price) if item.price else None,
-                'imageUrl': item.base_image_url,
-                'url_key': item.product_url,
-                'system_product_id': item.system_product_id,
+            row = {
+                'SKU': item[6],
+                'Brand': item[7],
+                'Category': item[8],
+                'Type': item[9],
+                'Name': item[10],
+                'price': float(item[11]) if item[11] else None,
+                'imageUrl': item[12],
+                'url_key': item[13],
+                'system_product_id': item[0],
                 'is_outlier_combined': is_outlier,
-                'outlier_mode': item.outlier_mode,
-                'final_status': item.final_status,
+                'outlier_mode': item[3],
+                'final_status': item[2],
                 'dbscan_cluster': cluster_num,
-                'analyzed_date': item.analyzed_date.isoformat() if item.analyzed_date else None
-            })
-        
+                'analyzed_date': item[5].isoformat() if item[5] else None
+            }
+            # Add dynamic axis + com column values
+            for i, col in enumerate(extra_cols):
+                raw = item[extra_col_offset + i]
+                row[col] = float(raw) if raw is not None else None
+            data.append(row)
+
         total = len(data)
-        
         return {
             "ok": True,
             "iteration_data": data,
@@ -677,11 +788,20 @@ def load_saved_iteration(iteration_id):
             "filters": {
                 "group_id": iteration.product_group_id,
                 "brand": iteration.brand,
+                "brands": resolved_brands,
+                "brand_ids": resolved_brand_ids,
                 "category": iteration.category,
+                "categories": resolved_categories,
                 "product_types": product_types,
                 "eps": float(iteration.eps) if iteration.eps else None,
                 "sample": int(iteration.sample) if iteration.sample else None,
-                "algorithm": iteration.algorithm
+                "algorithm": iteration.algorithm,
+                "x_axis": iteration.x_axis,
+                "y_axis": iteration.y_axis,
+                "z_axis": iteration.z_axis,
+                "x_axis_com": iteration.x_axis_com,
+                "y_axis_com": iteration.y_axis_com,
+                "z_axis_com": iteration.z_axis_com
             }
         }
     except Exception as e:
@@ -728,7 +848,7 @@ def get_all_previous_outliers(group_id, brands, category, types, current_iterati
         if df.empty:
             return []
         
-        # Rename display columns only (keep mfr_cost/shipping_cost/price as-is)
+        # Rename display columns only (keep mfr_cost/shipping_cost/profit_margin as-is)
         df = df.rename(columns={
             'qb_code': 'SKU',
             'brand': 'Brand',
@@ -757,14 +877,14 @@ def get_all_previous_outliers(group_id, brands, category, types, current_iterati
         db.close()
 
 
-def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, algorithm_settings=None, iteration=1, analysis_mode='all'):
+def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, algorithm_settings=None, iteration=1, analysis_mode='all', axis_cols=None):
     """Main analysis function with iteration support"""
     db = SessionLocal()
     try:
+        col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
         # Determine which products to load based on iteration
         if iteration == 1:
-            # First iteration: load all products from product table
-            df = load_products_filtered(group_id, brands, category, types, iteration=1, for_save=False, for_display=False)
+            df = load_products_filtered(group_id, brands, category, types, iteration=1, for_save=False, for_display=False, axis_cols=[col_x, col_y, col_z])
         else:
             # Subsequent iterations: load from product_iteration table
             iteration_repo = ProductIterationRepository(db)
@@ -776,37 +896,39 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
             # Convert to DataFrame
             product_data = []
             for p in products:
-                product_data.append({
+                row = {
                     'product_id': p.product_id,
                     'SKU': p.qb_code,
                     'Brand': p.brand,
                     'Category': p.category,
                     'Type': p.product_type,
                     'Name': p.name,
-                    'mfr_cost': float(p.mfr_cost) if p.mfr_cost else None,
-                    'shipping_cost': float(p.shipping_cost) if p.shipping_cost else None,
                     'price': float(p.price) if p.price else None,
                     'imageUrl': p.base_image_url,
                     'url_key': p.product_url,
                     'system_product_id': p.system_product_id,
                     'outlier_mode': p.outlier_mode or 0,
                     'final_status': p.final_status
-                })
+                }
+                # Add all axis columns dynamically
+                for col in [col_x, col_y, col_z]:
+                    row[col] = float(getattr(p, col)) if getattr(p, col, None) is not None else None
+                product_data.append(row)
             
             df = pd.DataFrame(product_data)
-            # Remove rows with missing dimension data
-            df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
+            drop_cols = [c for c in [col_x, col_y, col_z] if c in df.columns]
+            if drop_cols:
+                df = df.dropna(subset=drop_cols)
         
         if df.empty or len(df) < 4:
             return None, "Seems less than 4 products available."
         
-        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         
         # DBSCAN Analysis
         if 'DBSCAN' in algorithms:
-            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples, algorithm_settings=algorithm_settings)
+            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples, algorithm_settings=algorithm_settings, axis_cols=[col_x, col_y, col_z])
             df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['dbscan_cluster'] = df_dbscan['dbscan_cluster']
             df_combined['dbscan_is_outlier'] = df_dbscan['dbscan_is_outlier']
@@ -816,8 +938,6 @@ def analyze_products(group_id, brands, category, types, algorithms, h_mult, w_mu
         outliers = df_combined['is_outlier_combined'].sum()
         normals = total - outliers
         
-        # Convert to dict and ensure boolean values are proper Python bools
-        # Replace NaN with None for JSON serialization
         df_combined = df_combined.replace({pd.NA: None, np.nan: None})
         records = df_combined.to_dict('records')
         for record in records:
@@ -1039,7 +1159,7 @@ def get_global_aggregate_data(group_id, brands, category, types, algorithms):
         if df.empty:
             return []
         
-        # Rename display columns only (keep mfr_cost/shipping_cost/price as-is)
+        # Rename display columns only (keep mfr_cost/shipping_cost/profit_margin as-is)
         df = df.rename(columns={
             'qb_code': 'SKU',
             'brand': 'Brand',
@@ -1144,62 +1264,53 @@ def analyze_multiple_combinations(group_id, brands, category, types, algorithms,
         db.close()
 
 
-def process_single_combination(group_id, combination, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db=False):
+def process_single_combination(group_id, combination, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db=False, axis_cols=None):
     """Process a single combination"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
         iteration_repo = ProductIterationRepository(db)
+        col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
         
         # Parse product types
         product_types = combination['product_type'].split('|') if '|' in combination['product_type'] else [combination['product_type']]
         
         # Fetch products
-        df = repo.load_products_filtered(group_id, [combination['brand']], combination['category'], product_types)
+        df = repo.load_products_filtered(group_id, [combination['brand']], combination['category'], product_types, axis_cols=[col_x, col_y, col_z])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Seems less than 4 products available'}
         
-        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
         df = df.rename(columns={
-            'qb_code': 'SKU',
-            'brand': 'Brand',
-            'category': 'Category',
-            'product_type': 'Type',
-            'name': 'Name',
-            'base_image_url': 'imageUrl',
-            'product_url': 'url_key'
+            'qb_code': 'SKU', 'brand': 'Brand', 'category': 'Category',
+            'product_type': 'Type', 'name': 'Name',
+            'base_image_url': 'imageUrl', 'product_url': 'url_key'
         })
         
-        # Ensure numeric columns
-        for col in ['mfr_cost', 'shipping_cost', 'price']:
+        # Ensure numeric axis columns
+        for col in [col_x, col_y, col_z]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Remove rows with missing pricing data
-        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
+        drop_cols = [c for c in [col_x, col_y, col_z] if c in df.columns]
+        if drop_cols:
+            df = df.dropna(subset=drop_cols)
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
         
-        # Run analysis
-        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         
-        # DBSCAN Analysis
         if ALGO_DBSCAN in algorithms:
-            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples)
+            is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(df_combined.copy(), eps=dbscan_eps, min_samples=dbscan_min_samples, axis_cols=[col_x, col_y, col_z])
             df_combined['is_outlier_combined'] = is_outlier_dbscan
         
-        # Calculate statistics
         total = len(df_combined)
         outliers = df_combined['is_outlier_combined'].sum()
         normals = total - outliers
         
-        # Only save to DB if save_to_db is True
         if save_to_db:
-            # Prepare iteration data
             iteration_data_list = []
             product_updates = []
             
@@ -1207,7 +1318,6 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
                 is_outlier = row['is_outlier_combined']
                 status = 0 if is_outlier else 1
                 
-                # Prepare product update
                 update = {
                     'system_product_id': row['system_product_id'],
                     'dbs_status': status if ALGO_DBSCAN in algorithms else None,
@@ -1216,7 +1326,6 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
                 }
                 product_updates.append(update)
                 
-                # Prepare iteration data for each algorithm
                 for algo in algorithms:
                     iteration_data = {
                         'system_product_id': row['system_product_id'],
@@ -1232,10 +1341,7 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
                     }
                     iteration_data_list.append(iteration_data)
             
-            # Save to product_iteration table
             iteration_repo.save_iteration_results(iteration_data_list)
-            
-            # Update product table
             repo.update_products_aggregated(product_updates)
         
         return {
@@ -1249,7 +1355,7 @@ def process_single_combination(group_id, combination, algorithms, h_mult, w_mult
         db.close()
 
 
-def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db=False):
+def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, save_to_db=False, axis_cols=None, algorithm_settings=None):
     """Process a single combination with new dimension tables flow"""
     from repositories.pricing.product_iteration_repository import ProductIterationRepository
     from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
@@ -1260,33 +1366,34 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
         repo = ProductRepository(db)
         dim_iter_repo = ProductIterationRepository(db)
         dim_item_repo = PricingProductIterationItemRepository(db)
+        col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
         
         # Parse product types
         product_types = combination['product_type'].split('|') if '|' in combination['product_type'] else [combination['product_type']]
         
         # Fetch and analyze products
-        df = repo.load_products_filtered(group_id, [combination['brand']], combination['category'], product_types)
+        df = repo.load_products_filtered(group_id, [combination['brand']], combination['category'], product_types, axis_cols=[col_x, col_y, col_z])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data'}
         
-        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
         df = df.rename(columns={
             'qb_code': 'SKU', 'brand': 'Brand', 'category': 'Category',
             'product_type': 'Type', 'name': 'Name',
             'base_image_url': 'imageUrl', 'product_url': 'url_key'
         })
         
-        for col in ['mfr_cost', 'shipping_cost', 'price']:
+        for col in [col_x, col_y, col_z]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
+        drop_cols = [c for c in [col_x, col_y, col_z] if c in df.columns]
+        if drop_cols:
+            df = df.dropna(subset=drop_cols)
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
         
         # Run analysis
-        multipliers = {'mfr_cost': h_mult, 'shipping_cost': w_mult, 'price': d_mult}
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         df_combined['cluster'] = None
@@ -1297,7 +1404,8 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
                 df_combined.copy(),
                 eps=dbscan_eps,
                 min_samples=dbscan_min_samples,
-                algorithm_settings=algorithm_settings
+                algorithm_settings=algorithm_settings,
+                axis_cols=[col_x, col_y, col_z]
             )
             df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['cluster'] = df_dbscan['dbscan_cluster'].apply(
@@ -1394,8 +1502,24 @@ def process_single_combination_v2(group_id, combination, algorithms, h_mult, w_m
         db.close()
 
 
-def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, analysis_mode, save_to_db, selected_iteration_id=None, algorithm_settings=None):
+def analyze_and_save(group_id, brands, categories, types, algorithms, h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples, analysis_mode, save_to_db, selected_iteration_id=None, algorithm_settings=None, axis_cols=None, axis_col_ids=None, axis_col_com_ids=None, category_ids=None, brand_ids=None):
     """Analyze products and save to dimension tables"""
+    # Normalize categories to list
+    if isinstance(categories, str):
+        categories = [categories] if categories else []
+    categories = [c for c in (categories or []) if c]
+    # Store category_ids (numeric) in the iteration table; fall back to category strings
+    if category_ids:
+        category_str = ','.join(str(cid) for cid in sorted(category_ids))
+    else:
+        category_str = ','.join(sorted(categories)) if categories else None
+    # Store brand_ids (numeric) in the iteration table; fall back to brand strings
+    if brand_ids:
+        brand_str = ','.join(str(bid) for bid in sorted(brand_ids))
+    else:
+        brand_str = ','.join(sorted(brands)) if brands else None
+    # For single-category queries keep backward compat
+    category = categories[0] if len(categories) == 1 else None
     from repositories.pricing.product_iteration_repository import ProductIterationRepository
     from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
     from models.pricing.product_iteration_item import PricingProductIterationItem
@@ -1415,8 +1539,22 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
         algorithm = algorithms[0] if algorithms and len(algorithms) > 0 else ALGO_DBSCAN
         
         # Load products based on analysis mode
+        # Determine axis columns for DBSCAN (default fallback)
+        col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
+
+        # Resolve com column codes from axis_col_com_ids
+        com_col_codes = [None, None, None]
+        if axis_col_com_ids and len(axis_col_com_ids) == 3:
+            from repositories.pricing.product_column_repository import ProductColumnRepository
+            col_repo = ProductColumnRepository(db)
+            all_cols = col_repo.get_all()
+            col_id_map = {c.column_id: c.code for c in all_cols}
+            com_col_codes = [col_id_map.get(cid) for cid in axis_col_com_ids]
+
         if analysis_mode == 'all':
-            df = repo.load_products_filtered(group_id, brands, category, types)
+            # Always use category strings for DB product queries
+            category_filter = ','.join(categories) if len(categories) > 1 else (categories[0] if categories else None)
+            df = repo.load_products_filtered(group_id, brands, category_filter, types, axis_cols=[col_x, col_y, col_z])
         elif analysis_mode == 'pending' and selected_iteration_id:
             # Get products from selected iteration where final_status is null
             system_product_ids = item_repo.get_system_product_ids_by_final_status(selected_iteration_id, None)
@@ -1424,46 +1562,52 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
             if not system_product_ids:
                 return {'ok': False, 'message': 'No pending products found in selected iteration'}
             
-            df = repo.load_products_by_ids(system_product_ids)
+            df = repo.load_products_by_ids(system_product_ids, axis_cols=[col_x, col_y, col_z])
         else:
             return {'ok': False, 'message': 'Invalid analysis mode or missing iteration'}
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data'}
         
-        # Rename display columns only (keep mfr_cost/shipping_cost/price for DBSCAN)
+        # Rename display columns only (keep mfr_cost/shipping_cost/profit_margin for DBSCAN)
         df = df.rename(columns={
             'qb_code': 'SKU', 'brand': 'Brand', 'category': 'Category',
             'product_type': 'Type', 'name': 'Name',
             'base_image_url': 'imageUrl', 'product_url': 'url_key'
         })
         
-        for col in ['mfr_cost', 'shipping_cost', 'price']:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna(subset=['mfr_cost', 'shipping_cost', 'price'])
+        df = df.dropna(subset=[col_x, col_y, col_z])
         
         if df.empty or len(df) < 4:
             return {'ok': False, 'message': 'Insufficient data after cleaning'}
+        
+        # Fetch com column values and merge into df
+        if any(com_col_codes):
+            spids = df['system_product_id'].tolist()
+            com_vals = fetch_com_col_values(db, spids, com_col_codes)
+            for code in com_col_codes:
+                if code:
+                    df[code] = df['system_product_id'].map(lambda spid, c=code: com_vals.get(spid, {}).get(c))
+                    df[code] = pd.to_numeric(df[code], errors='coerce')
         
         # Run analysis
         df_combined = df.copy()
         df_combined['is_outlier_combined'] = False
         df_combined['cluster'] = None
-        
+
         if ALGO_DBSCAN in algorithms:
             is_outlier_dbscan, df_dbscan = detect_outliers_dbscan(
                 df_combined.copy(),
                 eps=dbscan_eps,
                 min_samples=dbscan_min_samples,
-                algorithm_settings=algorithm_settings
+                algorithm_settings=algorithm_settings,
+                axis_cols=[col_x, col_y, col_z]
             )
             df_combined['is_outlier_combined'] = is_outlier_dbscan
             df_combined['dbscan_cluster'] = df_dbscan['dbscan_cluster']
             df_combined['cluster'] = df_dbscan['dbscan_cluster'].apply(
                 lambda x: f"Cluster {x}" if x != -1 else "Noise/Outlier"
             )
-        
         # Calculate statistics
         total = len(df_combined)
         outliers = df_combined['is_outlier_combined'].sum()
@@ -1475,14 +1619,15 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 # For 'all' mode: Create NEW iteration with all products
                 unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
                 
-                # Get counts from pricing_product table (same as analyze_all_export)
-                # Total items: all products matching filters
-                total_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                # Get counts from pricing_product table using dynamic axis columns
+                def _axis_filter(q):
+                    from models.pricing.product import Product as P
+                    from sqlalchemy import text as _text
+                    for c in [col_x, col_y, col_z]:
+                        q = q.filter(_text(f"{c} IS NOT NULL"))
+                    return q
+
+                total_items_query = _axis_filter(db.query(Product).filter(Product.group_id == group_id))
                 if brands and len(brands) > 0:
                     total_items_query = total_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1491,14 +1636,8 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                     total_items_query = total_items_query.filter(Product.product_type.in_(types))
                 total_items_count = total_items_query.count()
                 
-                # Analyzed items: products with final_status != NULL
-                analyzed_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.final_status.isnot(None),
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                analyzed_items_query = _axis_filter(db.query(Product).filter(
+                    Product.group_id == group_id, Product.final_status.isnot(None)))
                 if brands and len(brands) > 0:
                     analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1507,14 +1646,8 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                     analyzed_items_query = analyzed_items_query.filter(Product.product_type.in_(types))
                 analyzed_items_count = analyzed_items_query.count()
                 
-                # Pending items: products with final_status = NULL
-                pending_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.final_status.is_(None),
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                pending_items_query = _axis_filter(db.query(Product).filter(
+                    Product.group_id == group_id, Product.final_status.is_(None)))
                 if brands and len(brands) > 0:
                     pending_items_query = pending_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1528,13 +1661,19 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 
                 # Save new iteration
                 iteration_id = iter_repo.save_iteration(
-                    None, category, None,
+                     brand_str, category_str, None,
                     group_id, algorithm, dbscan_eps, dbscan_min_samples,
                     unique_number=unique_number,
                     total_items=total_items_count,
                     analyzed_items=analyzed_items_count,
                     pending_items=pending_items_count,
-                    outlier_items=outlier_items
+                    outlier_items=outlier_items,
+                    x_axis=axis_col_ids[0] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    y_axis=axis_col_ids[1] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    z_axis=axis_col_ids[2] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    x_axis_com=axis_col_com_ids[0] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None,
+                    y_axis_com=axis_col_com_ids[1] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None,
+                    z_axis_com=axis_col_com_ids[2] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None
                 )
                 
                 if iteration_id:
@@ -1579,14 +1718,7 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 # For 'pending' mode: Create NEW iteration with only pending products
                 unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
                 
-                # Get counts from pricing_product table
-                # Total items: all products matching filters
-                total_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                total_items_query = _axis_filter(db.query(Product).filter(Product.group_id == group_id))
                 if brands and len(brands) > 0:
                     total_items_query = total_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1595,14 +1727,8 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                     total_items_query = total_items_query.filter(Product.product_type.in_(types))
                 total_items_count = total_items_query.count()
                 
-                # Analyzed items: products with final_status != NULL
-                analyzed_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.final_status.isnot(None),
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                analyzed_items_query = _axis_filter(db.query(Product).filter(
+                    Product.group_id == group_id, Product.final_status.isnot(None)))
                 if brands and len(brands) > 0:
                     analyzed_items_query = analyzed_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1611,14 +1737,8 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                     analyzed_items_query = analyzed_items_query.filter(Product.product_type.in_(types))
                 analyzed_items_count = analyzed_items_query.count()
                 
-                # Pending items: products with final_status = NULL
-                pending_items_query = db.query(Product).filter(
-                    Product.group_id == group_id,
-                    Product.final_status.is_(None),
-                    Product.mfr_cost.isnot(None),
-                    Product.shipping_cost.isnot(None),
-                    Product.price.isnot(None)
-                )
+                pending_items_query = _axis_filter(db.query(Product).filter(
+                    Product.group_id == group_id, Product.final_status.is_(None)))
                 if brands and len(brands) > 0:
                     pending_items_query = pending_items_query.filter(Product.brand.in_(brands))
                 if category:
@@ -1632,13 +1752,19 @@ def analyze_and_save(group_id, brands, category, types, algorithms, h_mult, w_mu
                 
                 # Save new iteration
                 iteration_id = iter_repo.save_iteration(
-                    None, category, None,
+                     brand_str, category_str, None,
                     group_id, algorithm, dbscan_eps, dbscan_min_samples,
                     unique_number=unique_number,
                     total_items=total_items_count,
                     analyzed_items=analyzed_items_count,
                     pending_items=pending_items_count,
-                    outlier_items=outlier_items
+                    outlier_items=outlier_items,
+                    x_axis=axis_col_ids[0] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    y_axis=axis_col_ids[1] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    z_axis=axis_col_ids[2] if axis_col_ids and len(axis_col_ids) == 3 else None,
+                    x_axis_com=axis_col_com_ids[0] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None,
+                    y_axis_com=axis_col_com_ids[1] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None,
+                    z_axis_com=axis_col_com_ids[2] if axis_col_com_ids and len(axis_col_com_ids) == 3 else None
                 )
                 
                 if iteration_id:

@@ -672,7 +672,7 @@ def update_item_status(sku, final_status, iteration_id, group_id, category, eps,
         db.close()
 
 
-def _build_product_id_subquery(db, group_id, brands, category, types, selected_clusters, skus):
+def _build_product_id_subquery(db, group_id, brands, category, types, selected_clusters, skus, iteration_id=None):
     """Build a query of product_id (integer PK) applying all filter layers.
     Returns (query, error_string_or_None).
     """
@@ -690,23 +690,27 @@ def _build_product_id_subquery(db, group_id, brands, category, types, selected_c
     if types:
         id_query = id_query.filter(Product.product_type.in_(types))
 
-    # Layer 2: cluster filter — join via system_product_id (has index)
+    # Layer 2: cluster filter — use the specified iteration_id, fall back to latest
     if selected_clusters and len(selected_clusters) > 0:
-        latest_iteration = db.query(ProductIteration).filter(
-            ProductIteration.product_group_id == group_id,
-            ProductIteration.category == category
-        ).order_by(ProductIteration.timestamp.desc()).first()
+        if iteration_id:
+            target_iteration = db.query(ProductIteration).filter(
+                ProductIteration.iteration_id == iteration_id
+            ).first()
+        else:
+            target_iteration = db.query(ProductIteration).filter(
+                ProductIteration.product_group_id == group_id,
+                ProductIteration.category == category
+            ).order_by(ProductIteration.timestamp.desc()).first()
 
-        if not latest_iteration:
+        if not target_iteration:
             return None, "No analysis iteration found for cluster filtering"
 
         cluster_conditions = [
             DimensionProductIterationItem.cluster == ("Noise/Outlier" if c == -1 else f"Cluster {c}")
             for c in selected_clusters
         ]
-        # Pass query directly to .in_() — no .subquery() needed, avoids SAWarning
         cluster_sys_ids_q = db.query(DimensionProductIterationItem.system_product_id).filter(
-            DimensionProductIterationItem.iteration_id == latest_iteration.iteration_id,
+            DimensionProductIterationItem.iteration_id == target_iteration.iteration_id,
             or_(*cluster_conditions)
         )
         id_query = id_query.filter(Product.system_product_id.in_(cluster_sys_ids_q))
@@ -722,7 +726,7 @@ def _build_product_id_subquery(db, group_id, brands, category, types, selected_c
     return id_query, None
 
 
-def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None, skus=None):
+def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimension, selected_clusters=None, skus=None, iteration_id=None):
     """Swap two dimension columns using a single bulk UPDATE."""
     from models.dimension.product import Product
     from sqlalchemy import text
@@ -736,7 +740,7 @@ def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimens
     db = SessionLocal()
     try:
         id_query, err = _build_product_id_subquery(
-            db, group_id, brands, category, types, selected_clusters, skus
+            db, group_id, brands, category, types, selected_clusters, skus, iteration_id
         )
         if err:
             return False, 0, err
@@ -769,7 +773,7 @@ def swap_dimensions(group_id, brands, category, types, from_dimension, to_dimens
         db.close()
 
 
-def reset_dimensions(group_id, brands, category, types, selected_clusters=None, skus=None):
+def reset_dimensions(group_id, brands, category, types, selected_clusters=None, skus=None, iteration_id=None):
     """Reset height/width/depth to ori_* values using a single bulk UPDATE."""
     from models.dimension.product import Product
     from sqlalchemy import text
@@ -777,7 +781,7 @@ def reset_dimensions(group_id, brands, category, types, selected_clusters=None, 
     db = SessionLocal()
     try:
         id_query, err = _build_product_id_subquery(
-            db, group_id, brands, category, types, selected_clusters, skus
+            db, group_id, brands, category, types, selected_clusters, skus, iteration_id
         )
         if err:
             return False, 0, err

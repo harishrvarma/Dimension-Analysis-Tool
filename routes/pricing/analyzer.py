@@ -2,6 +2,9 @@ from flask import Blueprint, jsonify, render_template, request, make_response
 from services.pricing import analyzer
 import csv
 from io import StringIO
+from models.base.base import SessionLocal
+from repositories.pricing.product_column_repository import ProductColumnRepository
+from repositories.pricing.product_insight_config_repository import ProductInsightConfigRepository
 
 
 pricing_analyzer_bp = Blueprint("pricing_analyzer_bp", __name__, url_prefix="/pricing/analyzer")
@@ -11,6 +14,40 @@ pricing_analyzer_bp = Blueprint("pricing_analyzer_bp", __name__, url_prefix="/pr
 @pricing_analyzer_bp.get("/")
 def analyzer_page():
     return render_template("pricing/analyzer/index.html", active_page="pricing_analyzer")
+
+
+@pricing_analyzer_bp.get("/api/insight-config")
+def api_insight_config():
+    session = SessionLocal()
+    try:
+        configs = ProductInsightConfigRepository(session).get_all()
+        columns = ProductColumnRepository(session).get_all()
+        return jsonify({
+            "ok": True,
+            "configs": [
+                {
+                    "id": c.insight_config_id,
+                    "name": c.name,
+                    "x_axis": c.x_axis,
+                    "y_axis": c.y_axis,
+                    "z_axis": c.z_axis,
+                    "x_axis_com": c.x_axis_com,
+                    "y_axis_com": c.y_axis_com,
+                    "z_axis_com": c.z_axis_com,
+                    "is_default": c.is_default
+                } for c in configs
+            ],
+            "columns": [
+                {
+                    "id": col.column_id,
+                    "name": col.name,
+                    "code": col.code,
+                    "symbol": col.symbol
+                } for col in columns
+            ]
+        })
+    finally:
+        session.close()
 
 
 @pricing_analyzer_bp.get("/api/product-groups")
@@ -39,14 +76,15 @@ def api_options():
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
     brands = payload.get("brands") or []
-    category = payload.get("category")
+    categories = payload.get("categories") or []
+    category = payload.get("category") or (categories[0] if len(categories) == 1 else None)
     
     if not group_id:
         return jsonify({"ok": False, "message": "Group ID required"})
     
     brand_options = analyzer.get_brands_for_group(group_id)
     category_options = analyzer.get_categories_for_group(group_id, brands if brands else None)
-    type_options = analyzer.get_types_for_group(group_id, brands if brands else None, category)
+    type_options = analyzer.get_types_for_group(group_id, brands if brands else None, categories or category)
     
     return jsonify({
         "ok": True,
@@ -72,16 +110,17 @@ def api_categories():
 
 @pricing_analyzer_bp.post("/api/types")
 def api_types():
-    """Get types for selected group, brands, and category"""
+    """Get types for selected group, brands, and categories"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
     brands = payload.get("brands") or []
-    category = payload.get("category")
+    categories = payload.get("categories") or []
+    category = payload.get("category") or (categories[0] if len(categories) == 1 else None)
     
     if not group_id:
         return jsonify({"ok": False, "types": []})
     
-    types = analyzer.get_types_for_group(group_id, brands if brands else None, category)
+    types = analyzer.get_types_for_group(group_id, brands if brands else None, categories or category)
     return jsonify({"ok": True, "types": types})
 
 
@@ -92,7 +131,10 @@ def api_analyze():
     
     group_id = payload.get("group_id")
     brands = payload.get("brands") or []
-    category = payload.get("category")
+    categories = payload.get("categories") or []
+    category_ids = payload.get("category_ids") or []
+    brand_ids = payload.get("brand_ids") or []
+    category = payload.get("category") or (categories[0] if len(categories) == 1 else None)
     types = payload.get("types") or []
     algorithms = payload.get("algorithms") or []
     algorithm_settings = payload.get("algorithm_settings") or ["shape", "size", "volume"]
@@ -104,31 +146,50 @@ def api_analyze():
     analysis_mode = payload.get("analysis_mode", "all")
     save_to_db = payload.get("save_to_db", False)
     selected_iteration_id = payload.get("selected_iteration_id")
+    axis_cols = payload.get("axis_cols") or None
+    axis_meta = payload.get("axis_meta") or {}
+    axis_col_ids = payload.get("axis_col_ids") or None
+    axis_col_com_ids = payload.get("axis_col_com_ids") or None
     
-    if not group_id or not category or not algorithms:
+    if not group_id or not algorithms or (not categories and not brands):
         return jsonify({"ok": False, "message": "Missing required fields"})
     
     result = analyzer.analyze_and_save(
-        group_id, brands, category, types, algorithms,
+        group_id, brands, categories, types, algorithms,
         h_mult, w_mult, d_mult, dbscan_eps, dbscan_min_samples,
         analysis_mode, save_to_db, selected_iteration_id,
-        algorithm_settings=algorithm_settings
+        algorithm_settings=algorithm_settings,
+        axis_cols=axis_cols,
+        axis_col_ids=axis_col_ids,
+        axis_col_com_ids=axis_col_com_ids,
+        category_ids=category_ids,
+        brand_ids=brand_ids
     )
+    
+    # Attach axis meta to result so frontend can use it
+    if isinstance(result, dict):
+        result['axis_meta'] = axis_meta
+        result['axis_cols'] = axis_cols
     
     return jsonify(result)
 
 
 @pricing_analyzer_bp.post("/api/iteration-history")
 def api_iteration_history():
-    """Get iteration history for a category - only by group_id and category"""
+    """Get iteration history for categories - by group_id and one or more categories"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
-    category = payload.get("category")
+    categories = payload.get("categories") or []
+    category_ids = payload.get("category_ids") or []
+    brand_ids = payload.get("brand_ids") or []
+    # backward compat: single category string
+    if not categories and payload.get("category"):
+        categories = [payload.get("category")]
     
-    if not group_id or not category:
+    if not group_id or (not categories and not brand_ids):
         return jsonify({"ok": False, "history": []})
     
-    history = analyzer.get_iteration_history(group_id, category)
+    history = analyzer.get_iteration_history(group_id, categories, category_ids, brand_ids=brand_ids)
     return jsonify({"ok": True, "history": history})
 
 
@@ -399,14 +460,12 @@ def api_analyze_all_export_post():
     record_type = payload.get('record_type', 'all')
     configurations = payload.get('configurations', [])
     algorithm_settings = payload.get('algorithm_settings', ['shape', 'size', 'volume'])
+    axis_cols = payload.get('axis_cols') or None
     
     if not product_group_id:
         return jsonify({"ok": False, "message": "Product Group ID is required"}), 400
     
-    # Convert configurations to list of tuples
     configs = [(c['eps'], c['min_samples']) for c in configurations] if configurations else None
-    
-    # Create filters with product group
     filters = {'product_group_id': product_group_id}
     
     print(f"Starting export with product_group_id: {product_group_id}, algorithm: {algorithm}, record_type: {record_type}, settings: {algorithm_settings}")
@@ -418,7 +477,8 @@ def api_analyze_all_export_post():
         record_type=record_type,
         configs=configs,
         filters=filters,
-        algorithm_settings=algorithm_settings
+        algorithm_settings=algorithm_settings,
+        axis_cols=axis_cols
     )
     
     print(f"Export completed in {time.time()-start:.1f}s")

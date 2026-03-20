@@ -43,7 +43,6 @@ def api_options():
     category_options = grid.get_categories_with_counts(group_id, brands if brands else None, final_status if final_status else None)
     type_options = grid.get_types_with_counts(group_id, brands if brands else None, categories if categories else None, final_status if final_status else None)
     analyzed_status = grid.get_analyzed_status(group_id, brands if brands else None, categories if categories else None)
-
     return jsonify({
         "ok": True,
         "brand_options": brand_options,
@@ -142,7 +141,7 @@ def api_export_data():
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow(['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-                     'Name', 'Mfr Cost', 'Shipping Cost', 'Price', 'EPS', 'Sample', 'Final Status', 
+                     'Name', 'Mfr Cost', 'Shipping Cost', 'Profit Margin', 'EPS', 'Sample', 'Final Status',
                      'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
                      'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History'])
 
@@ -165,7 +164,7 @@ def api_export_data():
 
             writer.writerow([
                 row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['mfr_cost'], row['shipping_cost'], row['price'], row['eps'], row['sample'], row['final_status'],
+                row['mfr_cost'], row['shipping_cost'], row['profit_margin'], row['eps'], row['sample'], row['final_status'],
                 row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
                 row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
                 skip_display, history_text
@@ -201,7 +200,7 @@ def api_export_xls():
     ws.title = "Grid Export"
 
     headers = ['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-               'Name', 'Mfr Cost', 'Shipping Cost', 'Price', 'EPS', 'Sample', 'Final Status',
+               'Name', 'Mfr Cost', 'Shipping Cost', 'Profit Margin', 'EPS', 'Sample', 'Final Status',
                'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
                'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History']
     ws.append(headers)
@@ -226,7 +225,7 @@ def api_export_xls():
 
             ws.append([
                 row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['mfr_cost'], row['shipping_cost'], row['price'], row['eps'], row['sample'], row['final_status'],
+                row['mfr_cost'], row['shipping_cost'], row['profit_margin'], row['eps'], row['sample'], row['final_status'],
                 row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
                 row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
                 skip_display, history_text

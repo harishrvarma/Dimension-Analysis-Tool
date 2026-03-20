@@ -16,14 +16,24 @@ class Product(BaseModel):
 
     system_product_id = Column(String(100), nullable=True, default=None)
     brand = Column(String(255), nullable=True, default=None)
+    brand_id = Column(Integer, nullable=True, default=None)
     category = Column(String(255), nullable=True, default=None)
+    category_id = Column(Integer, nullable=True, default=None)
     product_type = Column(String(255), nullable=True, default=None)
     qb_code = Column(String(100), nullable=True, default=None)
     name = Column(String(500), nullable=True, default=None)
 
-    mfr_cost = Column(DECIMAL(10, 2), nullable=True, default=None)
-    shipping_cost = Column(DECIMAL(10, 2), nullable=True, default=None)
-    price = Column(DECIMAL(10, 2), nullable=True, default=None)
+    mfr_cost = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    shipping_cost = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    price = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    profit_amt = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    shipping_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    cost_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    profit_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    profit_vs_cost_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    shipping_vs_cost_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    profit_vs_shipping_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+
 
     ori_height = Column(Float, nullable=True, default=None)
     ori_width = Column(Float, nullable=True, default=None)
@@ -59,3 +69,5 @@ class Product(BaseModel):
     group = relationship("models.pricing.product_group.ProductGroup", back_populates="products")
     eps = Column(Numeric(10, 2), nullable=True)
     sample = Column(Integer, nullable=True)
+
+    
