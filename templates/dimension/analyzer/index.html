@@ -290,9 +290,34 @@ button {
 .content {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: 2.6fr 0.7fr 0.7fr;
-  gap: 10px;
+  grid-template-columns: calc(65% - 6.5px) 5px calc(17.5% - 1.75px) 5px calc(17.5% - 1.75px);
+  gap: 0;
   align-items: start;
+  column-gap: 0;
+  overflow: hidden;
+}
+.resize-divider {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  align-self: stretch;
+  z-index: 10;
+}
+.resize-divider::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #dde5f1;
+  transition: background 0.15s, width 0.15s, left 0.15s;
+}
+.resize-divider:hover::after, .resize-divider.dragging::after {
+  left: 1px;
+  width: 3px;
+  background: #2563eb;
 }
 #chart {
   width: 100%;
@@ -342,6 +367,8 @@ button {
   background: #f8fafc;
   max-height: 750px;
   overflow-y: auto;
+  box-sizing: border-box;
+  min-width: 0;
 }
 #clusterSummaryPanel h3 {
   margin: 0 0 8px;
@@ -365,6 +392,8 @@ button {
   background: #f8fafc;
   max-height: 750px;
   overflow-y: auto;
+  box-sizing: border-box;
+  min-width: 0;
 }
 img.preview {
   max-width: 250px;
@@ -793,6 +822,7 @@ img.preview {
   .row { grid-template-columns: 1fr !important; }
   .iqr-grid { grid-template-columns: 1fr; }
   .content { grid-template-columns: 1fr; }
+  .resize-divider { display: none; }
   #chart { height: 460px; min-height: 460px; }
   #preview { min-height: 320px; }
   .export-modal-content { width: 95%; padding: 16px; max-width: 95%; }
@@ -1079,6 +1109,7 @@ img.preview {
 
 <div class="content hidden" id="chartView" style="display:none;">
 <div id="chart"></div>
+<div class="resize-divider" id="divider1"></div>
 <div id="clusterSummaryPanel" class="hidden">
 <h3>🎯 Cluster Summary</h3>
 <table>
@@ -1095,6 +1126,7 @@ img.preview {
 <tbody id="clusterSummaryBody"></tbody>
 </table>
 </div>
+<div class="resize-divider" id="divider2"></div>
 <div id="preview">
 <h3 style="margin-top:0;">Product Preview</h3>
 <p style="color:var(--muted);">Click any point in the 3D chart or select cluster to view product details.</p>
@@ -1104,6 +1136,64 @@ img.preview {
 
 <script>
 let currentClusterPreview = null; // Track currently displayed cluster
+
+// Resizable columns
+(function(){
+  // Store proportions as fractions (sum = 1), panels share space after subtracting dividers
+  let fracs = [2.6, 0.7, 0.7];
+
+  function applyFracs() {
+    const total = fracs[0] + fracs[1] + fracs[2];
+    const c0 = 'calc(' + (fracs[0]/total*100).toFixed(4) + '% - ' + (10*fracs[0]/total).toFixed(4) + 'px)';
+    const c1 = 'calc(' + (fracs[1]/total*100).toFixed(4) + '% - ' + (10*fracs[1]/total).toFixed(4) + 'px)';
+    const c2 = 'calc(' + (fracs[2]/total*100).toFixed(4) + '% - ' + (10*fracs[2]/total).toFixed(4) + 'px)';
+    document.getElementById('chartView').style.gridTemplateColumns = c0 + ' 5px ' + c1 + ' 5px ' + c2;
+    const chartEl = document.getElementById('chart');
+    if (chartEl && chartEl.data) Plotly.Plots.resize(chartEl);
+  }
+
+  function initDivider(dividerId, leftIdx, rightIdx) {
+    const divider = document.getElementById(dividerId);
+    if (!divider) return;
+    let dragging = false, startX = 0, startFracs = [];
+    divider.addEventListener('mousedown', function(e) {
+      const grid = document.getElementById('chartView');
+      if (!grid) return;
+      startX = e.clientX;
+      startFracs = [...fracs];
+      dragging = true;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      const grid = document.getElementById('chartView');
+      const totalW = grid.getBoundingClientRect().width - 10; // subtract 10px for two dividers
+      const total = startFracs[0] + startFracs[1] + startFracs[2];
+      const pxPerFrac = totalW / total;
+      const dxFrac = (e.clientX - startX) / pxPerFrac;
+      const minFrac = 80 / pxPerFrac;
+      const newLeft = startFracs[leftIdx] + dxFrac;
+      const newRight = startFracs[rightIdx] - dxFrac;
+      if (newLeft >= minFrac && newRight >= minFrac) {
+        fracs[leftIdx] = newLeft;
+        fracs[rightIdx] = newRight;
+        applyFracs();
+      }
+    });
+    document.addEventListener('mouseup', function() {
+      if (!dragging) return;
+      dragging = false;
+      divider.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+  initDivider('divider1', 0, 1);
+  initDivider('divider2', 1, 2);
+})();
 
 function refreshCurrentClusterPreview() {
   // Check if there's a cluster preview currently displayed
@@ -1116,6 +1206,7 @@ function refreshCurrentClusterPreview() {
 let analysisData = [];
 let sessionToken = null;
 let plotlyBound = false;
+let chartRendered = false;
 let iterationHistory = [];
 let allIterationsData = [];
 let selectedIterationId = null;
@@ -1717,6 +1808,7 @@ function resetIteration() {
   analysisData = [];
   allIterationsData = [];
   selectedIterationId = null;
+  chartRendered = false;
   els.iterationSummary.classList.add('hidden');
   if (els.clusterSummaryPanel) els.clusterSummaryPanel.classList.add('hidden');
   els.gridView.classList.add('hidden');
@@ -2449,7 +2541,13 @@ function displayClusterSummary() {
         els.preview.style.borderColor = '#2563eb';
         els.preview.innerHTML = `
           ${buildPreviewFiltersHtml(allProducts)}
-          <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0;margin-bottom:6px;">
+            <h3 id="previewCount" style="margin:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
+            <div style="display:flex;gap:4px;">
+              <button id="previewMarkNormalBtn" title="Mark filtered products as Normal" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">N</button>
+              <button id="previewMarkOutlierBtn" title="Mark filtered products as Outlier" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">O</button>
+            </div>
+          </div>
           <div id="previewProductList">${buildProductsHtml(shown)}</div>
         `;
         attachPreviewListeners();
@@ -2618,7 +2716,7 @@ function displayClusterSummary() {
       const traceIndices = [];
 
       chartDiv.data.forEach((trace, idx) => {
-        if (trace.name === 'Outlier Products' || trace.name.includes('Cluster')) {
+        if (trace.name === 'Noise/Outlier' || trace.name === 'Normal Products' || trace.name.startsWith('Cluster ')) {
           update.visible.push(isChecked);
           traceIndices.push(idx);
         }
@@ -2696,30 +2794,16 @@ function applyClusterFilter(targetCluster) {
     const traceIndices = [];
     
     chartDiv.data.forEach((trace, idx) => {
-      if (trace.name === 'Outlier Products') {
-        // Show outliers only if target cluster is -1 (Noise/Outlier)
-        update.visible.push(targetCluster === -1);
-        traceIndices.push(idx);
-      } else if (trace.name.includes('Cluster')) {
-        const traceCluster = parseInt(trace.name.replace('Cluster ', ''));
-        update.visible.push(traceCluster === targetCluster);
-        traceIndices.push(idx);
-      } else if (trace.name === 'Normal Products') {
-        // For normal products, we need to check if they belong to the target cluster
-        // Since normal products are grouped by cluster in the chart, we need to handle this differently
-        update.visible.push(false); // Hide generic normal products trace
-        traceIndices.push(idx);
-      }
+      const visible = traceMatchesCluster(trace.name, targetCluster);
+      update.visible.push(visible);
+      traceIndices.push(idx);
     });
     
     if (traceIndices.length > 0) {
       Plotly.restyle(chartDiv, update, traceIndices);
     }
     
-    // Update toggle all checkbox state
     updateToggleAllCheckbox();
-    
-    // Show message about cluster filter
     const clusterName = targetCluster === -1 ? 'Noise/Outlier' : `Cluster ${targetCluster}`;
     showMessage(`Filtered to show only ${clusterName}`);
   };
@@ -2747,26 +2831,14 @@ function selectSingleCluster(targetCluster) {
   const traceIndices = [];
   
   chartDiv.data.forEach((trace, idx) => {
-    if (trace.name === 'Outlier Products') {
-      // Show outliers only if target cluster is -1 (Noise/Outlier)
-      update.visible.push(targetCluster === -1);
-      traceIndices.push(idx);
-    } else if (trace.name.includes('Cluster')) {
-      const traceCluster = parseInt(trace.name.replace('Cluster ', ''));
-      update.visible.push(traceCluster === targetCluster);
-      traceIndices.push(idx);
-    } else if (trace.name === 'Normal Products') {
-      // Hide generic normal products trace when filtering by cluster
-      update.visible.push(false);
-      traceIndices.push(idx);
-    }
+    update.visible.push(traceMatchesCluster(trace.name, targetCluster));
+    traceIndices.push(idx);
   });
   
   if (traceIndices.length > 0) {
     Plotly.restyle(chartDiv, update, traceIndices);
   }
   
-  // Update toggle all checkbox state
   updateToggleAllCheckbox();
 }
 
@@ -2780,6 +2852,12 @@ function updateToggleAllCheckbox() {
   toggleAllCheckbox.checked = checkedCount === allCheckboxes.length;
 }
 
+function traceMatchesCluster(traceName, cluster) {
+  if (cluster === -1) return traceName === 'Noise/Outlier';
+  if (cluster === 'none' || cluster === null) return traceName === 'Normal Products';
+  return traceName === `Cluster ${cluster}`;
+}
+
 function toggleClusterVisibility(cluster, isVisible) {
   const chartDiv = document.getElementById('chart');
   if (!chartDiv || !chartDiv.data) return;
@@ -2788,23 +2866,30 @@ function toggleClusterVisibility(cluster, isVisible) {
   const traceIndices = [];
 
   chartDiv.data.forEach((trace, idx) => {
-    if (trace.name === 'Outlier Products') {
-      // Always keep outliers visible based on their checkbox
-      const outlierCheckbox = document.querySelector('.cluster-visibility-toggle[data-cluster="-1"]');
-      update.visible.push(outlierCheckbox ? outlierCheckbox.checked : true);
+    if (traceMatchesCluster(trace.name, cluster)) {
+      update.visible.push(isVisible);
       traceIndices.push(idx);
-    } else if (trace.name.includes('Cluster')) {
-      const traceCluster = parseInt(trace.name.replace('Cluster ', ''));
-      if (traceCluster === cluster) {
-        update.visible.push(isVisible);
-        traceIndices.push(idx);
-      }
+    } else {
+      // Keep other traces at their current visibility
+      const cb = getCheckboxForTrace(trace.name);
+      update.visible.push(cb ? cb.checked : true);
+      traceIndices.push(idx);
     }
   });
 
   if (traceIndices.length > 0) {
     Plotly.restyle(chartDiv, update, traceIndices);
   }
+}
+
+function getCheckboxForTrace(traceName) {
+  if (traceName === 'Noise/Outlier') return document.querySelector('.cluster-visibility-toggle[data-cluster="-1"]');
+  if (traceName === 'Normal Products') return null;
+  if (traceName.startsWith('Cluster ')) {
+    const c = traceName.replace('Cluster ', '');
+    return document.querySelector(`.cluster-visibility-toggle[data-cluster="${c}"]`);
+  }
+  return null;
 }
 
 async function setDimensionGroupAsNormal(cluster, groupName, iteration = null) {
@@ -2855,7 +2940,7 @@ async function setDimensionGroupAsNormal(cluster, groupName, iteration = null) {
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length }, false, true);
     showMessage(`Successfully marked ${groupProducts.length} products in ${groupName} as normal`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
@@ -2911,7 +2996,7 @@ async function setDimensionGroupAsOutlier(cluster, groupName, iteration = null) 
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length }, false, true);
     showMessage(`Successfully marked ${groupProducts.length} products in ${groupName} as outliers`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
@@ -2962,7 +3047,7 @@ async function removeDimensionGroupNormal(cluster, groupName, iteration = null) 
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length }, false, true);
     showMessage(`Successfully removed normal status from ${groupProducts.length} products in ${groupName}`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
@@ -3015,7 +3100,7 @@ async function removeDimensionGroupOutlier(cluster, groupName, iteration = null)
     await loadIterationHistory();
     displayClusterSummary();
     displayIterationSummary();
-    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length });
+    displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length }, false, true);
     showMessage(`Successfully removed outlier status from ${groupProducts.length} products in ${groupName}`);
   } else {
     showMessage('Failed to update products: ' + (data.message || 'Unknown error'));
@@ -3075,7 +3160,7 @@ async function removeClusterNormal(cluster, iteration = null) {
       normals: analysisData.filter(d => d.final_status === 1).length,
       outliers: analysisData.filter(d => d.final_status === 0).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
     
     showMessage(`Successfully removed normal status from ${clusterProducts.length} products`);
   } else {
@@ -3151,7 +3236,7 @@ async function removeClusterOutlier(cluster, iteration = null) {
       normals: analysisData.filter(d => d.final_status === 1).length,
       outliers: analysisData.filter(d => d.final_status === 0).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
     
     showMessage(`Successfully removed outlier status from ${clusterProducts.length} products`);
   } else {
@@ -3229,7 +3314,7 @@ async function setClusterAsNormal(cluster, iteration = null) {
       normals: analysisData.filter(d => d.final_status === 1).length,
       outliers: analysisData.filter(d => d.final_status === 0).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
     
     showMessage(`Successfully marked ${clusterProducts.length} products as normal`);
   } else {
@@ -3316,7 +3401,7 @@ async function setClusterAsOutlier(cluster, iteration = null) {
       normals: analysisData.filter(d => d.final_status === 1).length,
       outliers: analysisData.filter(d => d.final_status === 0).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
     
     showMessage(`Successfully marked ${clusterProducts.length} products as outliers`);
   } else {
@@ -3324,7 +3409,7 @@ async function setClusterAsOutlier(cluster, iteration = null) {
   }
 }
 
-function displayResults(result, forceIndividual = false) {
+function displayResults(result, forceIndividual = false, skipChartRedraw = false) {
   const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
   document.getElementById('promptPanel').style.display = 'none';
   
@@ -3363,7 +3448,9 @@ function displayResults(result, forceIndividual = false) {
   } else {
     els.gridView.classList.add('hidden');
     els.gridView.style.display = 'none';
-    displayChart(displayData);
+    if (!skipChartRedraw || !chartRendered) {
+      displayChart(displayData);
+    }
   }
 }
 
@@ -3557,36 +3644,41 @@ function displayChart(data) {
   els.chartView.classList.remove('hidden');
   els.chartView.style.display = 'grid';
   
-  const normals = data.filter(d => !d.is_outlier_combined);
-  const outliers = data.filter(d => d.is_outlier_combined);
-  
-  const allData = data;
-  const max_width = Math.max(...allData.map(d => d.W));
-  const max_height = Math.max(...allData.map(d => d.H));
-  const max_depth = Math.max(...allData.map(d => d.D));
+  const max_width = Math.max(...data.map(d => d.W));
+  const max_height = Math.max(...data.map(d => d.H));
+  const max_depth = Math.max(...data.map(d => d.D));
   
   const traces = [];
   
-  // Group normals by cluster
+  // Group ALL items purely by dbscan_cluster — marking normal/outlier has no effect on chart
   const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
   const clusterGroups = {};
   
-  normals.forEach(d => {
+  data.forEach(d => {
     const cluster = d.dbscan_cluster != null ? d.dbscan_cluster : 'none';
     if (!clusterGroups[cluster]) clusterGroups[cluster] = [];
     clusterGroups[cluster].push(d);
   });
   
-  // Create trace for each cluster
-  Object.keys(clusterGroups).sort((a, b) => {
+  // Sort: numeric clusters first, then noise (-1), then ungrouped
+  const sortedClusterKeys = Object.keys(clusterGroups).sort((a, b) => {
     if (a === 'none') return 1;
     if (b === 'none') return -1;
-    return parseInt(a) - parseInt(b);
-  }).forEach((cluster, idx) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+  
+  sortedClusterKeys.forEach((cluster, idx) => {
     const clusterData = clusterGroups[cluster];
-    const color = cluster === 'none' ? '#4472C4' : clusterColors[idx % clusterColors.length];
-    const clusterName = cluster === 'none' ? 'Normal Products' : `Cluster ${cluster}`;
-    const clusterLabel = cluster === 'none' ? 'Normal Products' : `Cluster ${cluster} (${clusterData.length})`;
+    const isNoise = cluster === '-1' || parseInt(cluster) === -1;
+    const isNone = cluster === 'none';
+    const color = isNoise ? '#E74C3C' : (isNone ? '#4472C4' : clusterColors[idx % clusterColors.length]);
+    const clusterName = isNone ? 'Normal Products' : (isNoise ? 'Noise/Outlier' : `Cluster ${cluster}`);
+    const clusterLabel = isNone ? 'Normal Products' : (isNoise ? `Noise/Outlier (${clusterData.length})` : `Cluster ${cluster} (${clusterData.length})`);
+    const symbol = isNoise ? 'diamond' : 'circle';
+    const size = isNoise ? 9 : 8;
     
     traces.push({
       x: clusterData.map(d => d.W),
@@ -3596,11 +3688,11 @@ function displayChart(data) {
       type: 'scatter3d',
       name: clusterName,
       marker: {
-        size: 8,
+        size: size,
         color: color,
-        opacity: 0.8,
-        line: {color: color, width: 1.5},
-        symbol: 'circle'
+        opacity: isNoise ? 0.9 : 0.8,
+        line: {color: color, width: isNoise ? 2 : 1.5},
+        symbol: symbol
       },
       text: clusterData.map(d => d.SKU),
       customdata: clusterData,
@@ -3614,34 +3706,6 @@ function displayChart(data) {
       visible: true
     });
   });
-  
-  if (outliers.length) {
-    traces.push({
-      x: outliers.map(d => d.W),
-      y: outliers.map(d => d.H),
-      z: outliers.map(d => d.D),
-      mode: 'markers',
-      type: 'scatter3d',
-      name: 'Outlier Products',
-      marker: {
-        size: 8,
-        color: '#E74C3C',
-        opacity: 0.9,
-        line: {color: '#C0392B', width: 2},
-        symbol: 'diamond'
-      },
-      text: outliers.map(d => d.SKU),
-      customdata: outliers,
-      hovertemplate: '<b style="font-size:14px">⚠️ OUTLIER: %{text}</b><br><br>' +
-                     '<b>Brand:</b> %{customdata.Brand}<br><b>Category:</b> %{customdata.Category}<br>' +
-                     '<b>Type:</b> %{customdata.Type}<br>' +
-                     '<b>Cluster:</b> Noise/Outlier (' + outliers.length + ')<br><br><b style="color:#c0392b">📏 Dimensions:</b><br>' +
-                     'Height: <b>%{customdata.H} Inch</b><br>Width: <b>%{customdata.W} Inch</b><br>' +
-                     'Depth: <b>%{customdata.D} Inch</b><br><extra></extra>',
-      hoverlabel: { namelength: -1 },
-      visible: true
-    });
-  }
   
   const layout = {
     scene: {
@@ -3679,6 +3743,7 @@ function displayChart(data) {
   };
   
   Plotly.react(els.chart, traces, layout, {displayModeBar: true, displaylogo: false, scrollZoom: true, hoverDistance: 50, responsive: true});
+  chartRendered = true;
   
   els.chart.removeAllListeners('plotly_click');
   els.chart.on('plotly_click', (ev) => {
@@ -3712,28 +3777,28 @@ function buildProductsHtml(products) {
     const normalColor = p.final_status == 1 ? '#27ae60' : '#9ca3af';
     const outlierColor = p.final_status == 0 ? '#e74c3c' : '#9ca3af';
     parts.push(`
-      <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
+      <div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;background:#ffffff;">
         <div style="flex-shrink:0;">
-          ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
+          ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:110px;height:110px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:110px;height:110px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
         </div>
         <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
-          <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
-            <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
-            <div style="display:flex;gap:4px;margin-left:auto;">
+          <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:4px;">
+            <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.SKU}</a>
+            <div style="display:flex;gap:3px;margin-left:auto;flex-shrink:0;">
               <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
               <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
             </div>
           </div>
-          <div style="font-size:13px;color:#374151;">${p.Brand}</div>
-          <div style="font-size:13px;color:#374151;">${p.Type}</div>
-          <div style="font-size:13px;color:#374151;"><strong>H</strong> : ${p.H}</div>
-          <div style="font-size:13px;color:#374151;"><strong>W</strong> : ${p.W}</div>
-          <div style="font-size:13px;color:#374151;"><strong>D</strong> : ${p.D}</div>
+          <div style="font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.Brand}</div>
+          <div style="font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.Type}</div>
+          <div style="font-size:12px;color:#374151;"><strong>H</strong>: ${p.H}</div>
+          <div style="font-size:12px;color:#374151;"><strong>W</strong>: ${p.W}</div>
+          <div style="font-size:12px;color:#374151;"><strong>D</strong>: ${p.D}</div>
         </div>
       </div>
     `);
   });
-  return parts.join('');
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;">${parts.join('')}</div>`;
 }
 
 function attachPreviewListeners() {
@@ -3749,7 +3814,7 @@ function attachPreviewListeners() {
 }
 
 function buildPreviewFiltersHtml(allProducts) {
-  // Build counts in one pass
+  if (!allProducts || !allProducts.length) return '';
   const brandCounts = Object.create(null);
   const typeCounts  = Object.create(null);
   allProducts.forEach(p => {
@@ -3758,38 +3823,48 @@ function buildPreviewFiltersHtml(allProducts) {
   });
   const brands = Object.keys(brandCounts).sort();
   const types  = Object.keys(typeCounts).sort();
-  if (brands.length <= 1 && types.length <= 1) return '';
-  return `
-    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;">
-      <div id="previewBrandDropdown" style="flex:1;position:relative;">
-        <div id="previewBrandTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewBrandLabel">All Brands</span><span>&#9660;</span></div>
-        <div id="previewBrandMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
-          <div style="padding:8px;"><input id="previewBrandSearch" type="text" placeholder="Search brand..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
-          <div id="previewBrandList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
-            <div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>
-            ${brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${brandCounts[b]})</div>`).join('')}
-          </div>
+  const pendingCount  = allProducts.filter(p => p.final_status === null || p.final_status === undefined).length;
+  const analyzedCount = allProducts.filter(p => p.final_status === 0 || p.final_status === 1).length;
+  return `<div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;flex-wrap:wrap;">
+    <div id="previewBrandDropdown" style="flex:1 1 130px;max-width:200px;min-width:0;position:relative;">
+      <div id="previewBrandTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewBrandLabel">All Brands</span><span>&#9660;</span></div>
+      <div id="previewBrandMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+        <div style="padding:8px;"><input id="previewBrandSearch" type="text" placeholder="Search brand..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
+        <div id="previewBrandList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
+          <div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>
+          ${brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${brandCounts[b]})</div>`).join('')}
         </div>
-        <input type="hidden" id="previewBrandFilter" value="">
       </div>
-      <div id="previewTypeDropdown" style="flex:1;position:relative;">
-        <div id="previewTypeTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewTypeLabel">All Types</span><span>&#9660;</span></div>
-        <div id="previewTypeMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
-          <div style="padding:8px;"><input id="previewTypeSearch" type="text" placeholder="Search type..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
-          <div id="previewTypeList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
-            <div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>
-            ${types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${typeCounts[t]})</div>`).join('')}
-          </div>
-        </div>
-        <input type="hidden" id="previewTypeFilter" value="">
-      </div>
+      <input type="hidden" id="previewBrandFilter" value="">
     </div>
-  `;
+    <div id="previewTypeDropdown" style="flex:1 1 130px;max-width:200px;min-width:0;position:relative;">
+      <div id="previewTypeTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewTypeLabel">All Types</span><span>&#9660;</span></div>
+      <div id="previewTypeMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+        <div style="padding:8px;"><input id="previewTypeSearch" type="text" placeholder="Search type..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid #c9d4e7;border-radius:6px;box-sizing:border-box;"></div>
+        <div id="previewTypeList" style="max-height:200px;overflow-y:auto;padding:0 6px 6px;">
+          <div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>
+          ${types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${typeCounts[t]})</div>`).join('')}
+        </div>
+      </div>
+      <input type="hidden" id="previewTypeFilter" value="">
+    </div>
+    <div id="previewStatusDropdown" style="flex:1 1 130px;max-width:200px;min-width:0;position:relative;">
+      <div id="previewStatusTrigger" style="font-size:14px;padding:7px 10px;border:1px solid #c9d4e7;border-radius:6px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-weight:500;"><span id="previewStatusLabel">All</span><span>&#9660;</span></div>
+      <div id="previewStatusMenu" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;border:1px solid #c9d4e7;border-radius:8px;background:#fff;z-index:999;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+        <div id="previewStatusList" style="padding:4px 6px 6px;">
+          <div class="pst-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All (${allProducts.length})</div>
+          <div class="pst-opt" data-value="pending" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">Pending (${pendingCount})</div>
+          <div class="pst-opt" data-value="analyzed" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">Analyzed (${analyzedCount})</div>
+        </div>
+      </div>
+      <input type="hidden" id="previewStatusFilter" value="">
+    </div>
+  </div>`;
 }
-
 function attachPreviewFilterListeners(allProducts) {
   const brandInput  = document.getElementById('previewBrandFilter');
   const typeInput   = document.getElementById('previewTypeFilter');
+  const statusInput = document.getElementById('previewStatusFilter');
   const brandTrigger = document.getElementById('previewBrandTrigger');
   const brandMenu   = document.getElementById('previewBrandMenu');
   const brandSearch = document.getElementById('previewBrandSearch');
@@ -3800,6 +3875,10 @@ function attachPreviewFilterListeners(allProducts) {
   const typeSearch  = document.getElementById('previewTypeSearch');
   const typeList    = document.getElementById('previewTypeList');
   const typeLabel   = document.getElementById('previewTypeLabel');
+  const statusTrigger = document.getElementById('previewStatusTrigger');
+  const statusMenu  = document.getElementById('previewStatusMenu');
+  const statusList  = document.getElementById('previewStatusList');
+  const statusLabel = document.getElementById('previewStatusLabel');
   if (!brandInput || !typeInput) return;
 
   // Precompute brand→products and type→products maps once (O(n) instead of O(n²))
@@ -3813,12 +3892,13 @@ function attachPreviewFilterListeners(allProducts) {
   function closePreviewDropdowns() {
     brandMenu.style.display = 'none';
     typeMenu.style.display = 'none';
+    if (statusMenu) statusMenu.style.display = 'none';
   }
 
   // Single delegated close listener on the preview panel (not document) — no leak
   const previewEl = document.getElementById('preview');
   const _closeOnOutside = (e) => {
-    if (!e.target.closest('#previewBrandDropdown') && !e.target.closest('#previewTypeDropdown')) {
+    if (!e.target.closest('#previewBrandDropdown') && !e.target.closest('#previewTypeDropdown') && !e.target.closest('#previewStatusDropdown')) {
       closePreviewDropdowns();
     }
   };
@@ -3845,6 +3925,16 @@ function attachPreviewFilterListeners(allProducts) {
 
   brandMenu.addEventListener('click', (e) => e.stopPropagation());
   typeMenu.addEventListener('click', (e) => e.stopPropagation());
+  if (statusMenu) statusMenu.addEventListener('click', (e) => e.stopPropagation());
+
+  if (statusTrigger && statusMenu) {
+    statusTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = statusMenu.style.display === 'none';
+      closePreviewDropdowns();
+      if (willOpen) statusMenu.style.display = 'block';
+    });
+  }
 
   brandSearch.addEventListener('input', () => filterBrandList(brandSearch.value.trim().toLowerCase()));
   typeSearch.addEventListener('input', () => filterTypeList(typeSearch.value.trim().toLowerCase()));
@@ -3861,14 +3951,28 @@ function attachPreviewFilterListeners(allProducts) {
     });
   }
 
-  function getFiltered(brand, type) {
+  function getFiltered(brand, type, status) {
     // Use precomputed maps: intersect brand-set ∩ type-set instead of scanning allProducts
-    if (!brand && !type) return allProducts;
-    if (brand && !type) return brandMap[brand] || [];
-    if (!brand && type) return typeMap[type] || [];
-    // Both filters: iterate the smaller set
-    const brandSet = new Set((brandMap[brand] || []).map(p => p.SKU));
-    return (typeMap[type] || []).filter(p => brandSet.has(p.SKU));
+    let pool;
+    if (!brand && !type) pool = allProducts;
+    else if (brand && !type) pool = brandMap[brand] || [];
+    else if (!brand && type) pool = typeMap[type] || [];
+    else {
+      // Both filters: iterate the smaller set
+      const brandSet = new Set((brandMap[brand] || []).map(p => p.SKU));
+      pool = (typeMap[type] || []).filter(p => brandSet.has(p.SKU));
+    }
+    if (!status) return pool;
+    if (status === 'pending') return pool.filter(p => p.final_status === null || p.final_status === undefined);
+    if (status === 'analyzed') return pool.filter(p => p.final_status === 0 || p.final_status === 1);
+    return pool;
+  }
+
+  function updateTriggerStyle(trigger, isActive) {
+    trigger.style.border        = isActive ? '2px solid #16a34a' : '1px solid #c9d4e7';
+    trigger.style.fontWeight    = isActive ? '700' : '500';
+    trigger.style.background    = isActive ? '#f0fdf4' : '#fff';
+    trigger.style.color         = isActive ? '#15803d' : '';
   }
 
   function highlightSelected(list, value, optClass) {
@@ -3879,49 +3983,119 @@ function attachPreviewFilterListeners(allProducts) {
     });
   }
 
-  function refreshTypeList(brand) {
-    const current = typeInput.value;
-    // Count types within the brand subset using precomputed maps
-    const subset = brand ? (brandMap[brand] || []) : allProducts;
-    const typeCounts = Object.create(null);
-    subset.forEach(p => { if (p.Type) typeCounts[p.Type] = (typeCounts[p.Type] || 0) + 1; });
-    const types = Object.keys(typeCounts).sort();
-    typeList.innerHTML = `<div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>` +
-      types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${typeCounts[t]})</div>`).join('');
-    if (current && !typeCounts[current]) {
-      typeInput.value = '';
-      typeLabel.textContent = 'All Types';
+  // Returns pool filtered by brand+type+status, with one dimension left free for counting.
+  // freeAxis: 'type' | 'brand' | 'status'
+  function poolFor(freeAxis) {
+    const brand  = brandInput.value;
+    const type   = typeInput.value;
+    const status = statusInput ? statusInput.value : '';
+    let pool = allProducts;
+    if (freeAxis !== 'brand'  && brand)  pool = pool.filter(p => p.Brand === brand);
+    if (freeAxis !== 'type'   && type)   pool = pool.filter(p => p.Type  === type);
+    if (freeAxis !== 'status' && status) {
+      pool = status === 'pending'
+        ? pool.filter(p => p.final_status === null || p.final_status === undefined)
+        : pool.filter(p => p.final_status === 0 || p.final_status === 1);
     }
+    return pool;
+  }
+
+  function refreshTypeList() {
+    const current = typeInput.value;
+    const pool = poolFor('type');  // brand + status fixed, type free
+    const counts = Object.create(null);
+    pool.forEach(p => { if (p.Type) counts[p.Type] = (counts[p.Type] || 0) + 1; });
+    // Always include the currently selected type even if it has 0 count under current filters
+    if (current && !(current in counts)) counts[current] = 0;
+    const types = Object.keys(counts).sort();
+    typeList.innerHTML = `<div class="pty-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Types</div>` +
+      types.map(t => `<div class="pty-opt" data-value="${t}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${t} (${counts[t]})</div>`).join('');
     highlightSelected(typeList, typeInput.value, 'pty-opt');
     attachTypeListHover();
   }
 
-  function refreshBrandList(type) {
+  function refreshBrandList() {
     const current = brandInput.value;
-    // Count brands within the type subset using precomputed maps
-    const subset = type ? (typeMap[type] || []) : allProducts;
-    const brandCounts = Object.create(null);
-    subset.forEach(p => { if (p.Brand) brandCounts[p.Brand] = (brandCounts[p.Brand] || 0) + 1; });
-    const brands = Object.keys(brandCounts).sort();
+    const pool = poolFor('brand');  // type + status fixed, brand free
+    const counts = Object.create(null);
+    pool.forEach(p => { if (p.Brand) counts[p.Brand] = (counts[p.Brand] || 0) + 1; });
+    // Always include the currently selected brand even if it has 0 count under current filters
+    if (current && !(current in counts)) counts[current] = 0;
+    const brands = Object.keys(counts).sort();
     brandList.innerHTML = `<div class="pbr-opt" data-value="" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">All Brands</div>` +
-      brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${brandCounts[b]})</div>`).join('');
-    if (current && !brandCounts[current]) {
-      brandInput.value = '';
-      brandLabel.textContent = 'All Brands';
-    }
+      brands.map(b => `<div class="pbr-opt" data-value="${b}" style="padding:6px 8px;font-size:14px;cursor:pointer;border-radius:4px;">${b} (${counts[b]})</div>`).join('');
     highlightSelected(brandList, brandInput.value, 'pbr-opt');
     attachBrandListHover();
+  }
+
+  function refreshStatusList() {
+    if (!statusList) return;
+    const pool = poolFor('status');  // brand + type fixed, status free
+    const pendingCount  = pool.filter(p => p.final_status === null || p.final_status === undefined).length;
+    const analyzedCount = pool.filter(p => p.final_status === 0 || p.final_status === 1).length;
+    const opts = statusList.querySelectorAll('.pst-opt');
+    if (opts[0]) opts[0].textContent = `All (${pool.length})`;
+    if (opts[1]) opts[1].textContent = `Pending (${pendingCount})`;
+    if (opts[2]) opts[2].textContent = `Analyzed (${analyzedCount})`;
+    highlightSelected(statusList, statusInput ? statusInput.value : '', 'pst-opt');
   }
 
   function applyFilters() {
     const brand = brandInput.value;
     const type  = typeInput.value;
-    const all   = getFiltered(brand, type);
+    const status = statusInput ? statusInput.value : '';
+    const all   = getFiltered(brand, type, status);
     const shown = all.slice(0, 100);
     document.getElementById('previewProductList').innerHTML = buildProductsHtml(shown);
     document.getElementById('previewCount').textContent = `Products (${shown.length}${all.length > 100 ? ' of ' + all.length : ''})`;
     attachPreviewListeners();
   }
+
+  async function markFilteredProducts(finalStatus) {
+    const brand  = brandInput.value;
+    const type   = typeInput.value;
+    const status = statusInput ? statusInput.value : '';
+    const skus   = getFiltered(brand, type, status).map(p => p.SKU);
+    if (!skus.length) return showMessage('No products to mark.');
+    const label = finalStatus === 1 ? 'normal' : 'outlier';
+    if (!confirm(`Mark ${skus.length} filtered product(s) as ${label}?`)) return;
+    const selectedIter = selectedIterationId ? iterationHistory.find(h => h.iteration_id === selectedIterationId) : null;
+    const fallbackIter = iterationHistory.length > 0 ? iterationHistory[iterationHistory.length - 1] : null;
+    const targetIteration = (selectedIter || fallbackIter) ? (selectedIter || fallbackIter).iteration : 1;
+    const payload = {
+      skus,
+      iteration: targetIteration,
+      brands: selectedValues(els.brand),
+      category: els.category.value,
+      eps: parseFloat(els.eps.value),
+      sample: parseInt(els.minSamp.value),
+      group_id: parseInt(els.group.value)
+    };
+    showLoader();
+    const endpoint = finalStatus === 1 ? '/dimension/analyzer/api/set-cluster-normal' : '/dimension/analyzer/api/set-cluster-outlier';
+    const res  = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    hideLoader();
+    if (data.ok) {
+      skus.forEach(sku => {
+        const p = allProducts.find(x => x.SKU === sku);
+        if (p) { p.final_status = finalStatus; p.is_outlier_combined = finalStatus === 0; p.outlier_mode = 1; p.analyzed_date = new Date().toISOString(); }
+        const d = analysisData.find(x => x.SKU === sku);
+        if (d) { d.final_status = finalStatus; d.is_outlier_combined = finalStatus === 0; d.outlier_mode = 1; d.analyzed_date = new Date().toISOString(); }
+      });
+      await loadIterationHistory();
+      displayClusterSummary();
+      displayIterationSummary();
+      displayResults({ data: analysisData, total: analysisData.length, normals: analysisData.filter(d => d.final_status === 1).length, outliers: analysisData.filter(d => d.final_status === 0).length }, false, true);
+      applyFilters();
+      showMessage(`Marked ${skus.length} product(s) as ${label}`);
+    } else {
+      showMessage('Failed: ' + (data.message || 'Unknown error'));
+    }
+  }
+
+  document.getElementById('previewMarkNormalBtn')?.addEventListener('click', () => markFilteredProducts(1));
+  document.getElementById('previewMarkOutlierBtn')?.addEventListener('click', () => markFilteredProducts(0));
 
   brandList.addEventListener('click', (e) => {
     const opt = e.target.closest('.pbr-opt');
@@ -3929,8 +4103,10 @@ function attachPreviewFilterListeners(allProducts) {
     brandInput.value = opt.dataset.value;
     brandLabel.textContent = opt.dataset.value || 'All Brands';
     brandMenu.style.display = 'none';
+    updateTriggerStyle(brandTrigger, !!brandInput.value);
     highlightSelected(brandList, brandInput.value, 'pbr-opt');
-    refreshTypeList(brandInput.value);
+    refreshTypeList();
+    refreshStatusList();
     applyFilters();
   });
 
@@ -3940,10 +4116,33 @@ function attachPreviewFilterListeners(allProducts) {
     typeInput.value = opt.dataset.value;
     typeLabel.textContent = opt.dataset.value || 'All Types';
     typeMenu.style.display = 'none';
+    updateTriggerStyle(typeTrigger, !!typeInput.value);
     highlightSelected(typeList, typeInput.value, 'pty-opt');
-    refreshBrandList(typeInput.value);
+    refreshBrandList();
+    refreshStatusList();
     applyFilters();
   });
+
+  if (statusList) {
+    statusList.addEventListener('click', (e) => {
+      const opt = e.target.closest('.pst-opt');
+      if (!opt) return;
+      statusInput.value = opt.dataset.value;
+      const labels = { '': 'All', 'pending': 'Pending', 'analyzed': 'Analyzed' };
+      statusLabel.textContent = labels[opt.dataset.value] || 'All';
+      statusMenu.style.display = 'none';
+      updateTriggerStyle(statusTrigger, !!statusInput.value);
+      highlightSelected(statusList, statusInput.value, 'pst-opt');
+      refreshBrandList();
+      refreshTypeList();
+      applyFilters();
+    });
+    // Hover effects for status options
+    statusList.querySelectorAll('.pst-opt').forEach(opt => {
+      opt.addEventListener('mouseover', () => { if (opt.dataset.value !== statusInput.value) opt.style.background = '#f0f4ff'; });
+      opt.addEventListener('mouseout', () => { opt.style.background = opt.dataset.value === statusInput.value ? '#dbeafe' : ''; });
+    });
+  }
 
   function attachBrandListHover() {
     brandList.querySelectorAll('.pbr-opt').forEach(opt => {
@@ -3978,7 +4177,13 @@ function renderDimensionGroupPreview(clusterInfo, groupName) {
 
   els.preview.innerHTML = `
     ${buildPreviewFiltersHtml(allProducts)}
-    <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0;margin-bottom:6px;">
+      <h3 id="previewCount" style="margin:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > 100 ? ' of ' + allProducts.length : ''})</h3>
+      <div style="display:flex;gap:4px;">
+        <button id="previewMarkNormalBtn" title="Mark filtered products as Normal" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">N</button>
+        <button id="previewMarkOutlierBtn" title="Mark filtered products as Outlier" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">O</button>
+      </div>
+    </div>
     <div id="previewProductList">${buildProductsHtml(shown)}</div>
   `;
 
@@ -4002,7 +4207,13 @@ function renderClusterPreview(clusterInfos) {
 
   els.preview.innerHTML = `
     ${buildPreviewFiltersHtml(allProducts)}
-    <h3 id="previewCount" style="margin-top:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > LIMIT ? ' of ' + allProducts.length : ''})</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0;margin-bottom:6px;">
+      <h3 id="previewCount" style="margin:0;color:#2563eb;font-size:14px;">Products (${shown.length}${allProducts.length > LIMIT ? ' of ' + allProducts.length : ''})</h3>
+      <div style="display:flex;gap:4px;">
+        <button id="previewMarkNormalBtn" title="Mark filtered products as Normal" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">N</button>
+        <button id="previewMarkOutlierBtn" title="Mark filtered products as Outlier" style="padding:2px 10px;font-size:12px;font-weight:600;border-radius:4px;border:1px solid #95a5a6;background:#95a5a6;color:#fff;cursor:pointer;">O</button>
+      </div>
+    </div>
     <div id="previewProductList">${buildProductsHtml(shown)}</div>
   `;
 
@@ -4676,7 +4887,7 @@ document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
       normals: analysisData.filter(d => d.final_status === 1).length,
       outliers: analysisData.filter(d => d.final_status === 0).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
   });
 });
 
@@ -4815,8 +5026,9 @@ swapResetBtn.addEventListener('click', async function() {
   const finalSkus = getFinalSkus(selectedClusters);
   const selectedDimGroups = getSelectedDimensionGroups();
   
-  const brandInput = document.getElementById('previewBrandFilter');
-  const typeInput  = document.getElementById('previewTypeFilter');
+  const brandInput  = document.getElementById('previewBrandFilter');
+  const typeInput   = document.getElementById('previewTypeFilter');
+  const statusInput = document.getElementById('previewStatusFilter');
   const resetCount = finalSkus.length > 0 ? finalSkus.length : analysisData.filter(p =>
     (!brands.length || brands.includes(p.Brand)) &&
     (!category || p.Category === category) &&
@@ -4833,6 +5045,7 @@ swapResetBtn.addEventListener('click', async function() {
   if (selectedDimGroups.length > 0) confirmMessage += `• Dimension Groups: ${selectedDimGroups.join(', ')}\n`;
   if (brandInput && brandInput.value) confirmMessage += `• Preview Brand Filter: ${brandInput.value}\n`;
   if (typeInput  && typeInput.value)  confirmMessage += `• Preview Type Filter: ${typeInput.value}\n`;
+  if (statusInput && statusInput.value) confirmMessage += `• Analysis Status: ${statusInput.value}\n`;
   
   if (!confirm(confirmMessage)) return;
   
@@ -4842,7 +5055,8 @@ swapResetBtn.addEventListener('click', async function() {
     category: category,
     types: types,
     selected_clusters: selectedClusters,
-    skus: finalSkus
+    skus: finalSkus,
+    iteration_id: selectedIterationId || null
   };
   
   showLoader();
@@ -4904,8 +5118,9 @@ swapBtn.addEventListener('click', async function() {
   const fromLabel = swapFromDimension.options[swapFromDimension.selectedIndex].text;
   const toLabel = swapToDimension.options[swapToDimension.selectedIndex].text;
   
-  const brandInput = document.getElementById('previewBrandFilter');
-  const typeInput  = document.getElementById('previewTypeFilter');
+  const brandInput  = document.getElementById('previewBrandFilter');
+  const typeInput   = document.getElementById('previewTypeFilter');
+  const statusInput = document.getElementById('previewStatusFilter');
   const swapCount = finalSkus.length > 0 ? finalSkus.length : analysisData.filter(p =>
     (!brands.length || brands.includes(p.Brand)) &&
     (!category || p.Category === category) &&
@@ -4922,6 +5137,7 @@ swapBtn.addEventListener('click', async function() {
   if (selectedDimGroups.length > 0) confirmMessage += `• Dimension Groups: ${selectedDimGroups.join(', ')}\n`;
   if (brandInput && brandInput.value) confirmMessage += `• Preview Brand Filter: ${brandInput.value}\n`;
   if (typeInput  && typeInput.value)  confirmMessage += `• Preview Type Filter: ${typeInput.value}\n`;
+  if (statusInput && statusInput.value) confirmMessage += `• Analysis Status: ${statusInput.value}\n`;
   
   if (!confirm(confirmMessage)) return;
   
@@ -4933,7 +5149,8 @@ swapBtn.addEventListener('click', async function() {
     from_dimension: fromDim,
     to_dimension: toDim,
     selected_clusters: selectedClusters,
-    skus: finalSkus
+    skus: finalSkus,
+    iteration_id: selectedIterationId || null
   };
   
   showLoader();
@@ -4994,18 +5211,20 @@ function getSelectedDimensionGroups() {
 function getFinalSkus(selectedClusters) {
   const brandInput   = document.getElementById('previewBrandFilter');
   const typeInput    = document.getElementById('previewTypeFilter');
-  const previewBrand = brandInput ? brandInput.value : '';
-  const previewType  = typeInput  ? typeInput.value  : '';
+  const statusInput  = document.getElementById('previewStatusFilter');
+  const previewBrand = brandInput  ? brandInput.value  : '';
+  const previewType  = typeInput   ? typeInput.value   : '';
+  const previewStatus = statusInput ? statusInput.value : '';
   const selectedDimGroups = getSelectedDimensionGroups();
 
-  const hasSubFilter = selectedDimGroups.length > 0 || previewBrand || previewType;
+  const hasSubFilter = selectedDimGroups.length > 0 || previewBrand || previewType || previewStatus;
 
-  // No dim-group or preview filters → clusters are sent separately, backend handles everything
+  // No sub-filters → clusters are sent separately, backend handles everything
   if (!hasSubFilter) return [];
 
   let pool = analysisData;
 
-  // Step 2: narrow by clusters first (so dim-group/preview filters operate on the right subset)
+  // Step 2: narrow by clusters
   if (selectedClusters && selectedClusters.length > 0) {
     pool = pool.filter(p => selectedClusters.includes(
       typeof p.dbscan_cluster !== 'undefined' ? p.dbscan_cluster : null
@@ -5023,6 +5242,13 @@ function getFinalSkus(selectedClusters) {
       (!previewBrand || p.Brand === previewBrand) &&
       (!previewType  || p.Type  === previewType)
     );
+  }
+
+  // Step 5: filter by analysis status
+  if (previewStatus === 'pending') {
+    pool = pool.filter(p => p.final_status === null || p.final_status === undefined);
+  } else if (previewStatus === 'analyzed') {
+    pool = pool.filter(p => p.final_status === 0 || p.final_status === 1);
   }
 
   return pool.map(p => p.SKU);
@@ -5103,7 +5329,7 @@ async function updateItemStatus(sku, finalStatus) {
       normals: analysisData.filter(d => !d.is_outlier_combined).length,
       outliers: analysisData.filter(d => d.is_outlier_combined).length
     };
-    displayResults(result);
+    displayResults(result, false, true);
     
     // Re-render the cluster preview to update icons
     if (clusterValue !== null) {

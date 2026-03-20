@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: mysql8.0volume:3306
--- Generation Time: Mar 18, 2026 at 09:40 AM
+-- Generation Time: Mar 20, 2026 at 07:48 AM
 -- Server version: 8.0.27
 -- PHP Version: 8.0.15
 
@@ -253,6 +253,10 @@ CREATE TABLE `pricing_product` (
   `mfr_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
   `shipping_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
   `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `map_price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `msrp_price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `profit_amt` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `profit_per` decimal(10,2) NOT NULL DEFAULT '0.00',
   `ori_height` float DEFAULT NULL,
   `ori_width` float DEFAULT NULL,
   `ori_depth` float DEFAULT NULL,
@@ -273,7 +277,26 @@ CREATE TABLE `pricing_product` (
   `iteration_closed` int DEFAULT NULL,
   `outlier_mode` tinyint DEFAULT NULL COMMENT '0=Autometic, 1=Manually',
   `eps` decimal(10,2) DEFAULT NULL,
-  `sample` int DEFAULT NULL
+  `sample` int DEFAULT NULL,
+  `cost_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `shipping_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `profit_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `profit_vs_cost_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `shipping_vs_cost_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `profit_vs_shipping_margin` decimal(10,2) NOT NULL DEFAULT '0.00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_column`
+--
+
+CREATE TABLE `pricing_product_column` (
+  `column_id` int UNSIGNED NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `code` varchar(100) NOT NULL,
+  `symbol` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -288,6 +311,24 @@ CREATE TABLE `pricing_product_group` (
   `product_count` int DEFAULT NULL,
   `created_date` datetime DEFAULT NULL,
   `default_selected` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Yes=1, No=0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pricing_product_insight_config`
+--
+
+CREATE TABLE `pricing_product_insight_config` (
+  `insight_config_id` int UNSIGNED NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `x_axis` int UNSIGNED NOT NULL,
+  `y_axis` int UNSIGNED NOT NULL,
+  `z_axis` int UNSIGNED NOT NULL,
+  `x_axis_com` int UNSIGNED NOT NULL,
+  `y_axis_com` int UNSIGNED NOT NULL,
+  `z_axis_com` int UNSIGNED NOT NULL,
+  `is_default` tinyint NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -310,7 +351,13 @@ CREATE TABLE `pricing_product_iteration` (
   `pending_items` int DEFAULT NULL,
   `outlier_items` int DEFAULT NULL,
   `timestamp` datetime NOT NULL,
-  `unique_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
+  `unique_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `x_axis` int UNSIGNED NOT NULL,
+  `y_axis` int UNSIGNED NOT NULL,
+  `z_axis` int UNSIGNED NOT NULL,
+  `x_axis_com` int UNSIGNED NOT NULL,
+  `y_axis_com` int UNSIGNED NOT NULL,
+  `z_axis_com` int UNSIGNED NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -342,12 +389,28 @@ CREATE TABLE `pricing_product_iteration_item` (
 --
 
 CREATE TABLE `pricing_product_tmp` (
-  `web_id` varchar(20) NOT NULL,
-  `mfr_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `freight_charge` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `wg_charge` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `shipping_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `price` decimal(10,2) NOT NULL DEFAULT '0.00'
+  `product_id` int DEFAULT NULL,
+  `product_name` varchar(255) DEFAULT NULL,
+  `product_type` varchar(100) DEFAULT NULL,
+  `web_id` varchar(100) DEFAULT NULL,
+  `sku` varchar(100) DEFAULT NULL,
+  `mpn` varchar(100) DEFAULT NULL,
+  `part_number` varchar(100) DEFAULT NULL,
+  `category_id` int DEFAULT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `brand_id` int DEFAULT NULL,
+  `brand` varchar(255) DEFAULT NULL,
+  `mfr_cost` decimal(10,2) DEFAULT '0.00',
+  `freight_charge` decimal(10,2) DEFAULT '0.00',
+  `wg_charge` decimal(10,2) DEFAULT '0.00',
+  `map_price` decimal(10,2) DEFAULT '0.00',
+  `price` decimal(10,2) DEFAULT '0.00',
+  `msrp` decimal(10,2) DEFAULT '0.00',
+  `height` decimal(10,2) DEFAULT NULL,
+  `width` decimal(10,2) DEFAULT NULL,
+  `depth` decimal(10,2) DEFAULT NULL,
+  `image_url` varchar(500) DEFAULT NULL,
+  `product_url` varchar(500) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -366,7 +429,9 @@ ALTER TABLE `alembic_version`
 ALTER TABLE `dimension_product`
   ADD PRIMARY KEY (`product_id`),
   ADD KEY `group_id` (`group_id`),
-  ADD KEY `idx_product_system_product_id` (`system_product_id`);
+  ADD KEY `idx_product_system_product_id` (`system_product_id`),
+  ADD KEY `idx_product_qb_code` (`qb_code`),
+  ADD KEY `idx_product_group_brand_cat` (`group_id`,`brand`,`category`);
 
 --
 -- Indexes for table `dimension_product_group`
@@ -440,17 +505,41 @@ ALTER TABLE `pricing_product`
   ADD KEY `idx_product_system_product_id` (`system_product_id`);
 
 --
+-- Indexes for table `pricing_product_column`
+--
+ALTER TABLE `pricing_product_column`
+  ADD PRIMARY KEY (`column_id`);
+
+--
 -- Indexes for table `pricing_product_group`
 --
 ALTER TABLE `pricing_product_group`
   ADD PRIMARY KEY (`group_id`);
 
 --
+-- Indexes for table `pricing_product_insight_config`
+--
+ALTER TABLE `pricing_product_insight_config`
+  ADD PRIMARY KEY (`insight_config_id`),
+  ADD KEY `x_axis` (`x_axis`),
+  ADD KEY `y_axis` (`y_axis`),
+  ADD KEY `z_axis` (`z_axis`),
+  ADD KEY `x_axis_com` (`x_axis_com`),
+  ADD KEY `y_axis_com` (`y_axis_com`),
+  ADD KEY `z_axis_com` (`z_axis_com`);
+
+--
 -- Indexes for table `pricing_product_iteration`
 --
 ALTER TABLE `pricing_product_iteration`
   ADD PRIMARY KEY (`iteration_id`),
-  ADD KEY `product_group_id` (`product_group_id`);
+  ADD KEY `product_group_id` (`product_group_id`),
+  ADD KEY `x_axis` (`x_axis`),
+  ADD KEY `x_axis_com` (`x_axis_com`),
+  ADD KEY `y_axis` (`y_axis`),
+  ADD KEY `y_axis_com` (`y_axis_com`),
+  ADD KEY `z_axis` (`z_axis`),
+  ADD KEY `z_axis_com` (`z_axis_com`);
 
 --
 -- Indexes for table `pricing_product_iteration_item`
@@ -464,7 +553,7 @@ ALTER TABLE `pricing_product_iteration_item`
 -- Indexes for table `pricing_product_tmp`
 --
 ALTER TABLE `pricing_product_tmp`
-  ADD PRIMARY KEY (`web_id`);
+  ADD KEY `product_id` (`product_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -537,10 +626,22 @@ ALTER TABLE `pricing_product`
   MODIFY `product_id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `pricing_product_column`
+--
+ALTER TABLE `pricing_product_column`
+  MODIFY `column_id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `pricing_product_group`
 --
 ALTER TABLE `pricing_product_group`
   MODIFY `group_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pricing_product_insight_config`
+--
+ALTER TABLE `pricing_product_insight_config`
+  MODIFY `insight_config_id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `pricing_product_iteration`
@@ -590,22 +691,32 @@ ALTER TABLE `matching_system_product`
   ADD CONSTRAINT `matching_system_product_ibfk_1` FOREIGN KEY (`competitor_product_id`) REFERENCES `matching_competitor_product` (`competitor_product_id`);
 
 --
--- Constraints for table `pricing_product`
+-- Constraints for table `pricing_product_insight_config`
 --
-ALTER TABLE `pricing_product`
-  ADD CONSTRAINT `pricing_product_ibfk_1` FOREIGN KEY (`group_id`) REFERENCES `pricing_product_group` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `pricing_product_insight_config`
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_1` FOREIGN KEY (`x_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_2` FOREIGN KEY (`x_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_3` FOREIGN KEY (`y_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_4` FOREIGN KEY (`y_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_5` FOREIGN KEY (`z_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_insight_config_ibfk_6` FOREIGN KEY (`z_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `pricing_product_iteration`
 --
 ALTER TABLE `pricing_product_iteration`
-  ADD CONSTRAINT `pricing_product_iteration_ibfk_1` FOREIGN KEY (`product_group_id`) REFERENCES `pricing_product_group` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_1` FOREIGN KEY (`x_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_2` FOREIGN KEY (`x_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_3` FOREIGN KEY (`y_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_4` FOREIGN KEY (`y_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_5` FOREIGN KEY (`z_axis`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_ibfk_6` FOREIGN KEY (`z_axis_com`) REFERENCES `pricing_product_column` (`column_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `pricing_product_iteration_item`
 --
 ALTER TABLE `pricing_product_iteration_item`
-  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_1` FOREIGN KEY (`iteration_id`) REFERENCES `pricing_product_iteration` (`iteration_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_1` FOREIGN KEY (`iteration_id`) REFERENCES `pricing_product_iteration_1` (`iteration_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `pricing_product_iteration_item_ibfk_2` FOREIGN KEY (`system_product_id`) REFERENCES `pricing_product` (`system_product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 

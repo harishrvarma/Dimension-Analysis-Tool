@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric
+from sqlalchemy.orm import relationship
 from models.base.base_model import BaseModel
 
 
@@ -19,4 +20,17 @@ class ProductIteration(BaseModel):
     analyzed_items = Column(Integer, nullable=True)
     pending_items = Column(Integer, nullable=True)
     outlier_items = Column(Integer, nullable=True)
+    x_axis = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+    y_axis = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+    z_axis = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+    x_axis_com = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+    y_axis_com = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+    z_axis_com = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True)
+
+    x_axis_col = relationship("ProductColumn", foreign_keys=[x_axis])
+    y_axis_col = relationship("ProductColumn", foreign_keys=[y_axis])
+    z_axis_col = relationship("ProductColumn", foreign_keys=[z_axis])
+    x_axis_com_col = relationship("ProductColumn", foreign_keys=[x_axis_com])
+    y_axis_com_col = relationship("ProductColumn", foreign_keys=[y_axis_com])
+    z_axis_com_col = relationship("ProductColumn", foreign_keys=[z_axis_com])
 

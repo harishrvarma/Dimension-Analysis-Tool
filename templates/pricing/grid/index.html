@@ -1097,7 +1097,7 @@
         { key: 'name', label: 'Name' },
         { key: 'mfr_cost', label: 'Mfr Cost' },
         { key: 'shipping_cost', label: 'Shipping Cost' },
-        { key: 'price', label: 'Price' },
+        { key: 'profit_margin', label: 'Profit Margin' },
         { key: 'eps', label: 'EPS' },
         { key: 'sample', label: 'Sample' },
         { key: 'final_status', label: 'Final Status' },
@@ -1166,7 +1166,7 @@
             value = typeof value === 'number' ? value.toFixed(2) : value;
           } else if (col.key === 'shipping_cost') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
-          } else if (col.key === 'price') {
+          } else if (col.key === 'profit_margin') {
             value = typeof value === 'number' ? value.toFixed(2) : value;
           } else if (col.key === 'final_status') {
             cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';

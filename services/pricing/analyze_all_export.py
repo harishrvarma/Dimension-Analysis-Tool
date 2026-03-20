@@ -8,7 +8,7 @@ from io import StringIO
 
 
 def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='all', 
-                           configs=None, filters=None, algorithm_settings=None):
+                           configs=None, filters=None, algorithm_settings=None, axis_cols=None):
     """Analyze all products and export results - OPTIMIZED VERSION
     
     Args:
@@ -45,10 +45,13 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
         
         # Fetch products with filters
         print(f"[{time.time()-start_time:.1f}s] Fetching products...")
-        df = repo.get_all_products_for_export(filters, record_type, product_group_id)
+        df = repo.get_all_products_for_export(filters, record_type, product_group_id, axis_cols=axis_cols)
         
         if df.empty:
             return None, "No products found"
+        
+        # Resolve axis column names for CSV headers
+        col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
         
         print(f"[{time.time()-start_time:.1f}s] Loaded {len(df)} products")
         
@@ -93,7 +96,7 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
                 # Use ThreadPoolExecutor for parallel processing
                 with ThreadPoolExecutor(max_workers=min(4, len(executable_configs))) as executor:
                     future_to_config = {
-                        executor.submit(run_dbscan_analysis, group_df, p1, p2, algorithm_settings): (p1, p2)
+                        executor.submit(run_dbscan_analysis, group_df, p1, p2, algorithm_settings, axis_cols): (p1, p2)
                         for p1, p2 in executable_configs
                     }
                     
@@ -154,9 +157,9 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
                     'Name': row['name'],
                     'Image URL': row['base_image_url'],
                     'Product URL': row['product_url'],
-                    'Mfr Cost': row['mfr_cost'],
-                    'Shipping Cost': row['shipping_cost'],
-                    'Price': row['price'],
+                    col_x: row[col_x],
+                    col_y: row[col_y],
+                    col_z: row[col_z],
                     'TOTAL ITEMS': total_all_products,
                     'Analyzed Item Count': analyzed_count,
                     'Pending Item Count': pending_count,
@@ -231,7 +234,7 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
         
         # Save results to database with batch operations
         try:
-            save_analysis_to_database_optimized(unique_number, product_group_id, algorithm, config, results, algorithm_settings)
+            save_analysis_to_database_optimized(unique_number, product_group_id, algorithm, config, results, algorithm_settings, axis_cols=axis_cols)
             print(f"[{time.time()-start_time:.1f}s] Results saved to database with unique_number: {unique_number}")
         except Exception as e:
             print(f"[{time.time()-start_time:.1f}s] Failed to save to database: {str(e)}")
@@ -242,7 +245,7 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
         
         si = StringIO()
         fieldnames = ['System Product Id', 'QB Code', 'Brand', 'Category', 'Product Type', 'Name', 
-                     'Image URL', 'Product URL', 'Mfr Cost', 'Shipping Cost', 'Price', 'Unique Group Key', 'TOTAL ITEMS', 'Analyzed Item Count', 'Pending Item Count', 'EXECUTED']
+                     'Image URL', 'Product URL', col_x, col_y, col_z, 'Unique Group Key', 'TOTAL ITEMS', 'Analyzed Item Count', 'Pending Item Count', 'EXECUTED']
         
         # Add columns based on analysis type
         # Show: Outliers, Status, Cluster, Cluster Item Count, Cluster Item Percentage for each config
@@ -274,39 +277,35 @@ def analyze_all_and_export(product_group_id, algorithm='DBSCAN', record_type='al
         db.close()
 
 
-def run_dbscan_analysis(df, eps, min_samples, algorithm_settings=None):
-    """Run DBSCAN analysis and return outlier count, product statuses, and cluster assignments
-    
-    This function matches the logic from analyzer.py detect_outliers_dbscan function
-    """
+def run_dbscan_analysis(df, eps, min_samples, algorithm_settings=None, axis_cols=None):
+    """Run DBSCAN analysis and return outlier count, product statuses, and cluster assignments"""
     from sklearn.preprocessing import StandardScaler
     from sklearn.cluster import DBSCAN
     
     if len(df) < min_samples:
         return 0, {}, {}
     
-    # Default settings if not provided
     if algorithm_settings is None:
         algorithm_settings = ['shape', 'size', 'volume']
     
+    col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
+    required_cols = [col_x, col_y, col_z]
+    
     df_dbscan = df.copy()
     
-    # Ensure required columns exist
-    required_cols = ['mfr_cost', 'shipping_cost', 'price']
     missing_cols = [c for c in required_cols if c not in df_dbscan.columns]
     if missing_cols:
         return 0, {}, {}
     
-    # Remove rows with NaN values
     df_dbscan = df_dbscan.dropna(subset=required_cols)
-    
-    # Remove non-positive values
-    df_dbscan = df_dbscan[(df_dbscan[['mfr_cost', 'shipping_cost', 'price']] > 0).all(axis=1)]
+    for _c in required_cols:
+        df_dbscan[_c] = pd.to_numeric(df_dbscan[_c], errors='coerce').astype(float)
+    df_dbscan = df_dbscan.dropna(subset=required_cols)
+    df_dbscan = df_dbscan[(df_dbscan[required_cols] != 0).all(axis=1)]
     
     if len(df_dbscan) < min_samples:
         return 0, {}, {}
     
-    # Normalize settings
     valid_settings = {'shape', 'size', 'volume'}
     settings = {
         str(s).strip().lower()
@@ -317,42 +316,34 @@ def run_dbscan_analysis(df, eps, min_samples, algorithm_settings=None):
     if not settings:
         settings = set(valid_settings)
     
-    # Small constant to avoid division errors
     eps_val = 1e-6
-    
     features = []
     
     if 'size' in settings:
-        features.extend(['mfr_cost', 'shipping_cost', 'price'])
+        features.extend(required_cols)
     
     if 'shape' in settings:
-        df_dbscan['mfr_shipping'] = df_dbscan['mfr_cost'] / (df_dbscan['shipping_cost'] + eps_val)
-        df_dbscan['shipping_price'] = df_dbscan['shipping_cost'] / (df_dbscan['price'] + eps_val)
-        df_dbscan['mfr_price'] = df_dbscan['mfr_cost'] / (df_dbscan['price'] + eps_val)
-        features.extend(['mfr_shipping', 'shipping_price', 'mfr_price'])
+        df_dbscan['_ratio_xy'] = df_dbscan[col_x] / (df_dbscan[col_y] + eps_val)
+        df_dbscan['_ratio_yz'] = df_dbscan[col_y] / (df_dbscan[col_z] + eps_val)
+        df_dbscan['_ratio_xz'] = df_dbscan[col_x] / (df_dbscan[col_z] + eps_val)
+        features.extend(['_ratio_xy', '_ratio_yz', '_ratio_xz'])
     
     if 'volume' in settings:
-        df_dbscan['Volume'] = df_dbscan['mfr_cost'] * df_dbscan['shipping_cost'] * df_dbscan['price']
-        features.append('Volume')
+        df_dbscan['_volume'] = df_dbscan[col_x] * df_dbscan[col_y] * df_dbscan[col_z]
+        features.append('_volume')
     
-    # De-duplicate (preserve order)
     seen = set()
     features = [f for f in features if not (f in seen or seen.add(f))]
     
     X = df_dbscan[features].values
-    
-    # Scale features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # Run DBSCAN
     dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean')
     clusters = dbscan.fit_predict(X_scaled)
     
-    # Count outliers (cluster = -1)
     outlier_count = (clusters == -1).sum()
     
-    # Map product statuses and clusters: 0 for outlier, 1 for normal
     product_statuses = {}
     product_clusters = {}
     for i, cluster in enumerate(clusters):
@@ -363,16 +354,15 @@ def run_dbscan_analysis(df, eps, min_samples, algorithm_settings=None):
     return int(outlier_count), product_statuses, product_clusters
 
 
-def run_hdbscan_analysis(df, min_cluster_size, min_samples):
+def run_hdbscan_analysis(df, min_cluster_size, min_samples, axis_cols=None):
     """Run HDBSCAN analysis and return outlier count and product statuses"""
+    col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
+    required_cols = [col_x, col_y, col_z]
     
     if len(df) < min_samples:
         return 0, {}
     
-    # Prepare data
-    X = df[['mfr_cost', 'shipping_cost', 'price']].values
-    
-    # Remove rows with NaN
+    X = df[required_cols].values
     valid_mask = ~pd.isna(X).any(axis=1)
     X_clean = X[valid_mask]
     
@@ -527,47 +517,54 @@ def save_analysis_to_database(unique_number, product_group_id, algorithm, config
         db.close()
 
 
-def save_analysis_to_database_optimized(unique_number, product_group_id, algorithm, config, results, algorithm_settings):
+def save_analysis_to_database_optimized(unique_number, product_group_id, algorithm, config, results, algorithm_settings, axis_cols=None):
     """Save analysis results to pricing_product_iteration and pricing_product_iteration_item tables - OPTIMIZED VERSION"""
     from models.base.base import SessionLocal
     from repositories.pricing.product_iteration_repository import ProductIterationRepository
     from repositories.pricing.product_iteration_item_repository import PricingProductIterationItemRepository
     from models.pricing.product_iteration import ProductIteration
     from models.pricing.product_iteration_item import PricingProductIterationItem
-    from sqlalchemy import func, case
+    from sqlalchemy import func, case, text as _text
     import json
     from datetime import datetime
+    
+    col_x, col_y, col_z = (axis_cols or ['mfr_cost', 'shipping_cost', 'profit_margin'])
     
     db = SessionLocal()
     try:
         iteration_repo = ProductIterationRepository(db)
         item_repo = PricingProductIterationItemRepository(db)
         
-        # Get unique categories from results (single pass)
         categories = set(result['Category'] for result in results)
         
-        # Pre-calculate category statistics in single query (OPTIMIZED)
-        from models.pricing.product import Product
-        category_stats_query = db.query(
-            Product.category,
-            func.count(Product.system_product_id).label('total_items'),
-            func.sum(case((Product.final_status.isnot(None), 1), else_=0)).label('analyzed_items'),
-            func.sum(case((Product.final_status.is_(None), 1), else_=0)).label('pending_items')
-        ).filter(
-            Product.group_id == product_group_id,
-            Product.category.in_(categories),
-            Product.mfr_cost.isnot(None),
-            Product.shipping_cost.isnot(None),
-            Product.price.isnot(None)
-        ).group_by(Product.category).all()
+        # Pre-calculate category statistics using dynamic axis columns
+        from repositories.pricing.product_repository import ProductRepository
+        prod_repo = ProductRepository(db)
+        axis_not_null = prod_repo._axis_not_null_conditions([col_x, col_y, col_z])
         
-        # Convert to dictionary for fast lookup
+        cat_placeholders = ', '.join([f':cat{i}' for i in range(len(categories))])
+        cat_params = {f'cat{i}': cat for i, cat in enumerate(categories)}
+        cat_params['group_id'] = product_group_id
+        
+        stats_query = _text(f"""
+            SELECT category,
+                COUNT(*) as total_items,
+                SUM(CASE WHEN final_status IS NOT NULL THEN 1 ELSE 0 END) as analyzed_items,
+                SUM(CASE WHEN final_status IS NULL THEN 1 ELSE 0 END) as pending_items
+            FROM pricing_product
+            WHERE group_id = :group_id
+            AND category IN ({cat_placeholders})
+            {axis_not_null}
+            GROUP BY category
+        """)
+        stats_rows = db.execute(stats_query, cat_params).fetchall()
+        
         category_stats = {}
-        for stat in category_stats_query:
-            category_stats[stat.category] = {
-                'total_items': stat.total_items,
-                'analyzed_items': stat.analyzed_items,
-                'pending_items': stat.pending_items
+        for stat in stats_rows:
+            category_stats[stat[0]] = {
+                'total_items': stat[1],
+                'analyzed_items': stat[2],
+                'pending_items': stat[3]
             }
         
         # Batch create iteration records
