@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, Numeric, String, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.mysql import TINYINT
 from models.base.base_model import BaseModel
@@ -16,6 +16,7 @@ class ProductInsightConfig(BaseModel):
     y_axis_com = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True, default=None)
     z_axis_com = Column(Integer, ForeignKey("pricing_product_column.column_id"), nullable=True, default=None)
     is_default = Column(TINYINT, nullable=False, default=0)
+    sort_order = Column(Numeric(10, 2), nullable=False, default=999)
 
     x_axis_column = relationship("models.pricing.product_column.ProductColumn", foreign_keys=[x_axis])
     y_axis_column = relationship("models.pricing.product_column.ProductColumn", foreign_keys=[y_axis])

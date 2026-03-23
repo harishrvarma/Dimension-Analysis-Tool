@@ -38,46 +38,66 @@ class ProductRepository(BaseRepository):
             return df
         return pd.DataFrame()
 
-    def get_categories_for_group(self, group_id: int, brands: list = None, axis_cols: list = None):
-        """Get categories for a group with analysis status, optionally filtered by brands"""
-        col_conditions = self._axis_not_null_conditions(axis_cols)
+    def get_brands_for_group_filtered(self, group_id: int, categories: list = None, types: list = None, axis_cols: list = None):
+        """Get brands filtered by categories and/or types (for interconnected filters)"""
+        conditions = ["group_id = :group_id", "brand IS NOT NULL"]
+        conditions += self._axis_not_null_list(axis_cols)
+        params = {'group_id': group_id}
+        if categories and len(categories) > 0:
+            placeholders = ','.join([f':cat{i}' for i in range(len(categories))])
+            conditions.append(f"category IN ({placeholders})")
+            for i, c in enumerate(categories):
+                params[f'cat{i}'] = c
+        if types and len(types) > 0:
+            placeholders = ','.join([f':type{i}' for i in range(len(types))])
+            conditions.append(f"product_type IN ({placeholders})")
+            for i, t in enumerate(types):
+                params[f'type{i}'] = t
+        where_clause = ' AND '.join(conditions)
+        query = f"""
+            SELECT 
+                MIN(brand_id) as brand_id,
+                brand, 
+                COUNT(*) as product_count,
+                SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
+            FROM pricing_product
+            WHERE {where_clause}
+            GROUP BY brand
+            ORDER BY brand
+        """
+        result = self.fetch_all(query, params)
+        if result:
+            return pd.DataFrame(result, columns=['brand_id', 'brand', 'product_count', 'analyzed_count'])
+        return pd.DataFrame()
+
+    def get_categories_for_group(self, group_id: int, brands: list = None, types: list = None, axis_cols: list = None):
+        """Get categories for a group with analysis status, optionally filtered by brands and types"""
+        conditions = ["group_id = :group_id", "category IS NOT NULL"]
+        conditions += self._axis_not_null_list(axis_cols)
+        params = {'group_id': group_id}
         if brands and len(brands) > 0:
             placeholders = ','.join([f':brand{i}' for i in range(len(brands))])
-            query = f"""
-                SELECT 
-                    MIN(category_id) as category_id,
-                    category, 
-                    COUNT(*) as product_count,
-                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
-                FROM pricing_product
-                WHERE group_id = :group_id 
-                AND brand IN ({placeholders})
-                AND category IS NOT NULL
-                {col_conditions}
-                GROUP BY category
-                ORDER BY product_count DESC, category
-            """
-            params = {'group_id': group_id}
+            conditions.append(f"brand IN ({placeholders})")
             for i, brand in enumerate(brands):
                 params[f'brand{i}'] = brand
-        else:
-            query = f"""
-                SELECT 
-                    MIN(category_id) as category_id,
-                    category, 
-                    COUNT(*) as product_count,
-                    SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
-                FROM pricing_product
-                WHERE group_id = :group_id 
-                AND category IS NOT NULL
-                {col_conditions}
-                GROUP BY category
-                ORDER BY product_count DESC, category
-            """
-            params = {'group_id': group_id}
-        
+        if types and len(types) > 0:
+            placeholders = ','.join([f':type{i}' for i in range(len(types))])
+            conditions.append(f"product_type IN ({placeholders})")
+            for i, t in enumerate(types):
+                params[f'type{i}'] = t
+        where_clause = ' AND '.join(conditions)
+        query = f"""
+            SELECT 
+                MIN(category_id) as category_id,
+                category, 
+                COUNT(*) as product_count,
+                SUM(CASE WHEN final_status IN (0, 1) THEN 1 ELSE 0 END) as analyzed_count
+            FROM pricing_product
+            WHERE {where_clause}
+            GROUP BY category
+            ORDER BY product_count DESC, category
+        """
         result = self.fetch_all(query, params)
-        
         if result:
             df = pd.DataFrame(result, columns=['category_id', 'category', 'product_count', 'analyzed_count'])
             return df

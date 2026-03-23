@@ -22,7 +22,7 @@ body {
 .page { padding: 5px; }
 .row {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, 1fr) auto;
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -290,9 +290,34 @@ button {
 .content {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: 2.6fr 0.7fr 0.7fr;
-  gap: 10px;
+  grid-template-columns: calc(65% - 6.5px) 5px calc(17.5% - 1.75px) 5px calc(17.5% - 1.75px);
+  gap: 0;
   align-items: start;
+  column-gap: 0;
+  overflow: hidden;
+}
+.resize-divider {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  align-self: stretch;
+  z-index: 10;
+}
+.resize-divider::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #dde5f1;
+  transition: background 0.15s, width 0.15s, left 0.15s;
+}
+.resize-divider:hover::after, .resize-divider.dragging::after {
+  left: 1px;
+  width: 3px;
+  background: #2563eb;
 }
 #chart {
   width: 100%;
@@ -342,6 +367,8 @@ button {
   background: #f8fafc;
   max-height: 750px;
   overflow-y: auto;
+  box-sizing: border-box;
+  min-width: 0;
 }
 #clusterSummaryPanel h3 {
   margin: 0 0 8px;
@@ -365,6 +392,8 @@ button {
   background: #f8fafc;
   max-height: 750px;
   overflow-y: auto;
+  box-sizing: border-box;
+  min-width: 0;
 }
 img.preview {
   max-width: 250px;
@@ -793,6 +822,7 @@ img.preview {
   .row { grid-template-columns: 1fr !important; }
   .iqr-grid { grid-template-columns: 1fr; }
   .content { grid-template-columns: 1fr; }
+  .resize-divider { display: none; }
   #chart { height: 460px; min-height: 460px; }
   #preview { min-height: 320px; }
   .export-modal-content { width: 95%; padding: 16px; max-width: 95%; }
@@ -911,6 +941,9 @@ img.preview {
 <div class="ms-trigger" id="typeTrigger">Select Product Type <span>▾</span></div>
 <div class="ms-menu hidden" id="typeMenu"></div>
 </div>
+</div>
+<div style="display:flex;align-items:flex-end;">
+<button id="filterResetBtn" title="Clear brand, category and product type filters" style="width:auto;background:#95a5a6;border-color:#95a5a6;font-size:12px;padding:8px 6px;white-space:nowrap;">Clear Filters</button>
 </div>
 </div>
 
@@ -1060,6 +1093,7 @@ img.preview {
 
 <div class="content hidden" id="chartView" style="display:none;">
 <div id="chart"></div>
+<div class="resize-divider" id="divider1"></div>
 <div id="clusterSummaryPanel" class="hidden">
 <h3>🎯 Cluster Summary</h3>
 <table>
@@ -1076,6 +1110,7 @@ img.preview {
 <tbody id="clusterSummaryBody"></tbody>
 </table>
 </div>
+<div class="resize-divider" id="divider2"></div>
 <div id="preview">
 <h3 style="margin-top:0;">Product Preview</h3>
 <p style="color:var(--muted);">Click any point in the 3D chart to view product details.</p>
@@ -1086,6 +1121,63 @@ img.preview {
 <script>
 let currentClusterPreview = null; // Track currently displayed cluster
 
+// Resizable columns
+(function(){
+  let fracs = [2.6, 0.7, 0.7];
+
+  function applyFracs() {
+    const total = fracs[0] + fracs[1] + fracs[2];
+    const c0 = 'calc(' + (fracs[0]/total*100).toFixed(4) + '% - ' + (10*fracs[0]/total).toFixed(4) + 'px)';
+    const c1 = 'calc(' + (fracs[1]/total*100).toFixed(4) + '% - ' + (10*fracs[1]/total).toFixed(4) + 'px)';
+    const c2 = 'calc(' + (fracs[2]/total*100).toFixed(4) + '% - ' + (10*fracs[2]/total).toFixed(4) + 'px)';
+    document.getElementById('chartView').style.gridTemplateColumns = c0 + ' 5px ' + c1 + ' 5px ' + c2;
+    const chartEl = document.getElementById('chart');
+    if (chartEl && chartEl.data) Plotly.Plots.resize(chartEl);
+  }
+
+  function initDivider(dividerId, leftIdx, rightIdx) {
+    const divider = document.getElementById(dividerId);
+    if (!divider) return;
+    let dragging = false, startX = 0, startFracs = [];
+    divider.addEventListener('mousedown', function(e) {
+      const grid = document.getElementById('chartView');
+      if (!grid) return;
+      startX = e.clientX;
+      startFracs = [...fracs];
+      dragging = true;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      const grid = document.getElementById('chartView');
+      const totalW = grid.getBoundingClientRect().width - 10;
+      const total = startFracs[0] + startFracs[1] + startFracs[2];
+      const pxPerFrac = totalW / total;
+      const dxFrac = (e.clientX - startX) / pxPerFrac;
+      const minFrac = 80 / pxPerFrac;
+      const newLeft = startFracs[leftIdx] + dxFrac;
+      const newRight = startFracs[rightIdx] - dxFrac;
+      if (newLeft >= minFrac && newRight >= minFrac) {
+        fracs[leftIdx] = newLeft;
+        fracs[rightIdx] = newRight;
+        applyFracs();
+      }
+    });
+    document.addEventListener('mouseup', function() {
+      if (!dragging) return;
+      dragging = false;
+      divider.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+  initDivider('divider1', 0, 1);
+  initDivider('divider2', 1, 2);
+})();
+
 function refreshCurrentClusterPreview() {
   // Check if there's a cluster preview currently displayed
   if (currentClusterPreview !== null) {
@@ -1095,6 +1187,7 @@ function refreshCurrentClusterPreview() {
 }
 
 let analysisData = [];
+let clusterTotals = {};
 let sessionToken = null;
 let plotlyBound = false;
 let iterationHistory = [];
@@ -1448,9 +1541,10 @@ async function loadGroups() {
   updatePrompt();
 }
 
-async function loadOptionsForIteration(groupId, categories) {
+async function loadOptionsForIteration(groupId, categories, brandIds) {
   if (!groupId) return;
   const targetCats = Array.isArray(categories) ? categories : (categories ? [categories] : []);
+  const targetBrandIds = brandIds || [];
   
   const payload = {
     group_id: parseInt(groupId),
@@ -1481,6 +1575,13 @@ async function loadOptionsForIteration(groupId, categories) {
       els.category.appendChild(opt);
     });
     renderCategoryDropdown();
+
+    // Pre-select brands by ID if provided (brand-only iterations)
+    if (targetBrandIds.length > 0) {
+      const idSet = new Set(targetBrandIds.map(String));
+      Array.from(els.brand.options).forEach(opt => { opt.selected = idSet.has(String(opt.value)); });
+      renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand');
+    }
     
     setSelectOptions(els.type, data.type_options || [], []);
   }
@@ -1488,7 +1589,7 @@ async function loadOptionsForIteration(groupId, categories) {
 
 async function loadIterationHistoryBackground(groupId, categories, categoryIds, brandIds) {
   const cats = Array.isArray(categories) ? categories : (categories ? [categories] : []);
-  if (!groupId || !cats.length) return;
+  if (!groupId || (!cats.length && !(brandIds && brandIds.length))) return;
   
   try {
     const payload = {
@@ -1509,6 +1610,7 @@ async function loadIterationHistoryBackground(groupId, categories, categoryIds, 
       iterationHistory = data.history.map(h => ({...h, saved: true}));
       displayIterationSummary();
       displayClusterSummary();
+      delete window._pendingClusterSelect;
     }
   } catch (error) {
     console.error('Error loading iteration history:', error);
@@ -1536,22 +1638,8 @@ function getSelectedBrandIds() {
 }
 
 async function loadTypeOptions() {
-  const groupId = els.group.value;
-  if (!groupId) return;
-  const payload = {
-    group_id: parseInt(groupId),
-    brands: getSelectedBrands(),
-    categories: getSelectedCategories()
-  };
-  const res = await fetch('/pricing/analyzer/api/options', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (data.ok) {
-    setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
-  }
+  // kept for backward compat — loadOptions() now handles all three filters
+  await loadOptions();
 }
 
 async function loadOptions() {
@@ -1568,11 +1656,14 @@ async function loadOptions() {
   
   const currentCatIds = new Set(selectedValues(els.category));
   const currentCatValues = getSelectedCategories();
+  const currentBrandIds = getSelectedBrandIds();
+  const currentTypes = selectedValues(els.type);
   
   const payload = {
     group_id: parseInt(groupId),
     brands: getSelectedBrands(),
-    categories: currentCatValues
+    categories: currentCatValues,
+    types: currentTypes
   };
   
   showLoader();
@@ -1593,8 +1684,10 @@ async function loadOptions() {
     return;
   }
   
-  setSelectOptions(els.brand, data.brand_options || [], getSelectedBrandIds().map(String));
+  // Preserve previously selected brands (by ID)
+  setSelectOptions(els.brand, data.brand_options || [], currentBrandIds.map(String));
   
+  // Preserve previously selected categories (by value string)
   const catOptions = data.category_options || [];
   els.category.innerHTML = '';
   catOptions.forEach(item => {
@@ -1609,11 +1702,12 @@ async function loadOptions() {
   });
   renderCategoryDropdown();
   
-  setSelectOptions(els.type, data.type_options || [], selectedValues(els.type));
+  // Preserve previously selected types
+  setSelectOptions(els.type, data.type_options || [], currentTypes);
   updatePrompt();
   
-  // Load iteration history if categories are selected
-  if (currentCatValues.length > 0) {
+  // Load iteration history if categories or brands are selected
+  if (currentCatValues.length > 0 || getSelectedBrandIds().length > 0) {
     await loadIterationHistory();
   }
 }
@@ -1726,6 +1820,8 @@ async function resetIterationData() {
 }
 
 async function loadSavedIteration(iterationId, targetCluster = null) {
+  selectedIterationId = iterationId;
+  displayIterationSummary();
   isLoadingIteration = true;
   showLoader();
   
@@ -1746,6 +1842,7 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     const filters = result.filters;
     selectedIterationId = iterationId;
     analysisData = result.iteration_data || [];
+    clusterTotals = result.cluster_totals || {};
     
     // Step 2: Load groups if not already loaded
     if (els.group.options.length <= 1) {
@@ -1799,17 +1896,15 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
       normals: analysisData.filter(d => !d.is_outlier_combined).length,
       outliers: analysisData.filter(d => d.is_outlier_combined).length
     }, true);
+    displayClusterSummary();
     
     // Step 5: Load options and set remaining filters in background
     const savedCategories = filters.categories && filters.categories.length > 0 ? filters.categories : (filters.category ? [filters.category] : []);
-    await loadOptionsForIteration(filters.group_id, savedCategories);
+    const savedBrandIds = filters.brand_ids || [];
+    await loadOptionsForIteration(filters.group_id, savedCategories, savedBrandIds);
     
-    // Set other filters — restore brands by ID
-    if (filters.brand_ids && filters.brand_ids.length > 0) {
-      const idSet = new Set(filters.brand_ids.map(String));
-      Array.from(els.brand.options).forEach(opt => { opt.selected = idSet.has(String(opt.value)); });
-      renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, 'Select Brand');
-    } else if (filters.brands && filters.brands.length > 0) {
+    // Set other filters - restore brands by string if IDs not available
+    if (savedBrandIds.length === 0 && filters.brands && filters.brands.length > 0) {
       const brandSet = new Set(filters.brands);
       Array.from(els.brand.options).forEach(opt => {
         opt.selected = brandSet.has(opt.dataset.brandValue || opt.textContent.replace(/\s*\(\d+\)$/, '').trim());
@@ -1830,6 +1925,11 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
       });
       renderMultiCheckboxDropdown(els.algo, els.algoMenu, els.algoTrigger, els.algoCount, 'Select Algorithm(s)');
       syncAlgoPanels();
+      displayClusterSummary();
+    }
+
+    if (targetCluster !== null) {
+      window._pendingClusterSelect = parseInt(targetCluster);
     }
     
     if (filters.eps) {
@@ -1843,18 +1943,9 @@ async function loadSavedIteration(iterationId, targetCluster = null) {
     
     // Step 6: Load iteration history in background (non-blocking)
     setTimeout(() => {
-      // Build categoryIds from the restored options
       const restoredCatIds = Array.from(els.category.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
-      const restoredBrandIds = Array.from(els.brand.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
+      const restoredBrandIds = savedBrandIds.length > 0 ? savedBrandIds : Array.from(els.brand.selectedOptions).map(o => parseInt(o.value)).filter(v => !isNaN(v));
       loadIterationHistoryBackground(filters.group_id, savedCategories, restoredCatIds, restoredBrandIds);
-      
-      // Step 7: Apply cluster filter if specified
-      if (targetCluster !== null) {
-        // Wait longer for cluster summary to be fully rendered
-        setTimeout(() => {
-          applyClusterFilter(parseInt(targetCluster));
-        }, 1000);
-      }
     }, 100);
     
   } catch (error) {
@@ -1981,6 +2072,7 @@ async function runAnalysis() {
   }
   
   analysisData = result.data;
+  clusterTotals = {};  // reset — live analysis computes totals from data directly
   
   // Store active axis meta from result
   if (result.axis_cols && result.axis_meta && result.axis_cols.length === 3) {
@@ -2283,7 +2375,7 @@ function displayClusterSummary() {
     
     tr.innerHTML = `
       <td style="padding:5px 4px;text-align:center;border:none;">
-        <input type="checkbox" class="cluster-visibility-toggle" data-cluster="${data.cluster}" checked style="width:16px;height:16px;cursor:pointer;">
+        <input type="checkbox" class="cluster-visibility-toggle" data-cluster="${data.cluster}" ${window._pendingClusterSelect !== undefined ? (data.cluster == window._pendingClusterSelect ? 'checked' : '') : 'checked'} style="width:16px;height:16px;cursor:pointer;">
       </td>
       <td style="padding:5px 4px;text-align:center;border:none;font-weight:600;color:${clusterColor};font-size:10px;">
         <a href="#" class="cluster-name-link" data-cluster="${data.cluster}" style="color:${clusterColor};cursor:pointer;text-decoration:none;" onclick="return false;">${clusterLabel}</a>
@@ -2564,6 +2656,35 @@ function displayClusterSummary() {
     if (clusterInfo) {
       renderClusterPreview(clusterInfo);
     }
+  }
+
+  // Apply pending cluster selection from URL param (e.g. coming from grid page)
+  if (window._pendingClusterSelect !== undefined) {
+    const pendingCluster = window._pendingClusterSelect;
+    const clusterInfo = sortedClusters.find(c => c.cluster === pendingCluster);
+    if (clusterInfo) {
+      renderClusterPreview(clusterInfo);
+    }
+    // Update chart visibility to show only target cluster
+    const chartDiv = document.getElementById('chart');
+    if (chartDiv && chartDiv.data) {
+      const update = { visible: [] };
+      const traceIndices = [];
+      chartDiv.data.forEach((trace, idx) => {
+        if (trace.name === 'Outlier Products') {
+          update.visible.push(pendingCluster === -1);
+          traceIndices.push(idx);
+        } else if (trace.name.includes('Cluster')) {
+          update.visible.push(parseInt(trace.name.replace('Cluster ', '')) === pendingCluster);
+          traceIndices.push(idx);
+        } else if (trace.name === 'Normal Products') {
+          update.visible.push(false);
+          traceIndices.push(idx);
+        }
+      });
+      if (traceIndices.length > 0) Plotly.restyle(chartDiv, update, traceIndices);
+    }
+    updateToggleAllCheckbox();
   }
 }
 
@@ -3293,15 +3414,15 @@ function displayResults(result, forceIndividual = false) {
   
   els.stats.innerHTML = `
     <span>
-      <span style="cursor:pointer;" onclick="exportData('all'); return false;">Showing: <strong>${displayTotal}</strong> products</span>
+      <span >Showing: <strong>${displayTotal}</strong> products</span>
       <span class="grid-icon" onclick="event.stopPropagation(); openGridPageAll(); return false;" title="View All in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
     </span>
     <span>
-      <span style="cursor:pointer;" onclick="exportData('normal'); return false;">Normal: <strong style="color:#2563eb">${displayNormal}</strong></span>
+      <span >Normal: <strong style="color:#2563eb">${displayNormal}</strong></span>
       <span class="grid-icon" onclick="event.stopPropagation(); openGridPageNormal(); return false;" title="View Normal in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
     </span>
     <span>
-      <span style="cursor:pointer;" onclick="exportData('outlier'); return false;">Outliers: <strong style="color:#e74c3c">${displayOutlier} (${displayPct}%)</strong></span>
+      <span >Outliers: <strong style="color:#e74c3c">${displayOutlier} (${displayPct}%)</strong></span>
       <span class="grid-icon" onclick="event.stopPropagation(); openGridPage(); return false;" title="View Outliers in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
     </span>
 
@@ -3416,47 +3537,51 @@ function displayGrid(data) {
     <p><strong>Category:</strong> ${category}</p>
   `;
   
+  // Build global cluster totals from backend (saved iteration) or from full data (live analysis)
+  const hasBEtotals = Object.keys(clusterTotals).length > 0;
+  const globalTotalsMap = hasBEtotals ? clusterTotals : (() => {
+    const m = {};
+    data.forEach(d => {
+      if (d.dbscan_cluster != null) {
+        const n = d.dbscan_cluster === -1 ? 'Noise/Outlier' : `Cluster ${d.dbscan_cluster}`;
+        m[n] = (m[n] || 0) + 1;
+      }
+    });
+    return m;
+  })();
+  const globalClusters = Object.keys(globalTotalsMap)
+    .map(k => k === 'Noise/Outlier' ? -1 : parseInt(k.replace('Cluster ', '')))
+    .sort((a, b) => { if (a === -1) return 1; if (b === -1) return -1; return a - b; });
+  const globalClusterCount = globalClusters.length;
+
   els.gridBody.innerHTML = '';
   summaryData.forEach(item => {
     const tr = document.createElement('tr');
     
-    // Calculate cluster info
-    const brandData = filteredData.filter(d => d.Brand === item.brand && d.Category === item.category);
-    const clusterMap = {};
-    brandData.forEach(d => {
-      if (d.dbscan_cluster != null) {
-        const clusterName = d.dbscan_cluster === -1 ? 'Noise/Outlier' : `Cluster ${d.dbscan_cluster}`;
-        clusterMap[clusterName] = (clusterMap[clusterName] || 0) + 1;
-      }
-    });
-    
-    const clusterCount = Object.keys(clusterMap).length;
     let clusterCell = '-';
-    if (clusterCount > 0) {
-      const tooltipText = Object.entries(clusterMap)
-        .sort((a, b) => {
-          if (a[0] === 'Noise/Outlier') return 1;
-          if (b[0] === 'Noise/Outlier') return -1;
-          return a[0].localeCompare(b[0]);
+    if (globalClusterCount > 0) {
+      const tooltipText = globalClusters
+        .map(c => {
+          const name = c === -1 ? 'Noise/Outlier' : `Cluster ${c}`;
+          return `${name}: ${globalTotalsMap[name] || 0}`;
         })
-        .map(([name, count]) => `${name}: ${count}`)
         .join('\n');
-      clusterCell = `<span class="cluster-tooltip">${clusterCount}<span class="tooltip-content">${tooltipText}</span></span>`;
+      clusterCell = `<span class="cluster-tooltip">${globalClusterCount}<span class="tooltip-content">${tooltipText}</span></span>`;
     }
     
     tr.innerHTML = `
       <td>${item.brand}</td>
       <td>${item.category}</td>
       <td>
-        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'all'); return false;">${item.total}</a>
+        <a href="#" onclick="return false;">${item.total}
         <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', ''); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
       </td>
       <td style="color:#27ae60;">
-        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'normal'); return false;">${item.normal} (${item.normal_pct}%)</a>
+        ${item.normal} (${item.normal_pct}%)
         <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '1'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
       </td>
       <td style="color:#dc2626;">
-        <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'outlier'); return false;">${item.outlier} (${item.outlier_pct}%)</a>
+        ${item.outlier} (${item.outlier_pct}%)
         <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '0'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
       </td>
       <td>${clusterCell}</td>
@@ -3517,9 +3642,14 @@ function displayChart(data) {
   const axLabel = a => a.symbol ? (a.symbol === '%' ? `${a.name} (%)` : `${a.name} (${a.symbol})`) : a.name;
   const axFmt = (val, sym) => { if (val == null) return '-'; const n = parseFloat(val).toFixed(2); return sym ? (sym === '%' ? n + '%' : sym + n) : n; };
   const allData = data;
+
   const max_x = Math.max(...allData.map(d => parseFloat(d[ax.x.code]) || 0));
   const max_y = Math.max(...allData.map(d => parseFloat(d[ax.y.code]) || 0));
   const max_z = Math.max(...allData.map(d => parseFloat(d[ax.z.code]) || 0));
+
+  const min_x = Math.min(...allData.map(d => parseFloat(d[ax.x.code]) || 0));
+  const min_y = Math.min(...allData.map(d => parseFloat(d[ax.y.code]) || 0));
+  const min_z = Math.min(...allData.map(d => parseFloat(d[ax.z.code]) || 0));
   
   const traces = [];
   const clusterColors = ['#4472C4', '#70AD47', '#FFC000', '#5B9BD5', '#ED7D31', '#A5A5A5', '#264478', '#9E480E', '#636363', '#997300'];
@@ -3588,9 +3718,9 @@ function displayChart(data) {
   
   const layout = {
     scene: {
-      xaxis: { title: { text: axLabel(ax.x) }, range: [0, max_x], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
-      yaxis: { title: { text: axLabel(ax.y) }, range: [0, max_y], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
-      zaxis: { title: { text: axLabel(ax.z) }, range: [0, max_z], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
+      xaxis: { title: { text: axLabel(ax.x) }, range: [min_x, max_x], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
+      yaxis: { title: { text: axLabel(ax.y) }, range: [min_y, max_y], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
+      zaxis: { title: { text: axLabel(ax.z) }, range: [min_z, max_z], gridcolor: '#ffffff', showbackground: true, backgroundcolor: '#f0f0f0' },
       bgcolor: '#ffffff',
       camera: { up: {x:0,y:1,z:0}, center: {x:0,y:0,z:0}, eye: {x:1.8,y:1.8,z:1.2} }
     },
@@ -3638,7 +3768,7 @@ function renderpricingGroupPreview(clusterInfo, groupName) {
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
   
-  let productsHtml = products.map(p => _productCardHtml(p)).join('');
+  let productsHtml = _buildProductsGrid(products);
   
   els.preview.innerHTML = `
     <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} > ${groupName}</h3>
@@ -3671,32 +3801,36 @@ function _productCardHtml(p) {
   const outlierColor = isOutlier ? '#e74c3c' : '#9ca3af';
   const ax = activeAxisMeta;
   return `
-    <div style="display:flex;gap:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#ffffff;">
+    <div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;background:#ffffff;">
       <div style="flex-shrink:0;">
-        ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:120px;height:120px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:120px;height:120px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
+        ${p.imageUrl ? `<img data-src="${p.imageUrl}" alt="${p.SKU}" class="lazy-load" style="width:110px;height:110px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#f8f9fa;">` : `<div style="width:110px;height:110px;background:#f0f0f0;border:1px solid #ddd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">No Image</div>`}
       </div>
       <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
-        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
-          <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;">${p.SKU}</a>
-          <div style="display:flex;gap:4px;margin-left:auto;">
+        <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:4px;">
+          <a href="${p.url_key || '#'}" target="_blank" style="color:#2563eb;text-decoration:underline;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${p.SKU}</a>
+          <div style="display:flex;gap:3px;flex-shrink:0;">
             <span class="grid-icon item-normal-btn" data-sku="${p.SKU}" title="Mark as normal" style="margin:0;width:20px;height:20px;background:${normalColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">N</span>
             <span class="grid-icon item-outlier-btn" data-sku="${p.SKU}" title="Mark as outlier" style="margin:0;width:20px;height:20px;background:${outlierColor};color:#fff;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">O</span>
           </div>
         </div>
-        <div style="font-size:13px;color:#374151;">${p.Brand}</div>
-        <div style="font-size:13px;color:#374151;">${p.Type}</div>
-        <div style="font-size:13px;color:#374151;"><strong>${ax.x.name}</strong> : ${fmtVal(p[ax.x.code], ax.x.symbol)}${activeAxisComMeta.x && activeAxisComMeta.x.code !== ax.x.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.x.code], activeAxisComMeta.x.symbol)})</span>` : ''}</div>
-        <div style="font-size:13px;color:#374151;"><strong>${ax.y.name}</strong> : ${fmtVal(p[ax.y.code], ax.y.symbol)}${activeAxisComMeta.y && activeAxisComMeta.y.code !== ax.y.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.y.code], activeAxisComMeta.y.symbol)})</span>` : ''}</div>
-        <div style="font-size:13px;color:#374151;"><strong>${ax.z.name}</strong> : ${fmtVal(p[ax.z.code], ax.z.symbol)}${activeAxisComMeta.z && activeAxisComMeta.z.code !== ax.z.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.z.code], activeAxisComMeta.z.symbol)})</span>` : ''}</div>
+        <div style="font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.Brand}</div>
+        <div style="font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.Type}</div>
+        <div style="font-size:12px;color:#374151;"><strong>${ax.x.name}</strong>: ${fmtVal(p[ax.x.code], ax.x.symbol)}${activeAxisComMeta.x && activeAxisComMeta.x.code !== ax.x.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.x.code], activeAxisComMeta.x.symbol)})</span>` : ''}</div>
+        <div style="font-size:12px;color:#374151;"><strong>${ax.y.name}</strong>: ${fmtVal(p[ax.y.code], ax.y.symbol)}${activeAxisComMeta.y && activeAxisComMeta.y.code !== ax.y.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.y.code], activeAxisComMeta.y.symbol)})</span>` : ''}</div>
+        <div style="font-size:12px;color:#374151;"><strong>${ax.z.name}</strong>: ${fmtVal(p[ax.z.code], ax.z.symbol)}${activeAxisComMeta.z && activeAxisComMeta.z.code !== ax.z.code ? ` <span style="color:#6b7280;font-size:11px;">(${fmtVal(p[activeAxisComMeta.z.code], activeAxisComMeta.z.symbol)})</span>` : ''}</div>
       </div>
     </div>
   `;
 }
 
+function _buildProductsGrid(products) {
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;">${products.map(p => _productCardHtml(p)).join('')}</div>`;
+}
+
 function buildStatsTable(products) {
   const ax = activeAxisMeta;
   const com = activeAxisComMeta;
-  const vals = (code) => products.map(p => parseFloat(p[code]) || 0).filter(v => v > 0);
+  const vals = (code) => products.map(p => parseFloat(p[code])).filter(v => isFinite(v));
   const stat = (arr) => {
     if (!arr.length) return { min: '-', max: '-', avg: '-' };
     const sorted = [...arr].sort((a, b) => a - b);
@@ -3706,7 +3840,7 @@ function buildStatsTable(products) {
       avg: (arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(2)
     };
   };
-  const fmt = (s, sym) => s === '-' ? '-' : (sym ? (sym === '%' ? s + '%' : sym + s) : s);
+  const fmt = (s, sym) => { if (s === '-') return '-'; const n = parseFloat(s); const abs = Math.abs(n).toFixed(2); const sign = n < 0 ? '-' : ''; return sym ? (sym === '%' ? sign + abs + '%' : sign + sym + abs) : sign + abs; };
   const fmtWithCom = (mainStat, comStat, mainSym, comSym, mainCode, comCode) => {
     const main = fmt(mainStat, mainSym);
     if (!comStat || comStat.min === '-' || mainCode === comCode) return main;
@@ -3766,7 +3900,7 @@ function renderClusterPreview(clusterInfo) {
   els.preview.style.background = '#f8fafc';
   els.preview.style.borderColor = '#2563eb';
   
-  let productsHtml = products.map(p => _productCardHtml(p)).join('');
+  let productsHtml = _buildProductsGrid(products);
   
   els.preview.innerHTML = `
     <h3 style="margin-top:0;color:#2563eb;font-size:14px;">${clusterLabel} - Products (${products.length}${clusterInfo.products.length > 100 ? ' of ' + clusterInfo.products.length : ''})</h3>
@@ -4028,27 +4162,25 @@ function openGridPageBrand(brand, category, finalStatus) {
 }
 
 els.group.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
-els.brand.addEventListener('change', async () => {
-  resetIteration();
-  suppressCategoryChange = true;
-  await loadOptions();
-  suppressCategoryChange = false;
-  await loadIterationHistory();
-});
+els.brand.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
 els.category.addEventListener('change', async () => {
-  if (suppressCategoryChange) return;
   document.getElementById('analysisAllBtn').classList.add('active');
   document.getElementById('analysisPendingBtn').classList.remove('active');
   resetIteration();
-  await loadTypeOptions();
-  const cats = getSelectedCategories();
-  if (cats.length > 0) {
-    await loadIterationHistory();
-  }
+  await loadOptions();
   updatePrompt();
 });
 els.type.addEventListener('change', async () => { resetIteration(); await loadOptions(); });
 els.algo.addEventListener('change', () => { syncAlgoPanels(); });
+
+document.getElementById('filterResetBtn').addEventListener('click', async () => {
+  setSelectOptions(els.brand, [], []);
+  els.category.innerHTML = '';
+  renderCategoryDropdown();
+  setSelectOptions(els.type, [], []);
+  resetIteration();
+  await loadOptions();
+});
 els.h.addEventListener = () => {};
 els.w.addEventListener = () => {};
 els.d.addEventListener = () => {};
@@ -4370,47 +4502,52 @@ els.clusterFilter.addEventListener('change', () => {
       <p><strong>Category:</strong> ${category}</p>
     `;
     
+    // Build cluster totals from filtered data when cluster filter is active
+    const hasBEtotals = Object.keys(clusterTotals).length > 0 && selectedClusters.length === 0;
+    const globalTotalsMap = hasBEtotals ? clusterTotals : (() => {
+      const m = {};
+      const sourceData = selectedClusters.length > 0 ? filteredData : displayData;
+      sourceData.forEach(d => {
+        if (d.dbscan_cluster != null) {
+          const n = d.dbscan_cluster === -1 ? 'Noise/Outlier' : `Cluster ${d.dbscan_cluster}`;
+          m[n] = (m[n] || 0) + 1;
+        }
+      });
+      return m;
+    })();
+    const globalClusters = Object.keys(globalTotalsMap)
+      .map(k => k === 'Noise/Outlier' ? -1 : parseInt(k.replace('Cluster ', '')))
+      .sort((a, b) => { if (a === -1) return 1; if (b === -1) return -1; return a - b; });
+    const globalClusterCount = globalClusters.length;
+
     els.gridBody.innerHTML = '';
     summaryData.forEach(item => {
       const tr = document.createElement('tr');
       
-      // Calculate cluster info
-      const brandData = filteredData.filter(d => d.Brand === item.brand && d.Category === item.category);
-      const clusterMap = {};
-      brandData.forEach(d => {
-        if (d.dbscan_cluster != null) {
-          const clusterName = d.dbscan_cluster === -1 ? 'Noise/Outlier' : `Cluster ${d.dbscan_cluster}`;
-          clusterMap[clusterName] = (clusterMap[clusterName] || 0) + 1;
-        }
-      });
-      
-      const clusterCount = Object.keys(clusterMap).length;
       let clusterCell = '-';
-      if (clusterCount > 0) {
-        const tooltipText = Object.entries(clusterMap)
-          .sort((a, b) => {
-            if (a[0] === 'Noise/Outlier') return 1;
-            if (b[0] === 'Noise/Outlier') return -1;
-            return a[0].localeCompare(b[0]);
+      if (globalClusterCount > 0) {
+        const tooltipText = globalClusters
+          .map(c => {
+            const name = c === -1 ? 'Noise/Outlier' : `Cluster ${c}`;
+            return `${name}: ${globalTotalsMap[name] || 0}`;
           })
-          .map(([name, count]) => `${name}: ${count}`)
           .join('\n');
-        clusterCell = `<span class="cluster-tooltip">${clusterCount}<span class="tooltip-content">${tooltipText}</span></span>`;
+        clusterCell = `<span class="cluster-tooltip">${globalClusterCount}<span class="tooltip-content">${tooltipText}</span></span>`;
       }
       
       tr.innerHTML = `
         <td>${item.brand}</td>
         <td>${item.category}</td>
         <td>
-          <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'all'); return false;">${item.total}</a>
+          <a href="#" onclick="return false;">${item.total}
           <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', ''); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
         </td>
         <td style="color:#27ae60;">
-          <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'normal'); return false;">${item.normal} (${item.normal_pct}%)</a>
+          ${item.normal} (${item.normal_pct}%)
           <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '1'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
         </td>
         <td style="color:#dc2626;">
-          <a href="#" onclick="exportBrandData('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', 'outlier'); return false;">${item.outlier} (${item.outlier_pct}%)</a>
+          ${item.outlier} (${item.outlier_pct}%)
           <span class="grid-icon" onclick="event.stopPropagation(); openGridPageBrand('${item.brand.replace(/'/g, "\\")}', '${item.category.replace(/'/g, "\\")}', '0'); return false;" title="View in Grid"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg></span>
         </td>
         <td>${clusterCell}</td>
@@ -4531,7 +4668,11 @@ function getAxisMeta() {
 
 function fmtVal(val, symbol) {
   if (val === null || val === undefined || val === '') return '-';
-  const n = parseFloat(val).toFixed(2); return symbol ? (symbol === '%' ? n + '%' : symbol + n) : n;
+  const n = parseFloat(val);
+  const abs = Math.abs(n).toFixed(2);
+  const sign = n < 0 ? '-' : '';
+  if (!symbol) return sign + abs;
+  return symbol === '%' ? sign + abs + '%' : sign + symbol + abs;
 }
 
 async function loadInsightConfig() {

@@ -58,12 +58,34 @@ def get_brands_for_group(group_id):
         db.close()
 
 
-def get_categories_for_group(group_id, brands=None):
-    """Get categories for a group with analysis status, optionally filtered by brands"""
+def get_brands_for_group_filtered(group_id, categories=None, types=None):
+    """Get brands filtered by categories and/or types (for interconnected filters)"""
     db = SessionLocal()
     try:
         repo = ProductRepository(db)
-        df = repo.get_categories_for_group(group_id, brands)
+        df = repo.get_brands_for_group_filtered(group_id, categories=categories, types=types)
+        if df.empty:
+            return []
+        return [
+            {
+                "label": f"{row['brand']} ({row['product_count']})",
+                "value": row['brand'],
+                "brand_id": int(row['brand_id']),
+                "analyzed_count": int(row['analyzed_count']),
+                "total_count": int(row['product_count'])
+            }
+            for _, row in df.iterrows()
+        ]
+    finally:
+        db.close()
+
+
+def get_categories_for_group(group_id, brands=None, types=None):
+    """Get categories for a group with analysis status, optionally filtered by brands and types"""
+    db = SessionLocal()
+    try:
+        repo = ProductRepository(db)
+        df = repo.get_categories_for_group(group_id, brands, types=types)
         if df.empty:
             return []
         return [
@@ -733,7 +755,19 @@ def load_saved_iteration(iteration_id):
         """)
         
         items = db.execute(query, {'iteration_id': iteration_id}).fetchall()
-        
+
+        # Cluster totals across entire iteration
+        cluster_totals_query = text("""
+            SELECT cluster, COUNT(*) as cnt
+            FROM pricing_product_iteration_item
+            WHERE iteration_id = :iteration_id AND cluster IS NOT NULL
+            GROUP BY cluster
+        """)
+        cluster_totals_rows = db.execute(cluster_totals_query, {'iteration_id': iteration_id}).fetchall()
+        cluster_totals = {}
+        for row in cluster_totals_rows:
+            cluster_totals[str(row.cluster)] = int(row.cnt)
+
         data = []
         normals = 0
         outliers = 0
@@ -742,12 +776,15 @@ def load_saved_iteration(iteration_id):
         extra_col_offset = 14
 
         for item in items:
-            cluster_num = -1
-            if item.cluster and 'Cluster' in str(item.cluster):
+            if item.cluster is None:
+                cluster_num = None
+            elif str(item.cluster) == 'Noise/Outlier':
+                cluster_num = -1
+            else:
                 try:
                     cluster_num = int(str(item.cluster).replace('Cluster ', ''))
                 except:
-                    cluster_num = -1
+                    cluster_num = None
             
             is_outlier = (item.final_status == 0) or (item.final_status is None and item.status == 0)
             
@@ -785,6 +822,7 @@ def load_saved_iteration(iteration_id):
             "total": total,
             "normals": normals,
             "outliers": outliers,
+            "cluster_totals": cluster_totals,
             "filters": {
                 "group_id": iteration.product_group_id,
                 "brand": iteration.brand,
@@ -1615,17 +1653,16 @@ def analyze_and_save(group_id, brands, categories, types, algorithms, h_mult, w_
         
         # Save to DB based on analysis mode
         if save_to_db:
+            # Get counts from pricing_product table using dynamic axis columns
+            def _axis_filter(q):
+                from sqlalchemy import text as _text
+                for c in [col_x, col_y, col_z]:
+                    q = q.filter(_text(f"{c} IS NOT NULL"))
+                return q
+
             if analysis_mode == 'all':
                 # For 'all' mode: Create NEW iteration with all products
                 unique_number = f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
-                
-                # Get counts from pricing_product table using dynamic axis columns
-                def _axis_filter(q):
-                    from models.pricing.product import Product as P
-                    from sqlalchemy import text as _text
-                    for c in [col_x, col_y, col_z]:
-                        q = q.filter(_text(f"{c} IS NOT NULL"))
-                    return q
 
                 total_items_query = _axis_filter(db.query(Product).filter(Product.group_id == group_id))
                 if brands and len(brands) > 0:

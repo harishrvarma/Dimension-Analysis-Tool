@@ -33,6 +33,8 @@ class Product(BaseModel):
     profit_vs_cost_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
     shipping_vs_cost_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
     profit_vs_shipping_margin = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    map_price = Column(DECIMAL(10, 2), nullable=True, default=0.00)
+    msrp_price = Column(DECIMAL(10, 2), nullable=True, default=0.00)
 
 
     ori_height = Column(Float, nullable=True, default=None)
@@ -65,6 +67,17 @@ class Product(BaseModel):
 
     iteration_closed = Column(Integer, nullable=True, default=None)
     outlier_mode = Column(TINYINT, nullable=True, default=None, comment="0=Autometic, 1=Manually")
+    issue_note = Column(String(255), nullable=True, default=None)
+
+    map_violation = Column(String(100), nullable=True, default=None)
+    mor = Column(TINYINT(1), nullable=False, default=0, comment="Manual Order Required")
+    map = Column(String(100), nullable=True, default=None)
+    map_suspended = Column(String(100), nullable=True, default=None)
+    is_map_violation = Column(TINYINT(1), nullable=False, default=0)
+    is_loss_item = Column(TINYINT(1), nullable=False, default=0)
+    is_underpriced = Column(TINYINT(1), nullable=False, default=0)
+    is_overpriced = Column(TINYINT(1), nullable=False, default=0)
+    is_overpriced_above_map = Column(TINYINT(1), nullable=False, default=0)
 
     group = relationship("models.pricing.product_group.ProductGroup", back_populates="products")
     eps = Column(Numeric(10, 2), nullable=True)

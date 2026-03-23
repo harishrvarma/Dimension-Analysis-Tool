@@ -4,7 +4,114 @@ from repositories.pricing.product_group_repository import ProductGroupRepository
 from sqlalchemy import text
 
 
-def build_filter_conditions(group_id, brands=None, categories=None, types=None, final_status=None, skip_status=None, clusters=None, iteration_id=None, table_alias='p'):
+# Columns that live in iteration tables, not in pricing_product
+_ITER_MAIN_COLS = {'total_items', 'analyzed_items', 'pending_items', 'outlier_items'}
+_ITER_ITEM_COLS = {'cluster_items', 'cluster_items_per', 'cluster'}
+_ITER_COLS = _ITER_MAIN_COLS | _ITER_ITEM_COLS
+
+
+def _col_table(col, alias, in_iteration):
+    """Return the SQL table alias for a given column key."""
+    if col in _ITER_MAIN_COLS:
+        return 'pi' if in_iteration else 'latest_iter'
+    if col in _ITER_ITEM_COLS:
+        return 'dpii' if in_iteration else 'latest_item'
+    return alias
+
+
+def _apply_col_filters(conditions, params, col_filters, alias='p', in_iteration=False):
+    """Append column-level filter conditions from col_filters dict.
+    Handles any column dynamically:
+      - text search: col_filters[key] = string value
+      - range filter: col_filters[key_min] / col_filters[key_max] = numeric value
+      - final_status / skip_status: special multi-select handling
+    """
+    if not col_filters:
+        return
+
+    # Special: final_status multi-select
+    cf_final = col_filters.get('final_status') or []
+    if isinstance(cf_final, str) and cf_final:
+        cf_final = [cf_final]
+    if cf_final:
+        fs_tbl = 'dpii' if in_iteration else alias
+        sc = []
+        if 'Pending to Analyze' in cf_final:
+            sc.append(f"{fs_tbl}.final_status IS NULL")
+        if 'Normal' in cf_final:
+            sc.append(f"{fs_tbl}.final_status = 1")
+        if 'Outlier' in cf_final:
+            sc.append(f"{fs_tbl}.final_status = 0")
+        if sc:
+            conditions.append(f"({' OR '.join(sc)})")
+
+    # Special: skip_status multi-select
+    cf_skip = col_filters.get('skip_status') or []
+    if isinstance(cf_skip, str) and cf_skip:
+        cf_skip = [cf_skip]
+    if cf_skip:
+        sc = []
+        if 'Yes' in cf_skip or '1' in cf_skip:
+            sc.append(f"{alias}.skip_status = 1")
+        if 'No' in cf_skip or '0' in cf_skip:
+            sc.append(f"({alias}.skip_status = 0 OR {alias}.skip_status IS NULL)")
+        if sc:
+            conditions.append(f"({' OR '.join(sc)})")
+
+    SKIP_KEYS = {'final_status', 'skip_status'}
+
+    # Boolean Yes/No tinyint(1) columns — any plain key with list value ['Yes'/'No']
+    for col, val in col_filters.items():
+        if col in SKIP_KEYS or col.endswith('_min') or col.endswith('_max'):
+            continue
+        if not isinstance(val, list) or not val:
+            continue
+        tbl = _col_table(col, alias, in_iteration)
+        sc = []
+        if 'Yes' in val or '1' in val:
+            sc.append(f"{tbl}.{col} = 1")
+        if 'No' in val or '0' in val:
+            sc.append(f"({tbl}.{col} = 0 OR {tbl}.{col} IS NULL)")
+        if sc:
+            conditions.append(f"({' OR '.join(sc)})")
+
+    # Collect all column keys that have range filters (_min / _max suffix)
+    range_keys = set()
+    for k in col_filters:
+        if k.endswith('_min') or k.endswith('_max'):
+            range_keys.add(k[:-4])  # strip _min/_max
+
+    # Range filters (number columns)
+    for col in range_keys:
+        if col in SKIP_KEYS:
+            continue
+        tbl = _col_table(col, alias, in_iteration)
+        min_val = col_filters.get(f'{col}_min', '')
+        max_val = col_filters.get(f'{col}_max', '')
+        safe = col.replace('.', '_')
+        if min_val is not None and min_val != '':
+            conditions.append(f"{tbl}.{col} >= :cf_{safe}_min")
+            params[f'cf_{safe}_min'] = min_val
+        if max_val is not None and max_val != '':
+            conditions.append(f"{tbl}.{col} <= :cf_{safe}_max")
+            params[f'cf_{safe}_max'] = max_val
+
+    # Text filters (string columns) — any plain key with a non-empty string value
+    for col, val in col_filters.items():
+        if col in SKIP_KEYS or col.endswith('_min') or col.endswith('_max'):
+            continue
+        if not isinstance(val, str):
+            continue
+        val = val.strip()
+        if not val:
+            continue
+        tbl = _col_table(col, alias, in_iteration)
+        safe = col.replace('.', '_')
+        conditions.append(f"{tbl}.{col} LIKE :cf_{safe}")
+        params[f'cf_{safe}'] = f'%{val}%'
+
+
+def build_filter_conditions(group_id, brands=None, categories=None, types=None, final_status=None, skip_status=None, clusters=None, iteration_id=None, table_alias='p', col_filters=None):
     """Build WHERE clause and params for product filters"""
     params = {'group_id': group_id}
     conditions = [f"{table_alias}.group_id = :group_id"]
@@ -55,6 +162,7 @@ def build_filter_conditions(group_id, brands=None, categories=None, types=None, 
         if status_conditions:
             conditions.append(f"({' OR '.join(status_conditions)})")
 
+    _apply_col_filters(conditions, params, col_filters, alias=table_alias, in_iteration=False)
     return " AND ".join(conditions), params
 
 
@@ -404,7 +512,7 @@ def get_iteration_filters(iteration_id):
 
 
 
-def load_grid_data(group_id, brands=None, categories=None, types=None, final_status=None, skip_status=None, clusters=None, iteration_id=None, page=1, per_page=50, sort_column=None, sort_direction='asc', skip_count=False):
+def load_grid_data(group_id, brands=None, categories=None, types=None, final_status=None, skip_status=None, clusters=None, iteration_id=None, page=1, per_page=50, sort_column=None, sort_direction='asc', skip_count=False, col_filters=None):
     """Load product data from main pricing_product table or iteration tables"""
     db = SessionLocal()
     try:
@@ -464,14 +572,16 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                     status_conditions.append("dpii.final_status = 0")
                 if status_conditions:
                     where_conditions.append(f"({' OR '.join(status_conditions)})")
-            
+
+            _apply_col_filters(where_conditions, params, col_filters, alias='p', in_iteration=True)
             where_clause = " AND ".join(where_conditions)
             
             query = f"""
                 SELECT
-                    p.product_id, p.system_product_id, p.qb_code, p.brand, p.category, p.product_type, p.name,
-                    p.mfr_cost, p.shipping_cost, p.profit_margin, pi.eps, pi.sample, dpii.final_status, dpii.status, p.skip_status,
-                    p.base_image_url, p.product_url, pi.total_items, pi.analyzed_items, pi.pending_items, pi.outlier_items,
+                    p.*,
+                    pi.eps AS iter_eps, pi.sample AS iter_sample,
+                    dpii.final_status AS iter_final_status,
+                    pi.total_items, pi.analyzed_items, pi.pending_items, pi.outlier_items,
                     dpii.cluster_items, dpii.cluster_items_per, dpii.cluster
                 FROM pricing_product p
                 INNER JOIN pricing_product_iteration_item dpii ON p.system_product_id = dpii.system_product_id
@@ -486,9 +596,8 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 total_count = 0
             
             column_map = {
-                'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)', 'qb_code': 'p.qb_code',
-                'brand': 'p.brand', 'category': 'p.category', 'product_type': 'p.product_type', 'name': 'p.name',
-                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'profit_margin': 'p.profit_margin', 'eps': 'pi.eps', 'sample': 'pi.sample',
+                'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)',
+                'eps': 'pi.eps', 'sample': 'pi.sample',
                 'final_status': 'dpii.final_status', 'skip_status': 'p.skip_status',
                 'total_items': 'pi.total_items', 'analyzed_items': 'pi.analyzed_items',
                 'pending_items': 'pi.pending_items', 'outlier_items': 'pi.outlier_items',
@@ -496,9 +605,9 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 'cluster': 'dpii.cluster'
             }
             order_by = 'p.category ASC, dpii.cluster_items ASC, dpii.cluster ASC'
-            if sort_column and sort_column in column_map:
+            if sort_column:
                 direction = 'DESC' if sort_direction == 'desc' else 'ASC'
-                order_by = f"{column_map[sort_column]} {direction}"
+                order_by = f"{column_map.get(sort_column, f'p.{sort_column}')} {direction}"
             
             offset = (page - 1) * per_page
             params['limit'] = per_page
@@ -510,15 +619,15 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
             history_map = {}
         else:
             # Load from main product table
-            where_clause, params = build_filter_conditions(group_id, brands, categories, types, final_status, skip_status, clusters, iteration_id)
+            where_clause, params = build_filter_conditions(group_id, brands, categories, types, final_status, skip_status, clusters, iteration_id, col_filters=col_filters)
 
             query = f"""
                 SELECT
-                    p.product_id, p.system_product_id, p.qb_code, p.brand, p.category, p.product_type, p.name,
-                    p.mfr_cost, p.shipping_cost, p.profit_margin, latest_iter.eps, latest_iter.sample, p.final_status, p.skip_status,
-                    p.base_image_url, p.product_url,
+                    p.*,
+                    latest_iter.eps AS iter_eps, latest_iter.sample AS iter_sample,
                     latest_iter.total_items, latest_iter.analyzed_items, latest_iter.pending_items, latest_iter.outlier_items,
-                    latest_item.cluster_items, latest_item.cluster_items_per, latest_item.cluster, latest_iter.iteration_id
+                    latest_item.cluster_items, latest_item.cluster_items_per, latest_item.cluster,
+                    latest_iter.iteration_id AS iter_iteration_id
                 FROM pricing_product p
                 LEFT JOIN (
                     SELECT dpii.system_product_id, dpii.iteration_id, dpii.cluster_items, dpii.cluster_items_per, dpii.cluster,
@@ -529,16 +638,24 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 WHERE {where_clause}
             """
 
+            joined_count_query = f"""
+                SELECT COUNT(*) FROM pricing_product p
+                LEFT JOIN (
+                    SELECT dpii.system_product_id, dpii.iteration_id, dpii.cluster_items, dpii.cluster_items_per, dpii.cluster,
+                           ROW_NUMBER() OVER (PARTITION BY dpii.system_product_id ORDER BY dpii.iteration_id DESC) as rn
+                    FROM pricing_product_iteration_item dpii
+                ) latest_item ON p.system_product_id = latest_item.system_product_id AND latest_item.rn = 1
+                LEFT JOIN pricing_product_iteration latest_iter ON latest_item.iteration_id = latest_iter.iteration_id
+                WHERE {where_clause}
+            """
             if not skip_count:
-                count_query = f"SELECT COUNT(*) FROM pricing_product p WHERE {where_clause}"
-                total_count = db.execute(text(count_query), params).fetchone()[0]
+                total_count = db.execute(text(joined_count_query), params).fetchone()[0]
             else:
                 total_count = 0
 
             column_map = {
-                'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)', 'qb_code': 'p.qb_code',
-                'brand': 'p.brand', 'category': 'p.category', 'product_type': 'p.product_type', 'name': 'p.name',
-                'mfr_cost': 'p.mfr_cost', 'shipping_cost': 'p.shipping_cost', 'profit_margin': 'p.profit_margin', 'eps': 'latest_iter.eps', 'sample': 'latest_iter.sample',
+                'system_product_id': 'CAST(p.system_product_id AS UNSIGNED)',
+                'eps': 'latest_iter.eps', 'sample': 'latest_iter.sample',
                 'final_status': 'p.final_status', 'skip_status': 'p.skip_status',
                 'total_items': 'latest_iter.total_items', 'analyzed_items': 'latest_iter.analyzed_items',
                 'pending_items': 'latest_iter.pending_items', 'outlier_items': 'latest_iter.outlier_items',
@@ -546,9 +663,9 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
                 'cluster': 'latest_item.cluster'
             }
             order_by = 'p.category ASC, latest_item.cluster_items ASC, latest_item.cluster ASC'
-            if sort_column and sort_column in column_map:
+            if sort_column:
                 direction = 'DESC' if sort_direction == 'desc' else 'ASC'
-                order_by = f"{column_map[sort_column]} {direction}"
+                order_by = f"{column_map.get(sort_column, f'p.{sort_column}')} {direction}"
 
             offset = (page - 1) * per_page
             params['limit'] = per_page
@@ -587,54 +704,37 @@ def load_grid_data(group_id, brands=None, categories=None, types=None, final_sta
 
         data = []
         for row in result:
-            system_product_id = row[1] or ""
+            m = row._mapping
+            system_product_id = m.get('system_product_id') or ""
+
+            # Build base dict from all pricing_product columns
+            item = {k: v for k, v in m.items()}
+
+            # Overlay virtual/computed columns with correct names
             if iteration_id:
-                final_status_val = row[12]
-                # Determine final_status based on final_status column from pricing_product_iteration_item
-                if final_status_val == 1:
-                    final_status_display = "Normal"
-                elif final_status_val == 0:
-                    final_status_display = "Outlier"
-                else:
-                    final_status_display = "Pending to Analyze"
-                
-                data.append({
-                    "product_id": row[0], "system_product_id": system_product_id, "qb_code": row[2] or "",
-                    "brand": row[3] or "", "category": row[4] or "", "product_type": row[5] or "", "name": row[6] or "",
-                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "profit_margin": float(row[9]) if row[9] else 0,
-                    "eps": float(row[10]) if row[10] else "-", "sample": int(row[11]) if row[11] else "-",
-                    "final_status": final_status_display,
-                    "skip_status": row[14],
-                    "base_image_url": row[15] or "", "product_url": row[16] or "",
-                    "total_items": int(row[17]) if row[17] else 0,
-                    "analyzed_items": int(row[18]) if row[18] else 0,
-                    "pending_items": int(row[19]) if row[19] else 0,
-                    "outlier_items": int(row[20]) if row[20] else 0,
-                    "cluster_items": int(row[21]) if row[21] else 0,
-                    "cluster_items_per": float(row[22]) if row[22] else 0.0,
-                    "cluster": row[23] or "",
-                    "iteration_id": iteration_id,
-                    "iteration_history": []
-                })
+                fs_val = m.get('iter_final_status')
+                item['final_status'] = 'Normal' if fs_val == 1 else 'Outlier' if fs_val == 0 else 'Pending to Analyze'
+                item['eps'] = float(m['iter_eps']) if m.get('iter_eps') else '-'
+                item['sample'] = int(m['iter_sample']) if m.get('iter_sample') else '-'
+                item['iteration_history'] = []
             else:
-                data.append({
-                    "product_id": row[0], "system_product_id": system_product_id, "qb_code": row[2] or "",
-                    "brand": row[3] or "", "category": row[4] or "", "product_type": row[5] or "", "name": row[6] or "",
-                    "mfr_cost": float(row[7]) if row[7] else 0, "shipping_cost": float(row[8]) if row[8] else 0, "profit_margin": float(row[9]) if row[9] else 0,
-                    "eps": float(row[10]) if row[10] else "-", "sample": int(row[11]) if row[11] else "-",
-                    "final_status": "Normal" if row[12] == 1 else "Outlier" if row[12] == 0 else "Pending to Analyze",
-                    "skip_status": row[13],
-                    "base_image_url": row[14] or "", "product_url": row[15] or "",
-                    "total_items": int(row[16]) if len(row) > 16 and row[16] else 0,
-                    "analyzed_items": int(row[17]) if len(row) > 17 and row[17] else 0,
-                    "pending_items": int(row[18]) if len(row) > 18 and row[18] else 0,
-                    "outlier_items": int(row[19]) if len(row) > 19 and row[19] else 0,
-                    "cluster_items": int(row[20]) if len(row) > 20 and row[20] else 0,
-                    "cluster_items_per": float(row[21]) if len(row) > 21 and row[21] else 0.0,
-                    "cluster": row[22] if len(row) > 22 else "",
-                    "iteration_id": row[23] if len(row) > 23 else None,
-                    "iteration_history": history_map.get(system_product_id, [])
-                })
+                fs_val = m.get('final_status')
+                item['final_status'] = 'Normal' if fs_val == 1 else 'Outlier' if fs_val == 0 else 'Pending to Analyze'
+                item['eps'] = float(m['iter_eps']) if m.get('iter_eps') else '-'
+                item['sample'] = int(m['iter_sample']) if m.get('iter_sample') else '-'
+                item['iteration_id'] = m.get('iter_iteration_id')
+                item['iteration_history'] = history_map.get(system_product_id, [])
+
+            item['total_items'] = int(m['total_items']) if m.get('total_items') else 0
+            item['analyzed_items'] = int(m['analyzed_items']) if m.get('analyzed_items') else 0
+            item['pending_items'] = int(m['pending_items']) if m.get('pending_items') else 0
+            item['outlier_items'] = int(m['outlier_items']) if m.get('outlier_items') else 0
+            item['cluster_items'] = int(m['cluster_items']) if m.get('cluster_items') else 0
+            item['cluster_items_per'] = float(m['cluster_items_per']) if m.get('cluster_items_per') else 0.0
+            item['cluster'] = m.get('cluster') or ''
+            item['system_product_id'] = system_product_id
+
+            data.append(item)
 
         return data, total_count
     finally:

@@ -77,15 +77,17 @@ def api_options():
     group_id = payload.get("group_id")
     brands = payload.get("brands") or []
     categories = payload.get("categories") or []
+    types = payload.get("types") or []
     category = payload.get("category") or (categories[0] if len(categories) == 1 else None)
-    
+
     if not group_id:
         return jsonify({"ok": False, "message": "Group ID required"})
-    
-    brand_options = analyzer.get_brands_for_group(group_id)
-    category_options = analyzer.get_categories_for_group(group_id, brands if brands else None)
+
+    # Interconnected: each filter is affected by the other two
+    brand_options = analyzer.get_brands_for_group_filtered(group_id, categories=categories or None, types=types or None)
+    category_options = analyzer.get_categories_for_group(group_id, brands if brands else None, types=types or None)
     type_options = analyzer.get_types_for_group(group_id, brands if brands else None, categories or category)
-    
+
     return jsonify({
         "ok": True,
         "brand_options": brand_options,
