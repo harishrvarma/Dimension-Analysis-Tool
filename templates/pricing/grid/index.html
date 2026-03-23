@@ -266,6 +266,58 @@
     }
     th:hover { background: #1d4ed8; }
     th .sort-icon { margin-left: 4px; font-size: 10px; }
+    .col-filter-row th {
+      background: #eef2ff;
+      position: sticky;
+      top: 41px;
+      cursor: default;
+      padding: 4px 4px;
+    }
+    .col-filter-row th:hover { background: #eef2ff; }
+    .col-filter-input {
+      width: 100%;
+      padding: 3px 5px;
+      font-size: 11px;
+      border: 1px solid #c9d4e7;
+      border-radius: 3px;
+      background: #fff;
+      color: #1f2937;
+      box-sizing: border-box;
+    }
+    .col-filter-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+    }
+    .col-filter-input::placeholder { color: #9ca3af; }
+    .range-filter { display: flex; flex-direction: column; gap: 2px; }
+    .range-filter input { width: 100%; }
+    .cf-ms { position: relative; }
+    .cf-ms-trigger {
+      width: 100%; border: 1px solid #c9d4e7; border-radius: 3px;
+      padding: 3px 5px; font-size: 11px; background: #fff; color: #1f2937;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; user-select: none; box-sizing: border-box; white-space: nowrap;
+    }
+    .cf-ms-menu {
+      position: fixed; min-width: 160px; border: 1px solid #c9d4e7;
+      border-radius: 6px; background: #fff; z-index: 9999;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.13); padding: 4px 0;
+      max-height: 220px; overflow-y: auto;
+    }
+    .cf-ms-opt {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 10px; font-size: 12px; cursor: pointer; color: #1f2937;
+    }
+    .cf-ms-opt:hover { background: #f0f4ff; }
+    .cf-ms-opt input[type="checkbox"] { width: 13px; height: 13px; margin: 0; accent-color: #2563eb; }
+    .cf-ms-opt span { color: #1f2937; }
+    .cf-ms-actions { display: flex; gap: 6px; padding: 4px 8px 6px; border-bottom: 1px solid #e5eaf5; }
+    .cf-ms-action-btn {
+      flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;
+      border-radius: 999px; font-size: 10px; padding: 2px 6px; font-weight: 600;
+      cursor: pointer; width: auto;
+    }
     td {
       padding: 8px;
       border-bottom: 1px solid var(--line);
@@ -434,36 +486,8 @@
     }
   </style>
   <div class="page">
-    <div class="row">
-      <div>
-        <label>Product Group <span class="warn">*</span></label>
-        <select id="groupSelector">
-          <option value="">Select Product Group</option>
-        </select>
-      </div>
-      <div>
-        <label>Final Status (Optional)<span id="statusCount" class="label-count">(0 selected)</span></label>
-        <select id="statusFilter" class="select-hidden" multiple>
-          <option value="Normal">Normal</option>
-          <option value="Outlier">Outlier</option>
-          <option value="Pending to Analyze">Pending to Analyze</option>
-        </select>
-        <div class="multi-select" id="statusDropdown">
-          <div class="ms-trigger" id="statusTrigger">Select Final Status <span>▾</span></div>
-          <div class="ms-menu hidden" id="statusMenu"></div>
-        </div>
-      </div>
-      <div>
-        <label>Skip Status (Optional)<span id="skipCount" class="label-count">(0 selected)</span></label>
-        <select id="skipFilter" class="select-hidden" multiple>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-        <div class="multi-select" id="skipDropdown">
-          <div class="ms-trigger" id="skipTrigger">Select Skip Status <span>▾</span></div>
-          <div class="ms-menu hidden" id="skipMenu"></div>
-        </div>
-      </div>
+    <div style="display:none">
+      <select id="groupSelector"><option value="">Select Product Group</option></select>
     </div>
 
     <div id="dataInfo" class="msg">Please select a product group to load filters.</div>
@@ -495,9 +519,26 @@
       </div>
     </div>
 
-    <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:10px;">
+    <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:10px; align-items:center; position:relative;">
       <button id="loadBtn" style="max-width:150px;">Load</button>
+      <button id="colSelectBtn" class="icon-btn" style="max-width:44px;padding:7px 10px;background:#0891b2;border-color:#0e7490;" title="Select Columns">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/>
+        </svg>
+      </button>
       <button id="massActionsBtn" class="icon-btn hidden" style="max-width:180px;">⚙️ Mass Actions</button>
+      <div id="colSelectPanel" class="hidden" style="position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid #c9d4e7;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,0.13);z-index:1000;min-width:260px;max-height:420px;display:flex;flex-direction:column;">
+        <div style="padding:8px 12px;border-bottom:1px solid #e5eaf5;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:700;font-size:13px;color:#1f2937;">Select Columns</span>
+          <div style="display:flex;gap:6px;">
+            <button type="button" id="colSelectAll" style="width:auto;padding:3px 8px;font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:999px;font-weight:600;">All</button>
+            <button type="button" id="colSelectNone" style="width:auto;padding:3px 8px;font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:999px;font-weight:600;">None</button>
+            <button type="button" id="colSelectDefault" style="width:auto;padding:3px 8px;font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:999px;font-weight:600;">Default</button>
+          </div>
+        </div>
+        <div id="colSelectList" style="overflow-y:auto;padding:6px 8px 8px;"></div>
+      </div>
+
     </div>
 
     <div id="massActionsPanel" class="mass-actions-panel">
@@ -506,13 +547,19 @@
         <select id="massActionSelect">
           <option value="">Select Action</option>
           <option value="export">Export CSV</option>
-          <option value="export_xls">Export XLS</option>
           <option value="update_skip">Update Skip Status</option>
+          <option value="mark_status">Mark Status</option>
         </select>
         <select id="skipStatusSelect" class="hidden" style="width:150px;">
           <option value="">Select Status</option>
           <option value="1">Yes</option>
           <option value="0">No</option>
+        </select>
+        <select id="markStatusValueSelect" class="hidden" style="width:150px;">
+          <option value="">Select Status</option>
+          <option value="Normal">Normal</option>
+          <option value="Outlier">Outlier</option>
+          <option value="Pending">Pending</option>
         </select>
         <button id="massActionSubmit">Submit</button>
       </div>
@@ -525,17 +572,26 @@
     </div>
   </div>
 
+  <!-- Mark Status Modal (issue note for Outlier) -->
+  <div id="markStatusModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:10px;padding:24px;width:440px;max-width:95vw;box-shadow:0 8px 32px rgba(15,23,42,0.18);">
+      <div style="font-weight:700;font-size:15px;color:#1f2937;margin-bottom:16px;">Mark as Outlier — Issue Note</div>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Issue Note <span style="color:#e74c3c;">*</span></label>
+        <textarea id="issueNoteInput" rows="4" placeholder="Enter issue note..." style="width:100%;padding:8px;border:1px solid #c9d4e7;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px;">Notes are appended with timestamp if item was previously marked as Outlier.</div>
+      </div>
+      <div id="markStatusInfo" style="font-size:12px;color:#6b7280;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" id="markStatusCancel" style="width:auto;padding:8px 18px;background:#f3f4f6;border:1px solid #d1d5db;color:#374151;border-radius:6px;font-size:13px;cursor:pointer;">Cancel</button>
+        <button type="button" id="markStatusConfirm" style="width:auto;padding:8px 18px;background:#2563eb;border:1px solid #2563eb;color:#fff;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const els = {
       group: document.getElementById("groupSelector"),
-      status: document.getElementById("statusFilter"),
-      statusCount: document.getElementById("statusCount"),
-      statusTrigger: document.getElementById("statusTrigger"),
-      statusMenu: document.getElementById("statusMenu"),
-      skip: document.getElementById("skipFilter"),
-      skipCount: document.getElementById("skipCount"),
-      skipTrigger: document.getElementById("skipTrigger"),
-      skipMenu: document.getElementById("skipMenu"),
       dataInfo: document.getElementById("dataInfo"),
       brand: document.getElementById("brandFilter"),
       brandCount: document.getElementById("brandCount"),
@@ -561,6 +617,82 @@
     let selectedProductIds = new Set();
     const urlParams = new URLSearchParams(window.location.search);
 
+    // Column filters state (sent to server on Load) - dynamic, works for any column
+    const colFilters = { final_status: [], skip_status: [] };
+    function _cfGet(key, isRange) {
+      if (key === 'final_status' || key === 'skip_status') return colFilters[key];
+      const col = ALL_COLUMNS.find(c => c.key === key);
+      if (col && col.type === 'boolean') { if (!Array.isArray(colFilters[key])) colFilters[key] = []; return colFilters[key]; }
+      if (isRange) { if (!colFilters[key] || typeof colFilters[key] !== 'object') colFilters[key] = {min:'',max:''}; return colFilters[key]; }
+      if (colFilters[key] === undefined) colFilters[key] = '';
+      return colFilters[key];
+    }
+
+    function readColFiltersFromDOM() {
+      document.querySelectorAll('.col-filter-input[data-col]').forEach(el => {
+        const col = el.dataset.col;
+        const range = el.dataset.range;
+        if (range) {
+          _cfGet(col, true)[range] = el.value;
+        } else {
+          colFilters[col] = el.value;
+        }
+      });
+      document.querySelectorAll('.cf-ms[data-col]').forEach(wrap => {
+        const col = wrap.dataset.col;
+        colFilters[col] = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+      });
+    }
+
+    function initColFilterDropdowns() {
+      document.querySelectorAll('.cf-ms').forEach(wrap => {
+        const trigger = wrap.querySelector('.cf-ms-trigger');
+        const menu = wrap.querySelector('.cf-ms-menu');
+
+        function updateLabel() {
+          const n = wrap.querySelectorAll('input[type="checkbox"]:checked').length;
+          trigger.innerHTML = (n > 0 ? `${n} selected` : 'All') + ' <span>&#9662;</span>';
+        }
+
+        trigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = menu.style.display !== 'none';
+          document.querySelectorAll('.cf-ms-menu').forEach(m => { m.style.display = 'none'; });
+          if (!isOpen) {
+            const rect = trigger.getBoundingClientRect();
+            const menuHeight = 220;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            menu.style.minWidth = rect.width + 'px';
+            if (spaceBelow < menuHeight && rect.top > menuHeight) {
+              menu.style.top = (rect.top - menuHeight - 2) + 'px';
+            } else {
+              menu.style.top = (rect.bottom + 2) + 'px';
+            }
+            menu.style.left = rect.left + 'px';
+            menu.style.display = 'block';
+          }
+        });
+
+        wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.addEventListener('change', updateLabel);
+        });
+
+        wrap.querySelectorAll('.cf-ms-action-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = btn.dataset.action === 'all'; });
+            updateLabel();
+          });
+        });
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.cf-ms')) {
+          document.querySelectorAll('.cf-ms-menu').forEach(m => { m.style.display = 'none'; });
+        }
+      });
+    }
+
     function selectedValues(selectEl) {
       return Array.from(selectEl.selectedOptions).map(o => o.value);
     }
@@ -578,8 +710,6 @@
     }
 
     function closeAllDropdownMenus() {
-      els.statusMenu.classList.add("hidden");
-      els.skipMenu.classList.add("hidden");
       els.brandMenu.classList.add("hidden");
       els.categoryMenu.classList.add("hidden");
       els.typeMenu.classList.add("hidden");
@@ -786,8 +916,8 @@
         brands: selectedValues(els.brand),
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
-        final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip)
+        final_status: [],
+        skip_status: []
       };
       const res = await fetch("/pricing/grid/api/options", {
         method: "POST",
@@ -824,23 +954,6 @@
       els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
       document.getElementById("massActionsBtn").classList.add("hidden");
       await loadOptions();
-    });
-
-    els.status.addEventListener("change", async () => {
-      // Reset dependent dropdowns and show placeholder
-      const currentBrands = selectedValues(els.brand);
-      const currentCategories = selectedValues(els.category);
-      const currentTypes = selectedValues(els.type);
-
-      els.gridContainer.innerHTML = '<div class="grid-placeholder">Select category and click on Load to show grid</div>';
-      document.getElementById("massActionsBtn").classList.add("hidden");
-
-      await loadOptions();
-
-      // Clear selections after reload
-      setSelectOptions(els.brand, Array.from(els.brand.options).map(o => ({value: o.value, label: o.textContent})), []);
-      setSelectOptions(els.category, Array.from(els.category.options).map(o => ({value: o.value, label: o.textContent})), []);
-      setSelectOptions(els.type, Array.from(els.type.options).map(o => ({value: o.value, label: o.textContent})), []);
     });
 
     els.brand.addEventListener("change", async () => {
@@ -901,19 +1014,23 @@
       const isShowing = panel.classList.toggle("show");
       if (isShowing) {
         selectedProductIds.clear();
-        renderGrid();
       } else {
-        renderGrid();
+        document.getElementById('massActionSelect').value = '';
+        document.getElementById('skipStatusSelect').value = '';
+        document.getElementById('skipStatusSelect').classList.add('hidden');
+        document.getElementById('markStatusValueSelect').value = '';
+        document.getElementById('markStatusValueSelect').classList.add('hidden');
       }
+      renderGrid();
     });
 
     document.getElementById("massActionSelect").addEventListener("change", (e) => {
       const skipSelect = document.getElementById("skipStatusSelect");
-      if (e.target.value === "update_skip") {
-        skipSelect.classList.remove("hidden");
-      } else {
-        skipSelect.classList.add("hidden");
-      }
+      const markSelect = document.getElementById("markStatusValueSelect");
+      skipSelect.classList.toggle("hidden", e.target.value !== "update_skip");
+      markSelect.classList.toggle("hidden", e.target.value !== "mark_status");
+      if (e.target.value !== "mark_status") markSelect.value = "";
+      if (e.target.value !== "update_skip") skipSelect.value = "";
     });
 
     document.getElementById("massActionSubmit").addEventListener("click", async () => {
@@ -924,106 +1041,70 @@
       }
       if (action === "export") {
         await exportGridData();
-      } else if (action === "export_xls") {
-        await exportGridDataXLS();
       } else if (action === "update_skip") {
         await updateSkipStatusBulk();
+      } else if (action === "mark_status") {
+        await submitMarkStatus();
       }
     });
 
-    async function exportGridData() {
-      if (!els.group.value) {
-        alert("Please load grid data first");
-        return;
-      }
-
-      showLoader();
-      const payload = {
+    function buildGridPayload() {
+      readColFiltersFromDOM();
+      // Build col_filters dynamically from colFilters state
+      const cf = { final_status: colFilters.final_status, skip_status: colFilters.skip_status };
+      Object.entries(colFilters).forEach(([key, val]) => {
+        if (key === 'final_status' || key === 'skip_status') return;
+        if (Array.isArray(val)) {
+          if (val.length > 0) cf[key] = val;
+        } else if (val && typeof val === 'object' && ('min' in val || 'max' in val)) {
+          if (val.min !== '' && val.min !== null) cf[key + '_min'] = val.min;
+          if (val.max !== '' && val.max !== null) cf[key + '_max'] = val.max;
+        } else if (typeof val === 'string' && val.trim() !== '') {
+          cf[key] = val;
+        }
+      });
+      return {
         group_id: parseInt(els.group.value),
         brands: selectedValues(els.brand),
         categories: selectedValues(els.category),
         types: selectedValues(els.type),
-        final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip)
+        final_status: [],
+        skip_status: [],
+        clusters: urlParams.getAll('clusters'),
+        iteration_id: urlParams.get('iteration_id') ? parseInt(urlParams.get('iteration_id')) : null,
+        col_filters: cf
       };
+    }
 
+    async function exportGridData() {
+      if (!els.group.value) { alert("Please load grid data first"); return; }
+      showLoader();
+      const exportPayload = Object.assign(buildGridPayload(), { selected_columns: [...selectedColumns] });
       const res = await fetch("/pricing/grid/api/export-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(exportPayload)
       });
-
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `grid_export_${new Date().getTime()}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        alert("Export failed");
-      }
-      hideLoader();
-    }
-
-    async function exportGridDataXLS() {
-      if (!els.group.value) {
-        alert("Please load grid data first");
-        return;
-      }
-
-      showLoader();
-      const payload = {
-        group_id: parseInt(els.group.value),
-        brands: selectedValues(els.brand),
-        categories: selectedValues(els.category),
-        types: selectedValues(els.type),
-        final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip)
-      };
-
-      const res = await fetch("/pricing/grid/api/export-xls", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `grid_export_${new Date().getTime()}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        alert("Export failed");
-      }
+        document.body.appendChild(a); a.click();
+        window.URL.revokeObjectURL(url); document.body.removeChild(a);
+      } else { alert("Export failed"); }
       hideLoader();
     }
 
     async function loadGridData() {
-      showLoader();
-      const payload = {
-        group_id: parseInt(els.group.value),
-        brands: selectedValues(els.brand),
-        categories: selectedValues(els.category),
-        types: selectedValues(els.type),
-        final_status: selectedValues(els.status),
-        skip_status: selectedValues(els.skip),
-        clusters: urlParams.getAll('clusters'),
-        iteration_id: urlParams.get('iteration_id') ? parseInt(urlParams.get('iteration_id')) : null,
+      const payload = Object.assign(buildGridPayload(), {
         page: currentPage,
         per_page: itemsPerPage,
         sort_column: sortColumn,
         sort_direction: sortDirection
-      };
-
+      });
+      showLoader();
       const res = await fetch("/pricing/grid/api/grid-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1068,51 +1149,32 @@
     }
 
     function renderGrid() {
-      if (!gridData || gridData.length === 0) {
-        els.gridContainer.innerHTML = '<p class="msg">No products found.</p>';
-        document.getElementById("massActionsBtn").classList.add("hidden");
-        return;
-      }
+      const hasData = gridData && gridData.length > 0;
+      document.getElementById("massActionsBtn").classList.toggle("hidden", !hasData);
 
-      // Show mass actions button when grid has data
-      document.getElementById("massActionsBtn").classList.remove("hidden");
+      const totalPages = Math.max(1, Math.ceil(totalRecords / itemsPerPage));
+      const startIdx = hasData ? (currentPage - 1) * itemsPerPage + 1 : 0;
+      const endIdx = hasData ? Math.min(startIdx + gridData.length - 1, totalRecords) : 0;
 
-      const totalPages = Math.ceil(totalRecords / itemsPerPage);
-      const startIdx = (currentPage - 1) * itemsPerPage + 1;
-      const endIdx = Math.min(startIdx + gridData.length - 1, totalRecords);
-
-      const isAggregated = gridData.length > 0 && gridData[0].aggregated;
       const showCheckboxes = document.getElementById("massActionsPanel").classList.contains("show");
 
       let columns = [];
       if (showCheckboxes) {
         columns.push({ key: 'checkbox', label: '<input type="checkbox" id="selectAllCheckbox" onchange="toggleAllCheckboxes(this.checked)">' });
       }
-      columns.push(
-        { key: 'system_product_id', label: 'Product Id' },
-        { key: 'qb_code', label: 'QB Code' },
-        { key: 'brand', label: 'Brand' },
-        { key: 'category', label: 'Category' },
-        { key: 'product_type', label: 'Type' },
-        { key: 'name', label: 'Name' },
-        { key: 'mfr_cost', label: 'Mfr Cost' },
-        { key: 'shipping_cost', label: 'Shipping Cost' },
-        { key: 'profit_margin', label: 'Profit Margin' },
-        { key: 'eps', label: 'EPS' },
-        { key: 'sample', label: 'Sample' },
-        { key: 'final_status', label: 'Final Status' },
-        { key: 'total_items', label: 'Total Items' },
-        { key: 'analyzed_items', label: 'Analyzed Items' },
-        { key: 'pending_items', label: 'Pending Items' },
-        { key: 'outlier_items', label: 'Outlier Items' },
-        { key: 'cluster', label: 'Cluster' },
-        { key: 'cluster_items', label: 'Cluster Items' },
-        { key: 'cluster_items_per', label: 'Cluster Items (%)' },
-        { key: 'skip_status', label: 'Skip' }
-      );
-
+      ALL_COLUMNS.filter(c => selectedColumns.has(c.key)).forEach(c => columns.push(c));
+      // Sort selected columns: default-order keys first (in defined order), then remaining in ALL_COLUMNS order
+      const defaultIdx = key => { const i = DEFAULT_COLUMN_ORDER.indexOf(key); return i === -1 ? Infinity : i; };
+      columns.sort((a, b) => {
+        if (a.key === 'checkbox') return -1;
+        if (b.key === 'checkbox') return 1;
+        const ai = defaultIdx(a.key), bi = defaultIdx(b.key);
+        if (ai !== Infinity || bi !== Infinity) return ai - bi;
+        return ALL_COLUMNS.findIndex(c => c.key === a.key) - ALL_COLUMNS.findIndex(c => c.key === b.key);
+      });
+      // legacy anchor:
       let html = '<div class="pagination">';
-      html += `<div class="pagination-left">📊 Showing ${startIdx}-${endIdx} of ${totalRecords} products</div>`;
+      html += `<div class="pagination-left">${hasData ? `📊 Showing ${startIdx}-${endIdx} of ${totalRecords} products` : '📊 No products found for selected filters'}</div>`;
       html += '<div class="pagination-right">';
       html += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
       html += `<span class="pagination-info">Page ${currentPage} of ${totalPages}</span>`;
@@ -1131,15 +1193,52 @@
           html += `<th onclick="sortGrid('${col.key}')">${col.label} <span class="sort-icon">${sortIcon}</span></th>`;
         }
       });
+      html += '</tr><tr class="col-filter-row">';
+      columns.forEach(col => {
+        if (col.key === 'checkbox' || col.key === 'brand' || col.key === 'category' || col.key === 'product_type') {
+          html += `<th></th>`;
+        } else if (col.key === 'final_status') {
+          const fsOpts = [['Normal','Normal'],['Outlier','Outlier'],['Pending to Analyze','Pending']];
+          const fsSel = colFilters.final_status.length;
+          const fsLabel = fsSel > 0 ? `${fsSel} selected` : 'All';
+          const fsOptHtml = fsOpts.map(([v,l]) => `<label class="cf-ms-opt"><input type="checkbox" value="${v}" ${colFilters.final_status.includes(v)?'checked':''}><span>${l}</span></label>`).join('');
+          html += `<th><div class="cf-ms" data-col="final_status"><div class="cf-ms-trigger">${fsLabel} <span>&#9662;</span></div><div class="cf-ms-menu" style="display:none"><div class="cf-ms-actions"><button class="cf-ms-action-btn" data-action="all">All</button><button class="cf-ms-action-btn" data-action="none">None</button></div>${fsOptHtml}</div></div></th>`;
+        } else if (col.key === 'skip_status') {
+          const ssOpts = [['Yes','Yes'],['No','No']];
+          const ssSel = colFilters.skip_status.length;
+          const ssLabel = ssSel > 0 ? `${ssSel} selected` : 'All';
+          const ssOptHtml = ssOpts.map(([v,l]) => `<label class="cf-ms-opt"><input type="checkbox" value="${v}" ${colFilters.skip_status.includes(v)?'checked':''}><span>${l}</span></label>`).join('');
+          html += `<th><div class="cf-ms" data-col="skip_status"><div class="cf-ms-trigger">${ssLabel} <span>&#9662;</span></div><div class="cf-ms-menu" style="display:none"><div class="cf-ms-actions"><button class="cf-ms-action-btn" data-action="all">All</button><button class="cf-ms-action-btn" data-action="none">None</button></div>${ssOptHtml}</div></div></th>`;
+        } else if (col.type === 'boolean') {
+          const bSel = (colFilters[col.key] || []);
+          const bLabel = bSel.length > 0 ? `${bSel.length} selected` : 'All';
+          const bOptHtml = [['Yes','Yes'],['No','No']].map(([v,l]) => `<label class="cf-ms-opt"><input type="checkbox" value="${v}" ${bSel.includes(v)?'checked':''}><span>${l}</span></label>`).join('');
+          html += `<th><div class="cf-ms" data-col="${col.key}"><div class="cf-ms-trigger">${bLabel} <span>&#9662;</span></div><div class="cf-ms-menu" style="display:none"><div class="cf-ms-actions"><button class="cf-ms-action-btn" data-action="all">All</button><button class="cf-ms-action-btn" data-action="none">None</button></div>${bOptHtml}</div></div></th>`;
+        } else if (col.type === 'number') {
+          const f = colFilters[col.key] || {min:'',max:''};
+          html += `<th><div class="range-filter"><input type="number" class="col-filter-input" data-col="${col.key}" data-range="min" value="${f.min||''}" placeholder="Min"><input type="number" class="col-filter-input" data-col="${col.key}" data-range="max" value="${f.max||''}" placeholder="Max"></div></th>`;
+        } else if (col.type === 'string') {
+          const val = (colFilters[col.key] || '').replace(/"/g, '&quot;');
+          html += `<th><input type="text" class="col-filter-input" data-col="${col.key}" value="${val}" placeholder="Search..."></th>`;
+        } else {
+          html += `<th></th>`;
+        }
+      });
       html += '</tr></thead><tbody>';
+
+      if (!hasData) {
+        html += `<tr><td colspan="${columns.length}" style="text-align:center;padding:40px;color:#9ca3af;font-size:15px;">No products found. Adjust column filters and click Load.</td></tr>`;
+      }
 
       gridData.forEach((row, idx) => {
         html += '<tr>';
         columns.forEach(col => {
-          let value = row[col.key] || '';
+          let value = row[col.key] ?? '';
           let cellClass = '';
 
-          if (col.key === 'checkbox') {
+          if (col.type === 'boolean') {
+            value = row[col.key] == 1 ? '<span style="color:#16a34a;font-weight:600;">Yes</span>' : '<span style="color:#6b7280;">No</span>';
+          } else if (col.key === 'checkbox') {
             const isChecked = selectedProductIds.has(row.product_id);
             value = `<input type="checkbox" class="product-checkbox" value="${row.product_id}" ${isChecked ? 'checked' : ''} onchange="toggleProductCheckbox(${row.product_id}, this.checked)">`;
           } else if (col.key === 'cluster_items_per') {
@@ -1162,12 +1261,14 @@
             const imageUrl = row.base_image_url || '';
             const escapedUrl = imageUrl.replace(/'/g, "&apos;");
             value = `<span class="qb-code-cell" onmouseenter="showImageTooltip(event, '${escapedUrl}')" onmouseleave="hideImageTooltip()"><a href="${row.product_url}" target="_blank">${value}</a></span>`;
+          } else if (col.key === 'profit_amt' || col.key === 'price' || col.key === 'cost_margin' || col.key === 'shipping_margin' || col.key === 'profit_vs_cost_margin' || col.key === 'shipping_vs_cost_margin' || col.key === 'profit_vs_shipping_margin') {
+            value = (value === null || value === undefined || value === '') ? '0' : (typeof value === 'number' ? value.toFixed(2) : value);
           } else if (col.key === 'mfr_cost') {
-            value = typeof value === 'number' ? value.toFixed(2) : value;
+            value = (value === null || value === undefined || value === '') ? '0' : (typeof value === 'number' ? value.toFixed(2) : value);
           } else if (col.key === 'shipping_cost') {
-            value = typeof value === 'number' ? value.toFixed(2) : value;
+            value = (value === null || value === undefined || value === '') ? '0' : (typeof value === 'number' ? value.toFixed(2) : value);
           } else if (col.key === 'profit_margin') {
-            value = typeof value === 'number' ? value.toFixed(2) : value;
+            value = (value === null || value === undefined || value === '') ? '0' : (typeof value === 'number' ? value.toFixed(2) : value);
           } else if (col.key === 'final_status') {
             cellClass = value === 'Normal' ? 'status-normal' : value === 'Outlier' ? 'status-outlier' : '';
             if (row.iteration_history && row.iteration_history.length > 0) {
@@ -1208,10 +1309,11 @@
       html += '</tbody></table>';
       els.gridContainer.innerHTML = html;
       els.gridContainer.classList.remove("hidden");
+      initColFilterDropdowns();
 
       // Update select all checkbox state
       const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-      if (selectAllCheckbox && gridData.length > 0) {
+      if (selectAllCheckbox && hasData) {
         const allSelected = gridData.every(row => selectedProductIds.has(row.product_id));
         selectAllCheckbox.checked = allSelected;
       }
@@ -1230,26 +1332,6 @@
       currentPage = 1;
       loadGridData();
     }
-
-    els.skipTrigger.addEventListener("click", () => {
-      const willOpen = els.skipMenu.classList.contains("hidden");
-      closeAllDropdownMenus();
-      if (willOpen) {
-        els.skipMenu.classList.remove("hidden");
-        const input = els.skipMenu.querySelector(".ms-search");
-        if (input) input.focus();
-      }
-    });
-
-    els.statusTrigger.addEventListener("click", () => {
-      const willOpen = els.statusMenu.classList.contains("hidden");
-      closeAllDropdownMenus();
-      if (willOpen) {
-        els.statusMenu.classList.remove("hidden");
-        const input = els.statusMenu.querySelector(".ms-search");
-        if (input) input.focus();
-      }
-    });
 
     els.brandTrigger.addEventListener("click", () => {
       const willOpen = els.brandMenu.classList.contains("hidden");
@@ -1282,32 +1364,67 @@
     });
 
     document.addEventListener("click", (e) => {
-      const inStatus = e.target.closest("#statusDropdown");
-      const inSkip = e.target.closest("#skipDropdown");
       const inBrand = e.target.closest("#brandDropdown");
       const inCategory = e.target.closest("#categoryDropdown");
       const inType = e.target.closest("#typeDropdown");
-
-      if (!inStatus && !inSkip && !inBrand && !inCategory && !inType) closeAllDropdownMenus();
+      if (!inBrand && !inCategory && !inType) closeAllDropdownMenus();
     });
 
-    (async function init() {
-      renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
-      renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
+    // ---- Column Selector ----
+    let ALL_COLUMNS = [];
+    const DEFAULT_COLUMN_ORDER = ['brand','category','product_type','qb_code','mfr_cost','shipping_cost','price','profit_amt','map_price','cost_margin','shipping_margin','profit_margin','profit_vs_cost_margin','mor','is_map_violation','map_suspended','is_loss_item','is_underpriced','is_overpriced','final_status','issue_note'];
+    const DEFAULT_COLUMNS = new Set(DEFAULT_COLUMN_ORDER);
+    let selectedColumns = new Set(DEFAULT_COLUMNS);
 
+    async function loadAllColumns() {
+      try {
+        const res = await fetch('/pricing/grid/api/columns');
+        if (res.ok) ALL_COLUMNS = await res.json();
+      } catch(e) { console.error('Failed to load columns', e); }
+      selectedColumns = new Set(DEFAULT_COLUMNS);
+    }
+
+    function initColSelector() {
+      const list = document.getElementById('colSelectList');
+      if (!list) return;
+      const seen = new Set();
+      const uniqueCols = ALL_COLUMNS.filter(c => { if (seen.has(c.key)) return false; seen.add(c.key); return true; });
+      list.innerHTML = uniqueCols.map(c => `
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 4px;font-size:12px;cursor:pointer;border-radius:4px;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+          <input type="checkbox" value="${c.key}" ${selectedColumns.has(c.key) ? 'checked' : ''} style="width:13px;height:13px;margin:0;accent-color:#2563eb;">
+          <span style="color:#1f2937;">${c.label}</span>
+        </label>`).join('');
+      list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) selectedColumns.add(cb.value); else selectedColumns.delete(cb.value);
+        });
+      });
+    }
+
+    (async function init() {
+      await loadAllColumns();
       await loadProductGroups();
 
-      // Check for URL parameters
       const groupId = urlParams.get('group_id');
       const category = urlParams.get('category');
       const brands = urlParams.getAll('brands');
       const types = urlParams.getAll('types');
-      const clusters = urlParams.getAll('clusters');
       const finalStatus = urlParams.get('final_status');
       const skipStatus = urlParams.get('skip_status');
       const iterationId = urlParams.get('iteration_id');
 
-      // If iteration_id is provided, fetch filters from iteration
+      // Map URL final_status/skip_status into col filters
+      if (finalStatus !== null) {
+        const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
+        const sv = statusMap[finalStatus];
+        if (sv) colFilters.final_status = [sv];
+      }
+      if (skipStatus !== null) {
+        const skipMap = {'0': 'No', '1': 'Yes'};
+        const sv = skipMap[skipStatus];
+        if (sv) colFilters.skip_status = [sv];
+      }
+
       if (iterationId) {
         const iterRes = await fetch('/pricing/grid/api/iteration-filters', {
           method: 'POST',
@@ -1315,60 +1432,23 @@
           body: JSON.stringify({ iteration_id: parseInt(iterationId) })
         });
         const iterData = await iterRes.json();
-        
+
         if (iterData.ok && iterData.filters) {
-          // Set product group
           els.group.value = iterData.filters.group_id;
           await loadOptions();
-          
-          // Set brands: use URL param if provided, otherwise use all brands from iteration
+
           if (brands.length > 0) {
-            Array.from(els.brand.options).forEach(opt => {
-              opt.selected = brands.includes(opt.value);
-            });
+            Array.from(els.brand.options).forEach(opt => { opt.selected = brands.includes(opt.value); });
           } else if (iterData.filters.brands && iterData.filters.brands.length > 0) {
-            Array.from(els.brand.options).forEach(opt => {
-              opt.selected = iterData.filters.brands.includes(opt.value);
-            });
+            Array.from(els.brand.options).forEach(opt => { opt.selected = iterData.filters.brands.includes(opt.value); });
           }
           renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
           await loadOptions();
-          
-          // Set categories from iteration
+
           if (iterData.filters.categories && iterData.filters.categories.length > 0) {
-            Array.from(els.category.options).forEach(opt => {
-              opt.selected = iterData.filters.categories.includes(opt.value);
-            });
+            Array.from(els.category.options).forEach(opt => { opt.selected = iterData.filters.categories.includes(opt.value); });
             renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
             await loadOptions();
-          }
-          
-          // Set final status if provided
-          if (finalStatus !== null) {
-            const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
-            const statusValue = statusMap[finalStatus];
-            if (statusValue) {
-              Array.from(els.status.options).forEach(opt => {
-                opt.selected = opt.value === statusValue;
-              });
-              renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
-            }
-          }
-          
-          // Set skip status if provided
-          if (skipStatus !== null) {
-            const skipMap = {'0': 'No', '1': 'Yes'};
-            const skipValue = skipMap[skipStatus];
-            if (skipValue) {
-              Array.from(els.skip.options).forEach(opt => {
-                opt.selected = opt.value === skipValue;
-              });
-              renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
-            }
-          }
-          
-          // Auto-load grid if category is selected
-          if (iterData.filters.categories && iterData.filters.categories.length > 0) {
             currentPage = 1;
             await loadGridData();
           }
@@ -1377,61 +1457,26 @@
       }
 
       if (groupId) {
-        // Set product group
         els.group.value = groupId;
         await loadOptions();
 
-        // Set final status if provided
-        if (finalStatus !== null) {
-          const statusMap = {'0': 'Outlier', '1': 'Normal', '2': 'Pending to Analyze'};
-          const statusValue = statusMap[finalStatus];
-          if (statusValue) {
-            Array.from(els.status.options).forEach(opt => {
-              opt.selected = opt.value === statusValue;
-            });
-            renderMultiCheckboxDropdown(els.status, els.statusMenu, els.statusTrigger, els.statusCount, "Select Final Status");
-          }
-        }
-
-        // Set skip status if provided
-        if (skipStatus !== null) {
-          const skipMap = {'0': 'No', '1': 'Yes'};
-          const skipValue = skipMap[skipStatus];
-          if (skipValue) {
-            Array.from(els.skip.options).forEach(opt => {
-              opt.selected = opt.value === skipValue;
-            });
-            renderMultiCheckboxDropdown(els.skip, els.skipMenu, els.skipTrigger, els.skipCount, "Select Skip Status");
-          }
-        }
-
-        // Set brands if provided
         if (brands.length > 0) {
-          Array.from(els.brand.options).forEach(opt => {
-            opt.selected = brands.includes(opt.value);
-          });
+          Array.from(els.brand.options).forEach(opt => { opt.selected = brands.includes(opt.value); });
           renderMultiCheckboxDropdown(els.brand, els.brandMenu, els.brandTrigger, els.brandCount, "Select Brand");
           await loadOptions();
         }
 
-        // Set category if provided
         if (category) {
-          Array.from(els.category.options).forEach(opt => {
-            opt.selected = opt.value === category;
-          });
+          Array.from(els.category.options).forEach(opt => { opt.selected = opt.value === category; });
           renderMultiCheckboxDropdown(els.category, els.categoryMenu, els.categoryTrigger, els.categoryCount, "Select Category");
           await loadOptions();
         }
 
-        // Set types if provided
         if (types.length > 0) {
-          Array.from(els.type.options).forEach(opt => {
-            opt.selected = types.includes(opt.value);
-          });
+          Array.from(els.type.options).forEach(opt => { opt.selected = types.includes(opt.value); });
           renderMultiCheckboxDropdown(els.type, els.typeMenu, els.typeTrigger, els.typeCount, "Select Product Type");
         }
 
-        // Auto-load grid if category is selected
         if (category && selectedValues(els.category).length > 0) {
           currentPage = 1;
           await loadGridData();
@@ -1540,5 +1585,85 @@
 
     // Function to redirect to analyzer page with iteration loaded
     // Removed - now using direct links
-  </script>
+  
+    document.getElementById('colSelectBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = document.getElementById('colSelectPanel');
+      const isHidden = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !isHidden);
+      if (isHidden) initColSelector();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#colSelectPanel') && !e.target.closest('#colSelectBtn')) {
+        document.getElementById('colSelectPanel').classList.add('hidden');
+      }
+    });
+
+    document.getElementById('colSelectAll').addEventListener('click', () => {
+      selectedColumns = new Set(ALL_COLUMNS.map(c => c.key));
+      initColSelector();
+    });
+    document.getElementById('colSelectNone').addEventListener('click', () => {
+      selectedColumns = new Set();
+      initColSelector();
+    });
+    document.getElementById('colSelectDefault').addEventListener('click', () => {
+      selectedColumns = new Set(DEFAULT_COLUMN_ORDER);
+      initColSelector();
+    });
+
+    // ---- Mark Status ----
+    async function submitMarkStatus() {
+      if (selectedProductIds.size === 0) { alert('Please select at least one product.'); return; }
+      const status = document.getElementById('markStatusValueSelect').value;
+      if (!status) { alert('Please select a status.'); return; }
+      if (status === 'Outlier') {
+        // Show note popup
+        document.getElementById('issueNoteInput').value = '';
+        document.getElementById('markStatusInfo').textContent = `${selectedProductIds.size} product(s) selected.`;
+        document.getElementById('markStatusModal').style.display = 'flex';
+      } else {
+        await doMarkStatus(status, '');
+      }
+    }
+
+    async function doMarkStatus(status, issueNote) {
+      showLoader();
+      const res = await fetch('/pricing/grid/api/mark-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_ids: [...selectedProductIds], status, issue_note: issueNote })
+      });
+      const data = await res.json();
+      hideLoader();
+      if (data.ok) {
+        alert(data.message);
+        selectedProductIds.clear();
+        document.getElementById('massActionSelect').value = '';
+        document.getElementById('markStatusValueSelect').value = '';
+        document.getElementById('markStatusValueSelect').classList.add('hidden');
+        document.getElementById('skipStatusSelect').classList.add('hidden');
+        await loadGridData();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    }
+
+    document.getElementById('markStatusCancel').addEventListener('click', () => {
+      document.getElementById('markStatusModal').style.display = 'none';
+    });
+
+    document.getElementById('markStatusConfirm').addEventListener('click', async () => {
+      const issueNote = document.getElementById('issueNoteInput').value.trim();
+      if (!issueNote) { alert('Please enter an issue note.'); return; }
+      document.getElementById('markStatusModal').style.display = 'none';
+      await doMarkStatus('Outlier', issueNote);
+    });
+
+    document.getElementById('markStatusModal').addEventListener('click', function(e) {
+      if (e.target === this) this.style.display = 'none';
+    });
+
+   </script>
 {% endblock %}

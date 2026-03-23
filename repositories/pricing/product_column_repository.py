@@ -8,4 +8,4 @@ class ProductColumnRepository(BaseRepository):
         super().__init__(db, ProductColumn)
 
     def get_all(self):
-        return self.db.query(ProductColumn).order_by(ProductColumn.name).all()
+        return self.db.query(ProductColumn).order_by(ProductColumn.sort_order, ProductColumn.name).all()

@@ -8,7 +8,7 @@ class ProductInsightConfigRepository(BaseRepository):
         super().__init__(db, ProductInsightConfig)
 
     def get_all(self):
-        return self.db.query(ProductInsightConfig).order_by(ProductInsightConfig.name).all()
+        return self.db.query(ProductInsightConfig).order_by(ProductInsightConfig.sort_order, ProductInsightConfig.name).all()
 
     def get_default(self):
         return (

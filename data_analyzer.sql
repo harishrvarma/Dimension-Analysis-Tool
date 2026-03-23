@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: mysql8.0volume:3306
--- Generation Time: Mar 20, 2026 at 07:48 AM
+-- Generation Time: Mar 23, 2026 at 02:01 PM
 -- Server version: 8.0.27
 -- PHP Version: 8.0.15
 
@@ -269,6 +269,7 @@ CREATE TABLE `pricing_product` (
   `created_date` datetime DEFAULT NULL,
   `dbs_status` tinyint DEFAULT NULL,
   `final_status` tinyint DEFAULT NULL,
+  `issue_note` varchar(255) DEFAULT NULL,
   `skip_status` tinyint DEFAULT NULL,
   `skip_status_updated_date` datetime DEFAULT NULL,
   `analyzed_date` datetime DEFAULT NULL,
@@ -283,7 +284,16 @@ CREATE TABLE `pricing_product` (
   `profit_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
   `profit_vs_cost_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
   `shipping_vs_cost_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `profit_vs_shipping_margin` decimal(10,2) NOT NULL DEFAULT '0.00'
+  `profit_vs_shipping_margin` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `map_violation` varchar(100) DEFAULT NULL,
+  `mor` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Manual Order Required	',
+  `map` varchar(100) DEFAULT NULL,
+  `map_suspended` varchar(100) DEFAULT NULL,
+  `is_map_violation` tinyint(1) NOT NULL DEFAULT '0',
+  `is_loss_item` tinyint(1) NOT NULL DEFAULT '0',
+  `is_underpriced` tinyint(1) NOT NULL DEFAULT '0',
+  `is_overpriced` tinyint(1) NOT NULL DEFAULT '0',
+  `is_overpriced_above_map` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -296,7 +306,8 @@ CREATE TABLE `pricing_product_column` (
   `column_id` int UNSIGNED NOT NULL,
   `name` varchar(100) NOT NULL,
   `code` varchar(100) NOT NULL,
-  `symbol` varchar(50) DEFAULT NULL
+  `symbol` varchar(50) DEFAULT NULL,
+  `sort_order` decimal(10,2) NOT NULL DEFAULT '999.00'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -328,7 +339,8 @@ CREATE TABLE `pricing_product_insight_config` (
   `x_axis_com` int UNSIGNED NOT NULL,
   `y_axis_com` int UNSIGNED NOT NULL,
   `z_axis_com` int UNSIGNED NOT NULL,
-  `is_default` tinyint NOT NULL DEFAULT '0'
+  `is_default` tinyint NOT NULL DEFAULT '0',
+  `sort_order` decimal(10,2) NOT NULL DEFAULT '999.00'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -395,7 +407,7 @@ CREATE TABLE `pricing_product_tmp` (
   `web_id` varchar(100) DEFAULT NULL,
   `sku` varchar(100) DEFAULT NULL,
   `mpn` varchar(100) DEFAULT NULL,
-  `part_number` varchar(100) DEFAULT NULL,
+  `part_number` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `category_id` int DEFAULT NULL,
   `category` varchar(255) DEFAULT NULL,
   `brand_id` int DEFAULT NULL,
@@ -410,7 +422,11 @@ CREATE TABLE `pricing_product_tmp` (
   `width` decimal(10,2) DEFAULT NULL,
   `depth` decimal(10,2) DEFAULT NULL,
   `image_url` varchar(500) DEFAULT NULL,
-  `product_url` varchar(500) DEFAULT NULL
+  `product_url` varchar(500) DEFAULT NULL,
+  `map_violation` varchar(100) DEFAULT NULL,
+  `mor` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Manual Order Required',
+  `map` varchar(100) DEFAULT NULL,
+  `map_suspended` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -716,7 +732,7 @@ ALTER TABLE `pricing_product_iteration`
 -- Constraints for table `pricing_product_iteration_item`
 --
 ALTER TABLE `pricing_product_iteration_item`
-  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_1` FOREIGN KEY (`iteration_id`) REFERENCES `pricing_product_iteration_1` (`iteration_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `pricing_product_iteration_item_ibfk_1` FOREIGN KEY (`iteration_id`) REFERENCES `pricing_product_iteration` (`iteration_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `pricing_product_iteration_item_ibfk_2` FOREIGN KEY (`system_product_id`) REFERENCES `pricing_product` (`system_product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 

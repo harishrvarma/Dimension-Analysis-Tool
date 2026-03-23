@@ -90,7 +90,8 @@ def api_grid_data():
     if not group_id:
         return jsonify({"ok": False, "message": "No product group selected.", "data": [], "total": 0})
 
-    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, skip_status if skip_status else None, clusters if clusters else None, iteration_id, page, per_page, sort_column, sort_direction)
+    col_filters = payload.get("col_filters") or {}
+    data, total = grid.load_grid_data(group_id, brands, categories, types, final_status if final_status else None, skip_status if skip_status else None, clusters if clusters else None, iteration_id, page, per_page, sort_column, sort_direction, col_filters=col_filters)
 
     return jsonify({
         "ok": True,
@@ -126,9 +127,74 @@ def api_update_skip_status():
         db.close()
 
 
+@pricing_grid_bp.get("/api/columns")
+def api_columns():
+    """Return all available grid columns: pricing_product model columns + virtual computed columns.
+    Labels come from pricing_product_column table where available, otherwise auto-generated.
+    Adding a new column to pricing_product automatically appears here.
+    """
+    from models.base.base import SessionLocal
+    from models.pricing.product import Product
+    from repositories.pricing.product_column_repository import ProductColumnRepository
+    from sqlalchemy import inspect as sa_inspect, Integer, Float, Numeric, String, DateTime
+    from sqlalchemy.dialects.mysql import TINYINT, DECIMAL, INTEGER
+
+    EXCLUDE_KEYS = {'product_id', 'group_id', 'brand_id', 'category_id',
+                    'base_image_url', 'product_url', 'created_date',
+                    'skip_status_updated_date', 'iteration_closed', 'dimension_failed',
+                    'skip_status'}
+
+    db = SessionLocal()
+    try:
+        label_map = {c.code: c.name for c in ProductColumnRepository(db).get_all() if c.code}
+    finally:
+        db.close()
+
+    def _auto_label(key):
+        return key.replace('_', ' ').title()
+
+    # Columns that are tinyint but NOT boolean Yes/No flags
+    NON_BOOLEAN_TINYINT = {'dbs_status', 'final_status', 'outlier_mode', 'skip_status'}
+
+    def _col_type(sa_col, key):
+        t = sa_col.type
+        if isinstance(t, TINYINT) and key not in NON_BOOLEAN_TINYINT:
+            return 'boolean'
+        if isinstance(t, (Integer, Float, Numeric, TINYINT, DECIMAL, INTEGER)):
+            return 'number'
+        return 'string'
+
+    model_cols = [
+        {
+            "key": col.key,
+            "label": label_map.get(col.key, _auto_label(col.key)),
+            "type": _col_type(col.columns[0], col.key)
+        }
+        for col in sa_inspect(Product).mapper.column_attrs
+        if col.key not in EXCLUDE_KEYS
+    ]
+
+    VIRTUAL_COLS = [
+        {"key": "eps",               "label": label_map.get("eps",               "EPS"),                  "type": "number"},
+        {"key": "sample",            "label": label_map.get("sample",            "Sample"),               "type": "number"},
+        {"key": "total_items",       "label": label_map.get("total_items",       "Total Items"),          "type": "number"},
+        {"key": "analyzed_items",    "label": label_map.get("analyzed_items",    "Analyzed Items"),       "type": "number"},
+        {"key": "pending_items",     "label": label_map.get("pending_items",     "Pending Items"),        "type": "number"},
+        {"key": "outlier_items",     "label": label_map.get("outlier_items",     "Outlier Items"),        "type": "number"},
+        {"key": "cluster",           "label": label_map.get("cluster",           "Cluster"),              "type": "string"},
+        {"key": "cluster_items",     "label": label_map.get("cluster_items",     "Cluster Items"),        "type": "number"},
+        {"key": "cluster_items_per", "label": label_map.get("cluster_items_per", "Cluster Items (%)"),   "type": "number"},
+        {"key": "skip_status",       "label": label_map.get("skip_status",       "Skip Status"),          "type": "select"},
+    ]
+
+    seen = {c["key"] for c in model_cols}
+    result = model_cols + [c for c in VIRTUAL_COLS if c["key"] not in seen]
+    return jsonify(result)
+
+
 @pricing_grid_bp.post("/api/export-data")
 def api_export_data():
-    """Export grid data to CSV"""
+    """Export grid data to CSV using only the columns selected in the column selector"""
     payload = request.get_json(silent=True) or {}
     group_id = payload.get("group_id")
     if not group_id:
@@ -137,39 +203,77 @@ def api_export_data():
     import csv
     from io import StringIO
     from flask import make_response
+    from models.base.base import SessionLocal
+    from repositories.pricing.product_column_repository import ProductColumnRepository
+
+    col_filters = payload.get("col_filters") or {}
+    brands = payload.get("brands") or []
+    categories = payload.get("categories") or []
+    types = payload.get("types") or []
+    final_status = payload.get("final_status") or []
+    skip_status = payload.get("skip_status") or []
+    clusters = payload.get("clusters") or []
+    iteration_id = payload.get("iteration_id")
+    selected_columns = payload.get("selected_columns") or []
+
+    # Build ordered column map from DB; fall back to all if none selected
+    db = SessionLocal()
+    try:
+        all_cols = ProductColumnRepository(db).get_all()
+    finally:
+        db.close()
+    all_col_map = {c.code: c.name for c in all_cols if c.code}
+
+    # All virtual columns with fallback labels
+    virtual_labels = {
+        'skip_status': 'Skip Status',
+        'iteration_history': 'Final Status History',
+        'eps': 'EPS',
+        'sample': 'Sample',
+        'total_items': 'Total Items',
+        'analyzed_items': 'Analyzed Items',
+        'pending_items': 'Pending Items',
+        'outlier_items': 'Outlier Items',
+        'cluster': 'Cluster',
+        'cluster_items': 'Cluster Items',
+        'cluster_items_per': 'Cluster Items (%)',
+    }
+    for k, v in virtual_labels.items():
+        if k not in all_col_map:
+            all_col_map[k] = v
+
+    if selected_columns:
+        export_cols = [(k, all_col_map.get(k, k)) for k in selected_columns]
+    else:
+        export_cols = list(all_col_map.items())
 
     si = StringIO()
     writer = csv.writer(si)
-    writer.writerow(['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-                     'Name', 'Mfr Cost', 'Shipping Cost', 'Profit Margin', 'EPS', 'Sample', 'Final Status',
-                     'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
-                     'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History'])
+    writer.writerow([label for _, label in export_cols])
 
     page = 1
     chunk_size = 5000
     while True:
-        data, _ = grid.load_grid_data(group_id, payload.get("brands"), payload.get("categories"),
-                                      payload.get("types"), payload.get("final_status"), payload.get("skip_status"),
-                                      payload.get("clusters"), payload.get("iteration_id"), page, chunk_size, None, 'asc', skip_count=True)
+        data, _ = grid.load_grid_data(group_id, brands, categories, types,
+                                      final_status or None, skip_status or None, clusters or None,
+                                      iteration_id, page, chunk_size, None, 'asc', skip_count=True, col_filters=col_filters)
         if not data:
             break
-
         for row in data:
-            skip_display = 'Yes' if row['skip_status'] == 1 else ('No' if row['skip_status'] == 0 else '-')
-            history_text = ''
-            if row['iteration_history']:
-                history_lines = [f"EPS: {h['eps']}, Sample: {h['sample']}, Status: {h['status']}, {h['date']}"
-                               for h in row['iteration_history']]
-                history_text = ' | '.join(history_lines)
-
-            writer.writerow([
-                row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['mfr_cost'], row['shipping_cost'], row['profit_margin'], row['eps'], row['sample'], row['final_status'],
-                row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
-                row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
-                skip_display, history_text
-            ])
-
+            csv_row = []
+            for key, _ in export_cols:
+                if key == 'skip_status':
+                    val = 'Yes' if row.get('skip_status') == 1 else ('No' if row.get('skip_status') == 0 else '-')
+                elif key in ('mor', 'is_map_violation', 'is_loss_item', 'is_underpriced', 'is_overpriced', 'is_overpriced_above_map'):
+                    val = 'Yes' if row.get(key) == 1 else 'No'
+                elif key == 'iteration_history':
+                    val = ' | '.join([f"EPS: {h['eps']}, Sample: {h['sample']}, Status: {h['status']}, {h['date']}" for h in row['iteration_history']]) if row.get('iteration_history') else ''
+                elif key == 'cluster_items_per':
+                    val = f"{row.get('cluster_items_per', 0):.2f}%"
+                else:
+                    val = row.get(key, '')
+                csv_row.append(val)
+            writer.writerow(csv_row)
         if len(data) < chunk_size:
             break
         page += 1
@@ -180,69 +284,54 @@ def api_export_data():
     return output
 
 
-@pricing_grid_bp.post("/api/export-xls")
-def api_export_xls():
-    """Export grid data to XLS with red background for outlier dimensions"""
+@pricing_grid_bp.post("/api/mark-status")
+def api_mark_status():
+    """Mark selected products as Normal / Outlier / Pending with optional issue note."""
     payload = request.get_json(silent=True) or {}
-    group_id = payload.get("group_id")
-    if not group_id:
-        return jsonify({"ok": False, "message": "No product group selected."}), 400
+    product_ids = payload.get("product_ids") or []
+    status = payload.get("status")          # 'Normal' | 'Outlier' | 'Pending'
+    issue_note = (payload.get("issue_note") or "").strip()
 
-    from io import BytesIO
-    from flask import make_response
+    if not product_ids:
+        return jsonify({"ok": False, "message": "No products selected."})
+    if status not in ('Normal', 'Outlier', 'Pending'):
+        return jsonify({"ok": False, "message": "Invalid status."})
+
+    from models.base.base import SessionLocal
+    from models.pricing.product import Product
+    from datetime import datetime
+
+    db = SessionLocal()
     try:
-        from openpyxl import Workbook
-    except ImportError:
-        return jsonify({"ok": False, "message": "openpyxl not installed"}), 500
+        products = db.query(Product).filter(Product.product_id.in_(product_ids)).all()
+        now = datetime.utcnow()
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Grid Export"
+        for p in products:
+            if status == 'Normal':
+                p.final_status = 1
+                p.outlier_mode = None
+                p.analyzed_date = now
+                p.issue_note = None
+            elif status == 'Outlier':
+                p.final_status = 0
+                p.outlier_mode = 1
+                p.analyzed_date = now
+                if issue_note:
+                    existing = (p.issue_note or '').strip()
+                    p.issue_note = (existing + ', ' + issue_note) if existing else issue_note
+            elif status == 'Pending':
+                p.final_status = None
+                p.outlier_mode = None
+                p.analyzed_date = None
+                p.issue_note = None
 
-    headers = ['Product ID', 'QB Code', 'Brand', 'Category', 'Product Type',
-               'Name', 'Mfr Cost', 'Shipping Cost', 'Profit Margin', 'EPS', 'Sample', 'Final Status',
-               'Total Items', 'Analyzed Items', 'Pending Items', 'Outlier Items',
-               'Cluster Items', 'Cluster Items (%)', 'Cluster', 'Skip Status', 'Final Status History']
-    ws.append(headers)
-
-    page = 1
-    chunk_size = 5000
-
-    while True:
-        data, _ = grid.load_grid_data(group_id, payload.get("brands"), payload.get("categories"),
-                                      payload.get("types"), payload.get("final_status"), payload.get("skip_status"),
-                                      payload.get("clusters"), payload.get("iteration_id"), page, chunk_size, None, 'asc', skip_count=True)
-        if not data:
-            break
-
-        for row in data:
-            skip_display = 'Yes' if row['skip_status'] == 1 else ('No' if row['skip_status'] == 0 else '-')
-            history_text = ''
-            if row['iteration_history']:
-                history_lines = [f"EPS: {h['eps']}, Sample: {h['sample']}, Status: {h['status']}, {h['date']}"
-                               for h in row['iteration_history']]
-                history_text = ' | '.join(history_lines)
-
-            ws.append([
-                row['system_product_id'], row['qb_code'], row['brand'], row['category'], row['product_type'], row['name'],
-                row['mfr_cost'], row['shipping_cost'], row['profit_margin'], row['eps'], row['sample'], row['final_status'],
-                row.get('total_items', 0), row.get('analyzed_items', 0), row.get('pending_items', 0), row.get('outlier_items', 0),
-                row.get('cluster_items', 0), f"{row.get('cluster_items_per', 0):.2f}%", row.get('cluster', ''),
-                skip_display, history_text
-            ])
-
-        if len(data) < chunk_size:
-            break
-        page += 1
-
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    response = make_response(output.getvalue())
-    response.headers["Content-Disposition"] = "attachment; filename=grid_export.xlsx"
-    response.headers["Content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    return response
+        db.commit()
+        return jsonify({"ok": True, "message": f"Updated {len(products)} product(s) to {status}."})
+    except Exception as e:
+        db.rollback()
+        return jsonify({"ok": False, "message": f"Error: {str(e)}"})
+    finally:
+        db.close()
 
 
 @pricing_grid_bp.post("/api/save-skip-status")
